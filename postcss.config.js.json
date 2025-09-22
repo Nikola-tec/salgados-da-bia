@@ -1,0 +1,7 @@
+module.exports = {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+}
+    * Salve e feche o ficheiro.
