@@ -20,15 +20,15 @@ import {
     getDocs,
     writeBatch
 } from 'firebase/firestore';
-import { ChefHat, ShoppingCart, User, LogOut, PlusCircle, MinusCircle, Trash2, Edit, XCircle, CheckCircle, Zap, Package, DollarSign, Clock, ListOrdered, Settings, Plus, Star } from 'lucide-react';
+import { ChefHat, ShoppingCart, User, LogOut, PlusCircle, MinusCircle, Trash2, Edit, XCircle, CheckCircle, Zap, Package, DollarSign, Clock, ListOrdered, Settings, Plus, Star, AlertTriangle } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DO FIREBASE ---
 let firebaseConfig;
-
 try {
   if (typeof __firebase_config !== 'undefined' && __firebase_config) {
     firebaseConfig = JSON.parse(__firebase_config);
-  } else if (typeof process !== 'undefined' && process.env.REACT_APP_API_KEY) {
+  } else {
+    // Tenta carregar a partir das variáveis de ambiente para o ambiente de desenvolvimento local
     firebaseConfig = {
       apiKey: process.env.REACT_APP_API_KEY,
       authDomain: process.env.REACT_APP_AUTH_DOMAIN,
@@ -37,19 +37,28 @@ try {
       messagingSenderId: process.env.REACT_APP_MESSAGING_SENDER_ID,
       appId: process.env.REACT_APP_APP_ID,
     };
-  } else {
-    firebaseConfig = {};
   }
 } catch (error) {
-    console.error("Falha ao configurar o Firebase:", error);
+    console.error("Falha ao analisar a configuração do Firebase:", error);
     firebaseConfig = {};
 }
 
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'salgados-da-bia';
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+// --- INICIALIZAÇÃO SEGURA DO FIREBASE ---
+let app, auth, db;
+let firebaseInitialized = false;
+
+if (firebaseConfig && firebaseConfig.apiKey) {
+  try {
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+    firebaseInitialized = true;
+  } catch (error) {
+    console.error("A inicialização do Firebase falhou:", error);
+  }
+}
 
 // --- DADOS INICIAIS DO CARDÁPIO ---
 const INITIAL_MENU_DATA = [
@@ -64,6 +73,16 @@ const INITIAL_MENU_DATA = [
     { name: 'Box 50 Salgados', category: 'Boxes', price: 45.00, customizable: true, size: 50, image: 'https://i.imgur.com/uD4fGTy.png' },
     { name: 'Box 100 "Fome Gigantesca"', category: 'Boxes', price: 85.00, customizable: true, size: 100, image: 'https://i.imgur.com/uD4fGTy.png' },
 ];
+
+const FirebaseErrorScreen = () => (
+    <div className="flex flex-col items-center justify-center h-screen bg-red-50 text-red-800 p-4 text-center">
+        <AlertTriangle size={48} className="mb-4 text-red-500" />
+        <h1 className="text-2xl font-bold">Erro de Configuração do Firebase</h1>
+        <p className="mt-2 max-w-md">Não foi possível estabelecer ligação à base de dados. Isto acontece normalmente quando as Variáveis de Ambiente na Vercel não estão configuradas corretamente.</p>
+        <p className="mt-4 font-bold">Por favor, verifique o "Guia de Correção Final" para garantir que as suas chaves do Firebase foram adicionadas corretamente nas definições do seu projeto na Vercel.</p>
+    </div>
+);
+
 
 // --- COMPONENTE PRINCIPAL: App ---
 export default function App() {
@@ -84,6 +103,11 @@ export default function App() {
     };
 
     useEffect(() => {
+        if (!firebaseInitialized) {
+            setLoading(false);
+            return;
+        }
+
         const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
             setLoading(false);
@@ -109,7 +133,7 @@ export default function App() {
     }, []);
 
     useEffect(() => {
-        if (!user) return;
+        if (!user || !firebaseInitialized) return;
 
         if (user && !user.isAnonymous) {
             setView('admin');
@@ -222,6 +246,10 @@ export default function App() {
         }
     };
     
+    if (!firebaseInitialized) {
+        return <FirebaseErrorScreen />;
+    }
+    
     const renderView = () => {
         switch (view) {
             case 'cart':
@@ -258,7 +286,7 @@ export default function App() {
     );
 }
 
-// --- COMPONENTES DE VIEW ---
+// --- COMPONENTES DE VIEW (O RESTO DO CÓDIGO PERMANECE O MESMO) ---
 
 const Toast = ({ message }) => (
      <div className="fixed bottom-5 left-1/2 -translate-x-1/2 bg-stone-800 text-white py-2 px-6 rounded-full shadow-lg z-50 transition-opacity duration-300">
