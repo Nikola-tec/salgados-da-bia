@@ -71,10 +71,11 @@ const INITIAL_MENU_DATA = [
     { name: 'Croquete de Queijo e Fiambre', category: 'Salgados Especiais', price: 1.30, image: 'https://i.imgur.com/K1LdKjW.jpg', minimumOrder: 10 },
     { name: 'Croquete de Calabresa', category: 'Salgados Especiais', price: 1.30, image: 'https://i.imgur.com/0iYwW5q.jpg', minimumOrder: 10 },
     { name: 'Kibe', category: 'Salgados Especiais', price: 1.50, image: 'https://i.imgur.com/Y4bBv8e.jpg', minimumOrder: 10 },
-    { name: 'Box 15 Salgados', category: 'Boxes', price: 15.00, customizable: true, size: 15, image: 'https://i.imgur.com/uD4fGTy.png' },
-    { name: 'Box 30 Salgados', category: 'Boxes', price: 28.00, customizable: true, size: 30, image: 'https://i.imgur.com/uD4fGTy.png' },
-    { name: 'Box 50 Salgados', category: 'Boxes', price: 45.00, customizable: true, size: 50, image: 'https://i.imgur.com/uD4fGTy.png' },
-    { name: 'Box 100 "Fome Gigantesca"', category: 'Boxes', price: 85.00, customizable: true, size: 100, image: 'https://i.imgur.com/uD4fGTy.png' },
+    { name: 'Box Tradicional 15 Salgados', category: 'Boxes', price: 15.00, customizable: true, size: 15, image: 'https://i.imgur.com/uD4fGTy.png' },
+    { name: 'Box Tradicional 30 Salgados', category: 'Boxes', price: 28.00, customizable: true, size: 30, image: 'https://i.imgur.com/uD4fGTy.png' },
+    { name: 'Box Especial 30 Salgados', category: 'Boxes', price: 32.00, customizable: true, size: 30, image: 'https://i.imgur.com/uD4fGTy.png' },
+    { name: 'Box Tradicional 50 Salgados', category: 'Boxes', price: 45.00, customizable: true, size: 50, image: 'https://i.imgur.com/uD4fGTy.png' },
+    { name: 'Box Gigante 100 Salgados', category: 'Boxes', price: 85.00, customizable: true, size: 100, image: 'https://i.imgur.com/uD4fGTy.png' },
 ];
 
 const INITIAL_SHOP_SETTINGS = {
@@ -387,15 +388,29 @@ const Footer = ({ user, setView, handleLogout, isAdmin }) => (
 
 const MenuView = ({ menu, addToCart, cart, setView, cartTotal }) => {
     const [customizingBox, setCustomizingBox] = useState(null);
-    const salgados = menu.filter(item => !item.customizable);
+    
+    const handleCustomizeClick = (boxItem) => {
+        let availableSalgados;
+        if (boxItem.name.toLowerCase().includes('especial')) {
+            availableSalgados = menu.filter(item => 
+                (item.category === 'Salgados Tradicionais' || item.category === 'Salgados Especiais') && !item.customizable
+            );
+        } else {
+            availableSalgados = menu.filter(item => 
+                item.category === 'Salgados Tradicionais' && !item.customizable
+            );
+        }
+        setCustomizingBox({ box: boxItem, availableSalgados });
+    };
+
     const categories = [...new Set(menu.map(item => item.category))].sort((a,b) => a === 'Boxes' ? -1 : b === 'Boxes' ? 1 : a.localeCompare(b));
 
     return (
         <div className="animate-fade-in">
             {customizingBox && (
                 <CustomizeBoxModal 
-                    box={customizingBox} 
-                    salgados={salgados} 
+                    box={customizingBox.box} 
+                    salgados={customizingBox.availableSalgados} 
                     onClose={() => setCustomizingBox(null)} 
                     addToCart={addToCart}
                 />
@@ -405,7 +420,7 @@ const MenuView = ({ menu, addToCart, cart, setView, cartTotal }) => {
                     <h2 className="text-3xl font-bold text-amber-600 border-b-2 border-amber-200 pb-2 mb-6">{category}</h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                         {menu.filter(item => item.category === category).map(item => (
-                            <MenuItemCard key={item.id} item={item} onOrderClick={() => item.customizable ? setCustomizingBox(item) : addToCart(item, null)} />
+                            <MenuItemCard key={item.id} item={item} onOrderClick={() => item.customizable ? handleCustomizeClick(item) : addToCart(item, null)} />
                         ))}
                     </div>
                 </div>
