@@ -19,7 +19,8 @@ import {
     updateDoc, 
     deleteDoc,
     getDocs,
-    writeBatch
+    writeBatch,
+    setDoc
 } from 'firebase/firestore';
 import { ChefHat, ShoppingCart, User, LogOut, PlusCircle, MinusCircle, Trash2, Edit, XCircle, CheckCircle, Package, DollarSign, Clock, Settings, Plus, Star, AlertTriangle, UserCheck, KeyRound, Loader2 } from 'lucide-react';
 
@@ -60,7 +61,7 @@ if (firebaseConfig && firebaseConfig.apiKey) {
   }
 }
 
-// --- DADOS INICIAIS DO CARDÁPIO ---
+// --- DADOS INICIAIS ---
 const INITIAL_MENU_DATA = [
     { name: 'Coxinha de Frango', category: 'Salgados Tradicionais', price: 1.20, image: 'https://i.imgur.com/3h2YqVp.jpg' },
     { name: 'Rissoles de Carne', category: 'Salgados Tradicionais', price: 1.20, image: 'https://i.imgur.com/sBw91hB.jpg' },
@@ -73,6 +74,15 @@ const INITIAL_MENU_DATA = [
     { name: 'Box 50 Salgados', category: 'Boxes', price: 45.00, customizable: true, size: 50, image: 'https://i.imgur.com/uD4fGTy.png' },
     { name: 'Box 100 "Fome Gigantesca"', category: 'Boxes', price: 85.00, customizable: true, size: 100, image: 'https://i.imgur.com/uD4fGTy.png' },
 ];
+
+const INITIAL_SHOP_SETTINGS = {
+    storeName: "Salgados da Bia",
+    logoUrl: "https://i.imgur.com/kHw2x5L.png",
+    email: "contato@salgadosdabia.pt",
+    phone: "+351 912 345 678",
+    currency: "EUR"
+};
+
 
 const FirebaseErrorScreen = () => (
     <div className="flex flex-col items-center justify-center h-screen bg-red-50 text-red-800 p-4 text-center">
@@ -89,6 +99,7 @@ export default function App() {
     const [view, setView] = useState('menu'); 
     const [menu, setMenu] = useState([]);
     const [orders, setOrders] = useState([]);
+    const [shopSettings, setShopSettings] = useState(INITIAL_SHOP_SETTINGS);
     const [cart, setCart] = useState([]);
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -135,9 +146,9 @@ export default function App() {
         
         if (isAdmin) setView('admin');
 
+        // Listener para o cardápio
         const menuCollectionPath = `artifacts/${appId}/public/data/menu`;
         const menuRef = collection(db, menuCollectionPath);
-        
         const populateInitialData = async () => {
             try {
                 const snapshot = await getDocs(menuRef);
@@ -149,24 +160,44 @@ export default function App() {
                     });
                     await batch.commit();
                 }
-            } catch (e) { console.error("Erro ao popular dados iniciais:", e); }
+            } catch (e) { console.error("Erro ao popular dados do cardápio:", e); }
         };
         populateInitialData();
-
         const unsubscribeMenu = onSnapshot(menuRef, (snapshot) => {
             setMenu(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         }, (err) => console.error("Erro no listener do cardápio:", err));
 
+        // Listener para os pedidos
         const ordersCollectionPath = `artifacts/${appId}/public/data/orders`;
         const ordersRef = collection(db, ordersCollectionPath);
         const unsubscribeOrders = onSnapshot(ordersRef, (snapshot) => {
             const ordersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setOrders(ordersData.sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis()));
         }, (err) => console.error("Erro no listener de pedidos:", err));
+        
+        // Listener para as configurações da loja
+        const settingsDocPath = `artifacts/${appId}/public/data/settings`;
+        const settingsRef = doc(db, settingsDocPath, 'shopConfig');
+        const populateInitialSettings = async () => {
+             try {
+                const docSnap = await getDocs(collection(db, settingsDocPath));
+                if (docSnap.empty) {
+                    await setDoc(settingsRef, INITIAL_SHOP_SETTINGS);
+                }
+            } catch (e) { console.error("Erro ao popular configurações iniciais:", e); }
+        };
+        populateInitialSettings();
+        const unsubscribeSettings = onSnapshot(settingsRef, (doc) => {
+            if (doc.exists()) {
+                setShopSettings(doc.data());
+            }
+        });
+
 
         return () => {
             unsubscribeMenu();
             unsubscribeOrders();
+            unsubscribeSettings();
         };
     }, [user, isAdmin]);
 
@@ -253,7 +284,7 @@ export default function App() {
             case 'customerLogin': return <LoginView handleLogin={handleLogin} error={error} setView={setView} authLoading={authLoading} />;
             case 'signUp': return <SignUpView handleSignUp={handleSignUp} error={error} setView={setView} authLoading={authLoading} />;
             case 'myOrders': return <MyOrdersView orders={orders.filter(o => o.userId === user?.uid)} setView={setView} />;
-            case 'admin': return isAdmin ? <AdminDashboard menu={menu} orders={orders} handleLogout={handleLogout} showToast={showToast} /> : <MenuView menu={menu} addToCart={addToCart} cart={cart} setView={setView} cartTotal={cartTotal} />;
+            case 'admin': return isAdmin ? <AdminDashboard menu={menu} orders={orders} handleLogout={handleLogout} showToast={showToast} settings={shopSettings} /> : <MenuView menu={menu} addToCart={addToCart} cart={cart} setView={setView} cartTotal={cartTotal} />;
             default: return <MenuView menu={menu} addToCart={addToCart} cart={cart} setView={setView} cartTotal={cartTotal} />;
         }
     };
@@ -263,7 +294,7 @@ export default function App() {
     return (
         <div className="bg-stone-50 min-h-screen font-sans text-stone-800" style={{fontFamily: "'Inter', sans-serif"}}>
             {toastMessage && <Toast message={toastMessage} />}
-            <Header cartCount={cartTotalQuantity} setView={setView} user={user} isAdmin={isAdmin} />
+            <Header cartCount={cartTotalQuantity} setView={setView} user={user} isAdmin={isAdmin} settings={shopSettings}/>
             <main className="p-4 md:p-6 max-w-7xl mx-auto">
                 {renderView()}
             </main>
@@ -280,13 +311,13 @@ const Toast = ({ message }) => (
     </div>
 );
 
-const Header = ({ cartCount, setView, user, isAdmin }) => (
+const Header = ({ cartCount, setView, user, isAdmin, settings }) => (
     <header className="bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 flex justify-between items-center">
             <div className="flex items-center gap-4 cursor-pointer transition-transform hover:scale-105" onClick={() => setView(isAdmin ? 'admin' : 'menu')}>
-                <img src="https://i.imgur.com/kHw2x5L.png" alt="Logo Salgados da Bia" className="h-14 w-14 object-contain" />
+                <img src={settings.logoUrl} alt="Logo Salgados da Bia" className="h-14 w-14 object-contain" />
                 <div>
-                    <h1 className="text-xl md:text-2xl font-bold text-amber-600">Salgados da Bia</h1>
+                    <h1 className="text-xl md:text-2xl font-bold text-amber-600">{settings.storeName}</h1>
                     <p className="text-xs text-stone-500 -mt-1">O sabor do Brasil em Portugal</p>
                 </div>
             </div>
@@ -763,14 +794,14 @@ const AdminStats = ({ orders }) => {
     );
 }
 
-const AdminDashboard = ({ menu, orders, handleLogout, showToast }) => {
+const AdminDashboard = ({ menu, orders, handleLogout, showToast, settings }) => {
     const [adminView, setAdminView] = useState('dashboard'); 
     
     const renderAdminView = () => {
         switch(adminView) {
             case 'orders': return <ManageOrders orders={orders} />;
             case 'menu': return <ManageMenu menu={menu} />;
-            case 'settings': return <AdminSettings showToast={showToast} />;
+            case 'settings': return <AdminSettings showToast={showToast} currentSettings={settings} />;
             default: return <AdminStats orders={orders} />;
         }
     }
@@ -792,23 +823,27 @@ const AdminDashboard = ({ menu, orders, handleLogout, showToast }) => {
     );
 };
 
-const AdminSettings = ({showToast}) => {
-    const [settings, setSettings] = useState({
-        storeName: "Salgados da Bia",
-        logoUrl: "https://i.imgur.com/kHw2x5L.png",
-        email: "contato@salgadosdabia.pt",
-        phone: "+351 912 345 678",
-        currency: "EUR"
-    });
+const AdminSettings = ({showToast, currentSettings}) => {
+    const [settings, setSettings] = useState(currentSettings);
     const [isSaving, setIsSaving] = useState(false);
 
-    const handleSave = () => {
+    useEffect(() => {
+        setSettings(currentSettings);
+    }, [currentSettings]);
+
+    const handleSave = async () => {
         setIsSaving(true);
-        // Placeholder for saving settings to Firestore
-        setTimeout(() => {
-            setIsSaving(false);
+        const settingsDocPath = `artifacts/${appId}/public/data/settings`;
+        const settingsRef = doc(db, settingsDocPath, 'shopConfig');
+        try {
+            await setDoc(settingsRef, settings, { merge: true });
             showToast("Configurações salvas com sucesso!");
-        }, 1500);
+        } catch (error) {
+            console.error("Erro ao salvar configurações:", error);
+            showToast("Erro ao salvar. Tente novamente.");
+        } finally {
+            setIsSaving(false);
+        }
     }
 
     return (
