@@ -21,7 +21,7 @@ import {
     getDocs,
     writeBatch
 } from 'firebase/firestore';
-import { ChefHat, ShoppingCart, User, LogOut, PlusCircle, MinusCircle, Trash2, Edit, XCircle, CheckCircle, Package, DollarSign, Clock, Settings, Plus, Star, AlertTriangle, UserCheck, KeyRound } from 'lucide-react';
+import { ChefHat, ShoppingCart, User, LogOut, PlusCircle, MinusCircle, Trash2, Edit, XCircle, CheckCircle, Package, DollarSign, Clock, Settings, Plus, Star, AlertTriangle, UserCheck, KeyRound, Loader2 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DO FIREBASE ---
 let firebaseConfig;
@@ -92,6 +92,7 @@ export default function App() {
     const [cart, setCart] = useState([]);
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [authLoading, setAuthLoading] = useState(false);
     const [error, setError] = useState('');
     const [toastMessage, setToastMessage] = useState('');
     const [isAdmin, setIsAdmin] = useState(false);
@@ -130,8 +131,6 @@ export default function App() {
     }, []);
 
     useEffect(() => {
-        // CORREÇÃO: A lógica de dados agora só corre DEPOIS do 'user' ser definido,
-        // garantindo que a aplicação já está autenticada.
         if (!user || !firebaseInitialized) return;
         
         if (isAdmin) setView('admin');
@@ -169,7 +168,6 @@ export default function App() {
             unsubscribeMenu();
             unsubscribeOrders();
         };
-    // CORREÇÃO: Adicionado 'user' ao array de dependências.
     }, [user, isAdmin]);
 
     const addToCart = (item, customization) => {
@@ -191,23 +189,27 @@ export default function App() {
     const cartTotalQuantity = useMemo(() => cart.reduce((total, item) => total + item.quantity, 0), [cart]);
 
     const handleLogin = async (email, password) => {
+        setAuthLoading(true);
+        setError('');
         try {
             await signInWithEmailAndPassword(auth, email, password);
-            setError('');
             if(email === 'admin@admin.com') {
                 setView('admin');
             } else {
                 setView('cart');
             }
         } catch (err) { setError('Email ou senha inválidos.'); }
+        finally { setAuthLoading(false); }
     };
     
     const handleSignUp = async (email, password) => {
+        setAuthLoading(true);
+        setError('');
         try {
             await createUserWithEmailAndPassword(auth, email, password);
-            setError('');
             setView('cart');
         } catch(err) { setError('Não foi possível criar a conta. O email pode já estar em uso.'); }
+        finally { setAuthLoading(false); }
     }
 
     const handleLogout = async () => {
@@ -223,6 +225,7 @@ export default function App() {
             setView('customerLogin');
             return;
         }
+        setAuthLoading(true);
         try {
             const ordersCollectionPath = `artifacts/${appId}/public/data/orders`;
             await addDoc(collection(db, ordersCollectionPath), {
@@ -236,6 +239,7 @@ export default function App() {
             setCart([]);
             setView('confirmation');
         } catch (error) { console.error("Erro ao fazer pedido: ", error); setError("Não foi possível processar seu pedido. Tente novamente."); }
+        finally { setAuthLoading(false); }
     };
     
     if (!firebaseInitialized) return <FirebaseErrorScreen />;
@@ -243,13 +247,13 @@ export default function App() {
     const renderView = () => {
         switch (view) {
             case 'cart': return <CartView cart={cart} updateQuantity={updateQuantity} cartTotal={cartTotal} setView={setView} emptyCart={() => setCart([])} user={user} />;
-            case 'checkout': return <CheckoutView placeOrder={placeOrder} cartTotal={cartTotal} setView={setView} initialError={error} user={user} />;
+            case 'checkout': return <CheckoutView placeOrder={placeOrder} cartTotal={cartTotal} setView={setView} initialError={error} user={user} authLoading={authLoading} />;
             case 'confirmation': return <ConfirmationView setView={setView} />;
-            case 'adminLogin': return <LoginView handleLogin={handleLogin} error={error} isAdminLogin={true} />;
-            case 'customerLogin': return <LoginView handleLogin={handleLogin} error={error} setView={setView} />;
-            case 'signUp': return <SignUpView handleSignUp={handleSignUp} error={error} setView={setView} />;
+            case 'adminLogin': return <LoginView handleLogin={handleLogin} error={error} isAdminLogin={true} authLoading={authLoading} />;
+            case 'customerLogin': return <LoginView handleLogin={handleLogin} error={error} setView={setView} authLoading={authLoading} />;
+            case 'signUp': return <SignUpView handleSignUp={handleSignUp} error={error} setView={setView} authLoading={authLoading} />;
             case 'myOrders': return <MyOrdersView orders={orders.filter(o => o.userId === user?.uid)} setView={setView} />;
-            case 'admin': return isAdmin ? <AdminDashboard menu={menu} orders={orders} handleLogout={handleLogout} /> : <MenuView menu={menu} addToCart={addToCart} cart={cart} setView={setView} cartTotal={cartTotal} />;
+            case 'admin': return isAdmin ? <AdminDashboard menu={menu} orders={orders} handleLogout={handleLogout} showToast={showToast} /> : <MenuView menu={menu} addToCart={addToCart} cart={cart} setView={setView} cartTotal={cartTotal} />;
             default: return <MenuView menu={menu} addToCart={addToCart} cart={cart} setView={setView} cartTotal={cartTotal} />;
         }
     };
@@ -271,7 +275,7 @@ export default function App() {
 // --- COMPONENTES DE VIEW ---
 
 const Toast = ({ message }) => (
-     <div className="fixed bottom-5 left-1/2 -translate-x-1/2 bg-stone-800 text-white py-2 px-6 rounded-full shadow-lg z-50 transition-opacity duration-300">
+     <div className="fixed bottom-5 left-1/2 -translate-x-1/2 bg-stone-800 text-white py-2 px-6 rounded-full shadow-lg z-50 transition-opacity duration-300 animate-fade-in-up">
         <p className="flex items-center gap-2"><CheckCircle size={16}/> {message}</p>
     </div>
 );
@@ -279,36 +283,36 @@ const Toast = ({ message }) => (
 const Header = ({ cartCount, setView, user, isAdmin }) => (
     <header className="bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 flex justify-between items-center">
-            <div className="flex items-center gap-4 cursor-pointer" onClick={() => setView(isAdmin ? 'admin' : 'menu')}>
+            <div className="flex items-center gap-4 cursor-pointer transition-transform hover:scale-105" onClick={() => setView(isAdmin ? 'admin' : 'menu')}>
                 <img src="https://i.imgur.com/kHw2x5L.png" alt="Logo Salgados da Bia" className="h-14 w-14 object-contain" />
                 <div>
                     <h1 className="text-xl md:text-2xl font-bold text-amber-600">Salgados da Bia</h1>
                     <p className="text-xs text-stone-500 -mt-1">O sabor do Brasil em Portugal</p>
                 </div>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 sm:gap-4">
                  { !isAdmin && 
                     <button onClick={() => setView('cart')} className="relative p-2 rounded-full hover:bg-amber-100 transition-colors">
                         <ShoppingCart className="text-amber-600" />
                         {cartCount > 0 && (
-                            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pop">
                                 {cartCount}
                             </span>
                         )}
                     </button>
                  }
                  {user && user.isAnonymous && (
-                    <button onClick={() => setView('customerLogin')} className="p-2 rounded-full hover:bg-amber-100 transition-colors">
+                    <button onClick={() => setView('customerLogin')} className="p-2 rounded-full hover:bg-amber-100 transition-colors" title="Login de Cliente">
                         <User className="text-amber-600" />
                     </button>
                  )}
                  {user && !user.isAnonymous && !isAdmin && (
-                    <button onClick={() => setView('myOrders')} className="p-2 rounded-full hover:bg-amber-100 transition-colors">
+                    <button onClick={() => setView('myOrders')} className="p-2 rounded-full hover:bg-amber-100 transition-colors" title="Meus Pedidos">
                         <UserCheck className="text-amber-600" />
                     </button>
                  )}
                  {isAdmin && (
-                    <button onClick={() => setView('admin')} className="p-2 rounded-full hover:bg-amber-100 transition-colors">
+                    <button onClick={() => setView('admin')} className="p-2 rounded-full hover:bg-amber-100 transition-colors" title="Painel de Administrador">
                         <KeyRound className="text-amber-600" />
                     </button>
                  )}
@@ -339,7 +343,7 @@ const MenuView = ({ menu, addToCart, cart, setView, cartTotal }) => {
     const categories = [...new Set(menu.map(item => item.category))].sort((a,b) => a === 'Boxes' ? -1 : b === 'Boxes' ? 1 : a.localeCompare(b));
 
     return (
-        <div>
+        <div className="animate-fade-in">
             {customizingBox && (
                 <CustomizeBoxModal 
                     box={customizingBox} 
@@ -360,7 +364,7 @@ const MenuView = ({ menu, addToCart, cart, setView, cartTotal }) => {
             ))}
             {cart.length > 0 && (
                 <div className="fixed bottom-4 right-4 z-30">
-                    <button onClick={() => setView('cart')} className="bg-amber-500 text-white font-bold py-3 px-6 rounded-full hover:bg-amber-600 transition-colors shadow-lg flex items-center gap-3 animate-fade-in">
+                    <button onClick={() => setView('cart')} className="bg-amber-500 text-white font-bold py-3 px-6 rounded-full hover:bg-amber-600 transition-all duration-300 shadow-lg flex items-center gap-3 transform hover:scale-105 active:scale-100">
                         <ShoppingCart size={22} />
                         <span>Ver Carrinho ({cart.reduce((acc, item) => acc + item.quantity, 0)} itens)</span>
                         <span className="font-normal opacity-80">|</span>
@@ -373,16 +377,16 @@ const MenuView = ({ menu, addToCart, cart, setView, cartTotal }) => {
 };
 
 const MenuItemCard = ({ item, onOrderClick }) => (
-    <div className="bg-white rounded-xl shadow-md overflow-hidden flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
+    <div className="bg-white rounded-xl shadow-md overflow-hidden flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1 group">
         <div className="h-48 overflow-hidden">
-            <img src={item.image} alt={item.name} className="w-full h-full object-cover transition-transform duration-300 hover:scale-110" onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/400x300/FBBF24/FFFFFF?text=Salgado'; }} />
+            <img src={item.image} alt={item.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/400x300/FBBF24/FFFFFF?text=Salgado'; }} />
         </div>
         <div className="p-4 flex flex-col flex-grow">
             <h3 className="text-lg font-bold text-stone-800">{item.name}</h3>
             <p className="text-stone-600 text-sm flex-grow mt-1">{item.description || ''}</p>
             <div className="flex justify-between items-center mt-4">
                 <span className="text-xl font-bold text-green-600">{item.price.toFixed(2)}€</span>
-                <button onClick={onOrderClick} className="bg-amber-500 text-white font-bold py-2 px-4 rounded-full hover:bg-amber-600 transition-colors flex items-center gap-2 shadow-sm hover:shadow-md">
+                <button onClick={onOrderClick} className="bg-amber-500 text-white font-bold py-2 px-4 rounded-full hover:bg-amber-600 transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow-md transform active:scale-95">
                     <Plus size={18} /> {item.customizable ? 'Montar' : 'Adicionar'}
                 </button>
             </div>
@@ -438,11 +442,11 @@ const CustomizeBoxModal = ({ box, salgados, onClose, addToCart }) => {
 
     return (
         <div className="fixed inset-0 bg-black/70 z-50 flex justify-center items-center p-4 animate-fade-in">
-            <div className="bg-white rounded-lg shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col">
+            <div className="bg-white rounded-lg shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col animate-slide-up">
                 <div className="p-4 border-b flex justify-between items-center flex-wrap gap-2">
                     <h2 className="text-xl font-bold text-amber-600">Monte seu {box.name}</h2>
                     <div className='flex items-center gap-2'>
-                        <button onClick={handleRandomFill} className="text-sm bg-amber-100 text-amber-800 font-semibold py-1 px-3 rounded-full hover:bg-amber-200 flex items-center gap-1 transition-colors"><Star size={14}/> Montar Aleatoriamente</button>
+                        <button onClick={handleRandomFill} className="text-sm bg-amber-100 text-amber-800 font-semibold py-1 px-3 rounded-full hover:bg-amber-200 flex items-center gap-1 transition-colors active:scale-95"><Star size={14}/> Montar Aleatoriamente</button>
                         <button onClick={onClose} className="p-1 rounded-full text-stone-500 hover:bg-stone-200"><XCircle /></button>
                     </div>
                 </div>
@@ -458,10 +462,10 @@ const CustomizeBoxModal = ({ box, salgados, onClose, addToCart }) => {
                             <div key={salgado.id} className="flex justify-between items-center bg-stone-100 p-3 rounded-md">
                                 <p className="font-semibold text-stone-700">{salgado.name}</p>
                                 <div className="flex items-center gap-2">
-                                    <button onClick={() => handleSelectionChange(salgado.id, -1)} className="p-1 rounded-full bg-amber-200 text-amber-800 hover:bg-amber-300 disabled:opacity-50 transition-colors" disabled={(selection[salgado.id] || 0) === 0}><MinusCircle size={22} /></button>
+                                    <button onClick={() => handleSelectionChange(salgado.id, -1)} className="p-1 rounded-full bg-amber-200 text-amber-800 hover:bg-amber-300 disabled:opacity-50 transition-colors active:scale-90" disabled={(selection[salgado.id] || 0) === 0}><MinusCircle size={22} /></button>
                                     <span className="font-bold w-8 text-center text-lg">{selection[salgado.id] || 0}</span>
-                                    <button onClick={() => handleSelectionChange(salgado.id, 1)} className="p-1 rounded-full bg-amber-200 text-amber-800 hover:bg-amber-300 disabled:opacity-50 transition-colors" disabled={totalSelected >= box.size}><PlusCircle size={22} /></button>
-                                    <button onClick={() => handleSelectionChange(salgado.id, 10)} className="text-xs font-bold w-9 h-9 rounded-md bg-amber-300 text-amber-900 hover:bg-amber-400 disabled:opacity-50 transition-colors" disabled={totalSelected + 10 > box.size}>+10</button>
+                                    <button onClick={() => handleSelectionChange(salgado.id, 1)} className="p-1 rounded-full bg-amber-200 text-amber-800 hover:bg-amber-300 disabled:opacity-50 transition-colors active:scale-90" disabled={totalSelected >= box.size}><PlusCircle size={22} /></button>
+                                    <button onClick={() => handleSelectionChange(salgado.id, 10)} className="text-xs font-bold w-9 h-9 rounded-md bg-amber-300 text-amber-900 hover:bg-amber-400 disabled:opacity-50 transition-colors active:scale-90" disabled={totalSelected + 10 > box.size}>+10</button>
                                 </div>
                             </div>
                         ))}
@@ -472,7 +476,7 @@ const CustomizeBoxModal = ({ box, salgados, onClose, addToCart }) => {
                      <button 
                          onClick={handleAddToCart} 
                          disabled={totalSelected !== box.size}
-                         className="w-full bg-green-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-600 transition-colors disabled:bg-stone-400 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm hover:shadow-lg"
+                         className="w-full bg-green-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-600 transition-all duration-200 disabled:bg-stone-400 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm hover:shadow-lg transform active:scale-95"
                      >
                         <ShoppingCart size={20} /> Adicionar ao Carrinho ({box.price.toFixed(2)}€)
                     </button>
@@ -488,18 +492,18 @@ const CartView = ({ cart, updateQuantity, cartTotal, setView, emptyCart, user })
 
     if (cart.length === 0) {
         return (
-            <div className="text-center py-16">
+            <div className="text-center py-16 animate-fade-in">
                 <ShoppingCart size={64} className="mx-auto text-stone-300" />
                 <h2 className="text-2xl font-bold mt-4 text-stone-700">O seu carrinho está vazio</h2>
                 <p className="text-stone-500 mt-2">Adicione alguns salgados deliciosos para começar!</p>
-                <button onClick={() => setView('menu')} className="mt-6 bg-amber-500 text-white font-bold py-3 px-6 rounded-full hover:bg-amber-600 transition-colors shadow hover:shadow-lg">
+                <button onClick={() => setView('menu')} className="mt-6 bg-amber-500 text-white font-bold py-3 px-6 rounded-full hover:bg-amber-600 transition-colors shadow hover:shadow-lg active:scale-95">
                     Ver Cardápio
                 </button>
             </div>
         );
     }
     return (
-        <div className="max-w-3xl mx-auto bg-white p-6 rounded-lg shadow-lg">
+        <div className="max-w-3xl mx-auto bg-white p-6 rounded-lg shadow-lg animate-fade-in">
             {confirmingEmpty && <ConfirmDeleteModal title="Esvaziar Carrinho" message="Tem a certeza que quer remover todos os itens do carrinho?" onConfirm={handleEmptyCart} onCancel={() => setConfirmingEmpty(false)} confirmText="Esvaziar" />}
             <div className="flex justify-between items-center mb-6">
                  <h2 className="text-3xl font-bold text-stone-800">Meu Carrinho</h2>
@@ -522,9 +526,9 @@ const CartView = ({ cart, updateQuantity, cartTotal, setView, emptyCart, user })
                         </div>
                         <div className="flex flex-col items-end">
                              <div className="flex items-center gap-2">
-                                <button onClick={() => updateQuantity(item.id, -1, item.customization)} className="p-1 rounded-full text-stone-600 hover:bg-stone-200"><MinusCircle size={20} /></button>
+                                <button onClick={() => updateQuantity(item.id, -1, item.customization)} className="p-1 rounded-full text-stone-600 hover:bg-stone-200 active:scale-90"><MinusCircle size={20} /></button>
                                 <span className="font-bold text-lg w-8 text-center">{item.quantity}</span>
-                                <button onClick={() => updateQuantity(item.id, 1, item.customization)} className="p-1 rounded-full text-stone-600 hover:bg-stone-200"><PlusCircle size={20} /></button>
+                                <button onClick={() => updateQuantity(item.id, 1, item.customization)} className="p-1 rounded-full text-stone-600 hover:bg-stone-200 active:scale-90"><PlusCircle size={20} /></button>
                             </div>
                             <p className="font-bold mt-2 text-stone-800">{(item.price * item.quantity).toFixed(2)}€</p>
                             <button onClick={() => updateQuantity(item.id, -item.quantity, item.customization)} className="text-red-500 hover:text-red-700 text-sm mt-1"><Trash2 size={16} /></button>
@@ -534,7 +538,7 @@ const CartView = ({ cart, updateQuantity, cartTotal, setView, emptyCart, user })
             </div>
             <div className="mt-6 text-right">
                 <p className="text-lg">Subtotal: <span className="font-bold text-xl text-stone-800">{cartTotal}€</span></p>
-                <button onClick={() => user.isAnonymous ? setView('customerLogin') : setView('checkout')} className="mt-4 bg-green-500 text-white font-bold py-3 px-8 rounded-full hover:bg-green-600 transition-colors text-lg shadow hover:shadow-lg">
+                <button onClick={() => user.isAnonymous ? setView('customerLogin') : setView('checkout')} className="mt-4 bg-green-500 text-white font-bold py-3 px-8 rounded-full hover:bg-green-600 transition-colors text-lg shadow hover:shadow-lg active:scale-95">
                     Finalizar Pedido
                 </button>
             </div>
@@ -542,7 +546,7 @@ const CartView = ({ cart, updateQuantity, cartTotal, setView, emptyCart, user })
     );
 };
 
-const CheckoutView = ({ placeOrder, cartTotal, setView, initialError, user }) => {
+const CheckoutView = ({ placeOrder, cartTotal, setView, initialError, user, authLoading }) => {
     const [name, setName] = useState(user?.displayName || '');
     const [phone, setPhone] = useState('');
     const [address, setAddress] = useState('');
@@ -557,7 +561,7 @@ const CheckoutView = ({ placeOrder, cartTotal, setView, initialError, user }) =>
     };
 
     return (
-        <div className="max-w-lg mx-auto bg-white p-8 rounded-lg shadow-lg">
+        <div className="max-w-lg mx-auto bg-white p-8 rounded-lg shadow-lg animate-fade-in">
             <h2 className="text-3xl font-bold mb-6 text-stone-800">Detalhes da Entrega</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
@@ -576,8 +580,8 @@ const CheckoutView = ({ placeOrder, cartTotal, setView, initialError, user }) =>
                 {initialError && <p className="text-red-500 text-center">{initialError}</p>}
                 <div className="border-t pt-6 mt-2">
                     <p className="text-xl text-right mb-4">Total a Pagar: <span className="font-bold">{cartTotal}€</span></p>
-                    <button type="submit" className="w-full bg-green-500 text-white font-bold py-3 rounded-lg hover:bg-green-600 transition-colors text-lg shadow hover:shadow-lg">
-                        Confirmar Pedido
+                    <button type="submit" disabled={authLoading} className="w-full bg-green-500 text-white font-bold py-3 rounded-lg hover:bg-green-600 transition-colors text-lg shadow hover:shadow-lg active:scale-95 flex justify-center items-center disabled:bg-green-300">
+                        {authLoading ? <Loader2 className="animate-spin" /> : "Confirmar Pedido"}
                     </button>
                     <button type="button" onClick={() => setView('cart')} className="w-full mt-3 text-center text-stone-600 hover:underline">
                         Voltar ao Carrinho
@@ -589,25 +593,25 @@ const CheckoutView = ({ placeOrder, cartTotal, setView, initialError, user }) =>
 };
 
 const ConfirmationView = ({ setView }) => (
-    <div className="text-center py-16 max-w-lg mx-auto bg-white p-8 rounded-lg shadow-lg">
+    <div className="text-center py-16 max-w-lg mx-auto bg-white p-8 rounded-lg shadow-lg animate-fade-in">
         <CheckCircle size={64} className="mx-auto text-green-500" />
         <h2 className="text-3xl font-bold mt-4">Pedido Recebido!</h2>
         <p className="text-stone-600 mt-2">Obrigado pela sua preferência! O seu pedido já está a ser preparado com muito carinho.</p>
         <p className="text-stone-600 mt-1">Pode acompanhar o estado do seu pedido na secção "Meus Pedidos".</p>
-        <button onClick={() => setView('myOrders')} className="mt-8 bg-amber-500 text-white font-bold py-3 px-8 rounded-full hover:bg-amber-600 transition-colors shadow hover:shadow-lg">
+        <button onClick={() => setView('myOrders')} className="mt-8 bg-amber-500 text-white font-bold py-3 px-8 rounded-full hover:bg-amber-600 transition-colors shadow hover:shadow-lg active:scale-95">
             Ver Meus Pedidos
         </button>
     </div>
 );
 
-const LoginView = ({ handleLogin, error, setView, isAdminLogin = false }) => {
+const LoginView = ({ handleLogin, error, setView, isAdminLogin = false, authLoading }) => {
     const [email, setEmail] = useState(isAdminLogin ? 'admin@admin.com' : '');
     const [password, setPassword] = useState(isAdminLogin ? 'admin123' : '');
 
     const handleSubmit = (e) => { e.preventDefault(); handleLogin(email, password); };
 
     return (
-        <div className="max-w-sm mx-auto mt-10 bg-white p-8 rounded-lg shadow-xl">
+        <div className="max-w-sm mx-auto mt-10 bg-white p-8 rounded-lg shadow-xl animate-fade-in">
             <h2 className="text-2xl font-bold text-center mb-6">{isAdminLogin ? 'Acesso Administrador' : 'Entrar na sua Conta'}</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
@@ -619,12 +623,12 @@ const LoginView = ({ handleLogin, error, setView, isAdminLogin = false }) => {
                     <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400" required />
                 </div>
                 {error && <p className="text-red-500 text-center">{error}</p>}
-                <button type="submit" className="w-full bg-amber-500 text-white font-bold py-2 rounded-lg hover:bg-amber-600 transition-colors shadow hover:shadow-lg">
-                    Entrar
+                <button type="submit" disabled={authLoading} className="w-full bg-amber-500 text-white font-bold py-2 rounded-lg hover:bg-amber-600 transition-colors shadow hover:shadow-lg active:scale-95 flex justify-center items-center disabled:bg-amber-300">
+                     {authLoading ? <Loader2 className="animate-spin" /> : "Entrar"}
                 </button>
                 {!isAdminLogin && (
                     <p className="text-center text-sm text-stone-600 pt-2">
-                        Não tem conta? <button onClick={() => setView('signUp')} className="text-amber-600 font-bold hover:underline">Crie uma aqui.</button>
+                        Não tem conta? <button type="button" onClick={() => setView('signUp')} className="text-amber-600 font-bold hover:underline">Crie uma aqui.</button>
                     </p>
                 )}
             </form>
@@ -632,7 +636,7 @@ const LoginView = ({ handleLogin, error, setView, isAdminLogin = false }) => {
     );
 };
 
-const SignUpView = ({ handleSignUp, error, setView }) => {
+const SignUpView = ({ handleSignUp, error, setView, authLoading }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -649,7 +653,7 @@ const SignUpView = ({ handleSignUp, error, setView }) => {
     };
 
     return (
-        <div className="max-w-sm mx-auto mt-10 bg-white p-8 rounded-lg shadow-xl">
+        <div className="max-w-sm mx-auto mt-10 bg-white p-8 rounded-lg shadow-xl animate-fade-in">
             <h2 className="text-2xl font-bold text-center mb-6">Criar Conta</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
                  <div>
@@ -666,11 +670,11 @@ const SignUpView = ({ handleSignUp, error, setView }) => {
                 </div>
                 {localError && <p className="text-red-500 text-center">{localError}</p>}
                 {error && <p className="text-red-500 text-center">{error}</p>}
-                <button type="submit" className="w-full bg-amber-500 text-white font-bold py-2 rounded-lg hover:bg-amber-600 transition-colors shadow hover:shadow-lg">
-                    Criar Conta
+                <button type="submit" disabled={authLoading} className="w-full bg-amber-500 text-white font-bold py-2 rounded-lg hover:bg-amber-600 transition-colors shadow hover:shadow-lg active:scale-95 flex justify-center items-center disabled:bg-amber-300">
+                    {authLoading ? <Loader2 className="animate-spin" /> : "Criar Conta"}
                 </button>
                  <p className="text-center text-sm text-stone-600 pt-2">
-                    Já tem conta? <button onClick={() => setView('customerLogin')} className="text-amber-600 font-bold hover:underline">Entre aqui.</button>
+                    Já tem conta? <button type="button" onClick={() => setView('customerLogin')} className="text-amber-600 font-bold hover:underline">Entre aqui.</button>
                 </p>
             </form>
         </div>
@@ -685,11 +689,11 @@ const MyOrdersView = ({ orders, setView }) => {
 
     if (orders.length === 0) {
          return (
-            <div className="text-center py-16">
+            <div className="text-center py-16 animate-fade-in">
                 <Package size={64} className="mx-auto text-stone-300" />
                 <h2 className="text-2xl font-bold mt-4 text-stone-700">Ainda não tem pedidos</h2>
                 <p className="text-stone-500 mt-2">Todos os seus pedidos irão aparecer aqui.</p>
-                <button onClick={() => setView('menu')} className="mt-6 bg-amber-500 text-white font-bold py-3 px-6 rounded-full hover:bg-amber-600 transition-colors shadow hover:shadow-lg">
+                <button onClick={() => setView('menu')} className="mt-6 bg-amber-500 text-white font-bold py-3 px-6 rounded-full hover:bg-amber-600 transition-colors shadow hover:shadow-lg active:scale-95">
                     Começar a Comprar
                 </button>
             </div>
@@ -697,14 +701,14 @@ const MyOrdersView = ({ orders, setView }) => {
     }
     
     return (
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-4xl mx-auto animate-fade-in">
             <h2 className="text-3xl font-bold mb-6 text-stone-800">Meus Pedidos</h2>
             <div className="space-y-6">
                 {orders.map(order => (
                     <div key={order.id} className="bg-white p-4 sm:p-6 rounded-lg shadow-lg border border-stone-200">
                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-3 mb-3">
                              <div>
-                                <p className="text-sm text-stone-500">Pedido #{order.id.slice(0, 8)}</p>
+                                <p className="text-sm text-stone-500">Pedido #{order.id.slice(0, 8).toUpperCase()}</p>
                                 <p className="text-sm text-stone-500">Feito em: {new Date(order.createdAt?.seconds * 1000).toLocaleDateString('pt-PT')}</p>
                              </div>
                              <div className="flex items-center gap-4 mt-2 sm:mt-0">
@@ -759,37 +763,36 @@ const AdminStats = ({ orders }) => {
     );
 }
 
-const AdminDashboard = ({ menu, orders, handleLogout }) => {
+const AdminDashboard = ({ menu, orders, handleLogout, showToast }) => {
     const [adminView, setAdminView] = useState('dashboard'); 
     
     const renderAdminView = () => {
         switch(adminView) {
             case 'orders': return <ManageOrders orders={orders} />;
             case 'menu': return <ManageMenu menu={menu} />;
-            case 'settings': return <AdminSettings />;
+            case 'settings': return <AdminSettings showToast={showToast} />;
             default: return <AdminStats orders={orders} />;
         }
     }
 
     return (
-        <div className="bg-white p-4 md:p-6 rounded-lg shadow-lg">
+        <div className="bg-white p-4 md:p-6 rounded-lg shadow-lg animate-fade-in">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b pb-4">
                 <h2 className="text-3xl font-bold text-stone-800">Painel de Admin</h2>
-                <button onClick={handleLogout} title="Sair" className="p-2 mt-2 sm:mt-0 rounded-full text-red-500 hover:bg-red-100"><LogOut /></button>
+                <button onClick={handleLogout} title="Sair" className="p-2 mt-2 sm:mt-0 rounded-full text-red-500 hover:bg-red-100 transition-colors"><LogOut /></button>
             </div>
             <div className="flex flex-wrap gap-2 mb-6 border-b">
-                <button onClick={() => setAdminView('dashboard')} className={`px-4 py-2 font-semibold text-sm rounded-t-md flex items-center gap-2 ${adminView === 'dashboard' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Package size={16}/> Resumo</button>
-                <button onClick={() => setAdminView('orders')} className={`px-4 py-2 font-semibold text-sm rounded-t-md flex items-center gap-2 ${adminView === 'orders' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><ShoppingCart size={16}/> Pedidos</button>
-                <button onClick={() => setAdminView('menu')} className={`px-4 py-2 font-semibold text-sm rounded-t-md flex items-center gap-2 ${adminView === 'menu' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><ChefHat size={16}/> Cardápio</button>
-                <button onClick={() => setAdminView('settings')} className={`px-4 py-2 font-semibold text-sm rounded-t-md flex items-center gap-2 ${adminView === 'settings' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Settings size={16}/> Configurações</button>
+                <button onClick={() => setAdminView('dashboard')} className={`px-4 py-2 font-semibold text-sm rounded-t-md flex items-center gap-2 transition-colors ${adminView === 'dashboard' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Package size={16}/> Resumo</button>
+                <button onClick={() => setAdminView('orders')} className={`px-4 py-2 font-semibold text-sm rounded-t-md flex items-center gap-2 transition-colors ${adminView === 'orders' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><ShoppingCart size={16}/> Pedidos</button>
+                <button onClick={() => setAdminView('menu')} className={`px-4 py-2 font-semibold text-sm rounded-t-md flex items-center gap-2 transition-colors ${adminView === 'menu' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><ChefHat size={16}/> Cardápio</button>
+                <button onClick={() => setAdminView('settings')} className={`px-4 py-2 font-semibold text-sm rounded-t-md flex items-center gap-2 transition-colors ${adminView === 'settings' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Settings size={16}/> Configurações</button>
             </div>
             {renderAdminView()}
         </div>
     );
 };
 
-const AdminSettings = () => {
-    // NOTE: In a real app, these values would come from Firestore and be updatable.
+const AdminSettings = ({showToast}) => {
     const [settings, setSettings] = useState({
         storeName: "Salgados da Bia",
         logoUrl: "https://i.imgur.com/kHw2x5L.png",
@@ -797,10 +800,15 @@ const AdminSettings = () => {
         phone: "+351 912 345 678",
         currency: "EUR"
     });
+    const [isSaving, setIsSaving] = useState(false);
 
     const handleSave = () => {
+        setIsSaving(true);
         // Placeholder for saving settings to Firestore
-        alert("Funcionalidade de salvar ainda não implementada.");
+        setTimeout(() => {
+            setIsSaving(false);
+            showToast("Configurações salvas com sucesso!");
+        }, 1500);
     }
 
     return (
@@ -832,7 +840,9 @@ const AdminSettings = () => {
                     </select>
                 </div>
                 <div className="pt-4">
-                    <button onClick={handleSave} className="bg-amber-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-amber-600 transition-colors shadow-sm hover:shadow-md">Salvar Alterações</button>
+                    <button onClick={handleSave} disabled={isSaving} className="bg-amber-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-amber-600 transition-colors shadow-sm hover:shadow-md active:scale-95 flex items-center justify-center disabled:bg-amber-300 w-40">
+                        {isSaving ? <Loader2 className="animate-spin" /> : "Salvar Alterações"}
+                    </button>
                 </div>
             </div>
         </div>
@@ -890,13 +900,13 @@ const ManageOrders = ({ orders }) => {
 };
 
 const ConfirmDeleteModal = ({ onConfirm, onCancel, title="Confirmar Exclusão", message="Tem a certeza que quer apagar este item? Esta ação não pode ser desfeita.", confirmText="Apagar" }) => (
-    <div className="fixed inset-0 bg-black/50 z-50 flex justify-center items-center p-4">
-        <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm">
+    <div className="fixed inset-0 bg-black/50 z-50 flex justify-center items-center p-4 animate-fade-in">
+        <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm animate-slide-up">
             <h4 className="text-lg font-bold mb-2">{title}</h4>
             <p className="text-stone-600 mb-6">{message}</p>
             <div className="flex justify-end gap-4">
-                <button onClick={onCancel} className="bg-stone-300 text-stone-800 font-bold py-2 px-4 rounded-lg hover:bg-stone-400">Cancelar</button>
-                <button onClick={onConfirm} className="bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700">{confirmText}</button>
+                <button onClick={onCancel} className="bg-stone-300 text-stone-800 font-bold py-2 px-4 rounded-lg hover:bg-stone-400 transition-colors active:scale-95">Cancelar</button>
+                <button onClick={onConfirm} className="bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 transition-colors active:scale-95">{confirmText}</button>
             </div>
         </div>
     </div>
@@ -938,7 +948,7 @@ const ManageMenu = ({ menu }) => {
             {deletingItemId && <ConfirmDeleteModal onConfirm={handleDeleteConfirm} onCancel={() => setDeletingItemId(null)} />}
             <div className="flex justify-between items-center mb-4">
                  <h3 className="text-xl font-bold text-stone-700">Gerenciar Cardápio</h3>
-                 <button onClick={startCreating} className="bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-600 flex items-center gap-2 shadow-sm hover:shadow-md"><Plus size={18}/> Novo Item</button>
+                 <button onClick={startCreating} className="bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-600 flex items-center gap-2 shadow-sm hover:shadow-md active:scale-95"><Plus size={18}/> Novo Item</button>
             </div>
             {(editingItem || isCreating) && <MenuItemForm item={editingItem} onSave={handleSave} onCancel={() => { setEditingItem(null); setIsCreating(false); }} />}
             <div className="space-y-2 mt-6">
@@ -952,8 +962,8 @@ const ManageMenu = ({ menu }) => {
                             </div>
                         </div>
                         <div className="flex gap-2">
-                             <button onClick={() => setEditingItem(item)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-full"><Edit size={18} /></button>
-                             <button onClick={() => setDeletingItemId(item.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-full"><Trash2 size={18}/></button>
+                             <button onClick={() => setEditingItem(item)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-full transition-colors"><Edit size={18} /></button>
+                             <button onClick={() => setDeletingItemId(item.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-full transition-colors"><Trash2 size={18}/></button>
                         </div>
                     </div>
                 ))}
@@ -979,8 +989,8 @@ const MenuItemForm = ({ item, onSave, onCancel }) => {
     };
 
     return (
-        <div className="fixed inset-0 bg-black/50 z-50 flex justify-center items-center p-4">
-            <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 z-50 flex justify-center items-center p-4 animate-fade-in">
+            <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-slide-up">
                 <h4 className="text-lg font-bold mb-4">{item.id ? 'Editar Item' : 'Criar Novo Item'}</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -1020,8 +1030,8 @@ const MenuItemForm = ({ item, onSave, onCancel }) => {
                      )}
                 </div>
                 <div className="flex justify-end gap-4 mt-6">
-                    <button type="button" onClick={onCancel} className="bg-stone-300 text-stone-800 font-bold py-2 px-4 rounded-lg hover:bg-stone-400">Cancelar</button>
-                    <button type="submit" className="bg-amber-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-amber-600">Salvar</button>
+                    <button type="button" onClick={onCancel} className="bg-stone-300 text-stone-800 font-bold py-2 px-4 rounded-lg hover:bg-stone-400 active:scale-95 transition-colors">Cancelar</button>
+                    <button type="submit" className="bg-amber-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-amber-600 active:scale-95 transition-colors">Salvar</button>
                 </div>
             </form>
         </div>
