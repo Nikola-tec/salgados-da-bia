@@ -8,7 +8,8 @@ import {
     onAuthStateChanged, 
     signOut,
     signInAnonymously,
-    signInWithCustomToken
+    signInWithCustomToken,
+    updateProfile
 } from 'firebase/auth';
 import { 
     getFirestore, 
@@ -20,9 +21,10 @@ import {
     deleteDoc,
     getDocs,
     writeBatch,
-    setDoc
+    setDoc,
+    getDoc
 } from 'firebase/firestore';
-import { ChefHat, ShoppingCart, User, LogOut, PlusCircle, MinusCircle, Trash2, Edit, XCircle, CheckCircle, Package, DollarSign, Clock, Settings, Plus, Star, AlertTriangle, UserCheck, KeyRound, Loader2 } from 'lucide-react';
+import { ChefHat, ShoppingCart, User, LogOut, PlusCircle, MinusCircle, Trash2, Edit, XCircle, CheckCircle, Package, DollarSign, Clock, Settings, Plus, Star, AlertTriangle, UserCheck, KeyRound, Loader2, ChevronsLeft } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DO FIREBASE ---
 let firebaseConfig;
@@ -63,12 +65,12 @@ if (firebaseConfig && firebaseConfig.apiKey) {
 
 // --- DADOS INICIAIS ---
 const INITIAL_MENU_DATA = [
-    { name: 'Coxinha de Frango', category: 'Salgados Tradicionais', price: 1.20, image: 'https://i.imgur.com/3h2YqVp.jpg' },
-    { name: 'Rissoles de Carne', category: 'Salgados Tradicionais', price: 1.20, image: 'https://i.imgur.com/sBw91hB.jpg' },
-    { name: 'Bolinha de Queijo', category: 'Salgados Tradicionais', price: 1.10, image: 'https://i.imgur.com/bCn7h8S.jpg' },
-    { name: 'Croquete de Queijo e Fiambre', category: 'Salgados Especiais', price: 1.30, image: 'https://i.imgur.com/K1LdKjW.jpg' },
-    { name: 'Croquete de Calabresa', category: 'Salgados Especiais', price: 1.30, image: 'https://i.imgur.com/0iYwW5q.jpg' },
-    { name: 'Kibe', category: 'Salgados Especiais', price: 1.50, image: 'https://i.imgur.com/Y4bBv8e.jpg' },
+    { name: 'Coxinha de Frango', category: 'Salgados Tradicionais', price: 1.20, image: 'https://i.imgur.com/3h2YqVp.jpg', minimumOrder: 10 },
+    { name: 'Rissoles de Carne', category: 'Salgados Tradicionais', price: 1.20, image: 'https://i.imgur.com/sBw91hB.jpg', minimumOrder: 10 },
+    { name: 'Bolinha de Queijo', category: 'Salgados Tradicionais', price: 1.10, image: 'https://i.imgur.com/bCn7h8S.jpg', minimumOrder: 10 },
+    { name: 'Croquete de Queijo e Fiambre', category: 'Salgados Especiais', price: 1.30, image: 'https://i.imgur.com/K1LdKjW.jpg', minimumOrder: 10 },
+    { name: 'Croquete de Calabresa', category: 'Salgados Especiais', price: 1.30, image: 'https://i.imgur.com/0iYwW5q.jpg', minimumOrder: 10 },
+    { name: 'Kibe', category: 'Salgados Especiais', price: 1.50, image: 'https://i.imgur.com/Y4bBv8e.jpg', minimumOrder: 10 },
     { name: 'Box 15 Salgados', category: 'Boxes', price: 15.00, customizable: true, size: 15, image: 'https://i.imgur.com/uD4fGTy.png' },
     { name: 'Box 30 Salgados', category: 'Boxes', price: 28.00, customizable: true, size: 30, image: 'https://i.imgur.com/uD4fGTy.png' },
     { name: 'Box 50 Salgados', category: 'Boxes', price: 45.00, customizable: true, size: 50, image: 'https://i.imgur.com/uD4fGTy.png' },
@@ -89,7 +91,6 @@ const FirebaseErrorScreen = () => (
         <AlertTriangle size={48} className="mb-4 text-red-500" />
         <h1 className="text-2xl font-bold">Erro de Configuração do Firebase</h1>
         <p className="mt-2 max-w-md">Não foi possível estabelecer ligação à base de dados. Isto acontece normalmente quando as Variáveis de Ambiente na Vercel não estão configuradas corretamente.</p>
-        <p className="mt-4 font-bold">Por favor, verifique o "Guia de Correção Final" para garantir que as suas chaves do Firebase foram adicionadas corretamente nas definições do seu projeto na Vercel.</p>
     </div>
 );
 
@@ -102,6 +103,7 @@ export default function App() {
     const [shopSettings, setShopSettings] = useState(INITIAL_SHOP_SETTINGS);
     const [cart, setCart] = useState([]);
     const [user, setUser] = useState(null);
+    const [userData, setUserData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [authLoading, setAuthLoading] = useState(false);
     const [error, setError] = useState('');
@@ -119,9 +121,20 @@ export default function App() {
             return;
         }
 
-        const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+        const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
             setUser(currentUser);
             setIsAdmin(currentUser?.email === 'admin@admin.com');
+
+            if (currentUser && !currentUser.isAnonymous) {
+                const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, currentUser.uid);
+                const docSnap = await getDoc(userDocRef);
+                if (docSnap.exists()) {
+                    setUserData(docSnap.data());
+                }
+            } else {
+                setUserData(null);
+            }
+            
             setLoading(false);
         });
         
@@ -146,7 +159,6 @@ export default function App() {
         
         if (isAdmin) setView('admin');
 
-        // Listener para o cardápio
         const menuCollectionPath = `artifacts/${appId}/public/data/menu`;
         const menuRef = collection(db, menuCollectionPath);
         const populateInitialData = async () => {
@@ -167,7 +179,6 @@ export default function App() {
             setMenu(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         }, (err) => console.error("Erro no listener do cardápio:", err));
 
-        // Listener para os pedidos
         const ordersCollectionPath = `artifacts/${appId}/public/data/orders`;
         const ordersRef = collection(db, ordersCollectionPath);
         const unsubscribeOrders = onSnapshot(ordersRef, (snapshot) => {
@@ -175,7 +186,6 @@ export default function App() {
             setOrders(ordersData.sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis()));
         }, (err) => console.error("Erro no listener de pedidos:", err));
         
-        // Listener para as configurações da loja
         const settingsDocPath = `artifacts/${appId}/public/data/settings`;
         const settingsRef = doc(db, settingsDocPath, 'shopConfig');
         const populateInitialSettings = async () => {
@@ -202,14 +212,15 @@ export default function App() {
     }, [user, isAdmin]);
 
     const addToCart = (item, customization) => {
+        const quantityToAdd = item.minimumOrder && item.minimumOrder > 1 ? item.minimumOrder : 1;
         setCart(prevCart => {
             const existingItem = prevCart.find(ci => ci.id === item.id && JSON.stringify(ci.customization) === JSON.stringify(customization));
             if (existingItem) {
-                return prevCart.map(ci => ci.id === item.id && JSON.stringify(ci.customization) === JSON.stringify(customization) ? { ...ci, quantity: ci.quantity + 1 } : ci);
+                return prevCart.map(ci => ci.id === item.id && JSON.stringify(ci.customization) === JSON.stringify(customization) ? { ...ci, quantity: ci.quantity + quantityToAdd } : ci);
             }
-            return [...prevCart, { ...item, quantity: 1, customization }];
+            return [...prevCart, { ...item, quantity: quantityToAdd, customization }];
         });
-        showToast(`${item.name} adicionado!`);
+        showToast(`${quantityToAdd}x ${item.name} adicionado!`);
     };
 
     const updateQuantity = (itemId, amount, customization) => {
@@ -233,11 +244,16 @@ export default function App() {
         finally { setAuthLoading(false); }
     };
     
-    const handleSignUp = async (email, password) => {
+    const handleSignUp = async (email, password, name) => {
         setAuthLoading(true);
         setError('');
         try {
-            await createUserWithEmailAndPassword(auth, email, password);
+            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            await updateProfile(userCredential.user, { displayName: name });
+            
+            const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, userCredential.user.uid);
+            await setDoc(userDocRef, { name, email });
+            
             setView('cart');
         } catch(err) { setError('Não foi possível criar a conta. O email pode já estar em uso.'); }
         finally { setAuthLoading(false); }
@@ -278,13 +294,15 @@ export default function App() {
     const renderView = () => {
         switch (view) {
             case 'cart': return <CartView cart={cart} updateQuantity={updateQuantity} cartTotal={cartTotal} setView={setView} emptyCart={() => setCart([])} user={user} />;
-            case 'checkout': return <CheckoutView placeOrder={placeOrder} cartTotal={cartTotal} setView={setView} initialError={error} user={user} authLoading={authLoading} />;
+            case 'checkout': return <CheckoutView placeOrder={placeOrder} cartTotal={cartTotal} setView={setView} initialError={error} user={user} userData={userData} authLoading={authLoading} />;
             case 'confirmation': return <ConfirmationView setView={setView} />;
             case 'adminLogin': return <LoginView handleLogin={handleLogin} error={error} isAdminLogin={true} authLoading={authLoading} />;
             case 'customerLogin': return <LoginView handleLogin={handleLogin} error={error} setView={setView} authLoading={authLoading} />;
             case 'signUp': return <SignUpView handleSignUp={handleSignUp} error={error} setView={setView} authLoading={authLoading} />;
             case 'myOrders': return <MyOrdersView orders={orders.filter(o => o.userId === user?.uid)} setView={setView} />;
-            case 'admin': return isAdmin ? <AdminDashboard menu={menu} orders={orders} handleLogout={handleLogout} showToast={showToast} settings={shopSettings} /> : <MenuView menu={menu} addToCart={addToCart} cart={cart} setView={setView} cartTotal={cartTotal} />;
+            case 'accountSettings': return <AccountSettingsView user={user} userData={userData} showToast={showToast} setView={setView} />;
+            case 'admin': return isAdmin ? <AdminDashboard menu={menu} orders={orders} handleLogout={handleLogout} showToast={showToast} settings={shopSettings} setView={setView} /> : <MenuView menu={menu} addToCart={addToCart} cart={cart} setView={setView} cartTotal={cartTotal} />;
+            case 'kitchenView': return <KitchenView orders={orders.filter(o => ['Pendente', 'Em Preparo'].includes(o.status))} setView={setView} />;
             default: return <MenuView menu={menu} addToCart={addToCart} cart={cart} setView={setView} cartTotal={cartTotal} />;
         }
     };
@@ -294,11 +312,11 @@ export default function App() {
     return (
         <div className="bg-stone-50 min-h-screen font-sans text-stone-800" style={{fontFamily: "'Inter', sans-serif"}}>
             {toastMessage && <Toast message={toastMessage} />}
-            <Header cartCount={cartTotalQuantity} setView={setView} user={user} isAdmin={isAdmin} settings={shopSettings}/>
-            <main className="p-4 md:p-6 max-w-7xl mx-auto">
+            {view !== 'kitchenView' && <Header cartCount={cartTotalQuantity} setView={setView} user={user} isAdmin={isAdmin} settings={shopSettings}/>}
+            <main className={view !== 'kitchenView' ? "p-4 md:p-6 max-w-7xl mx-auto" : ""}>
                 {renderView()}
             </main>
-            <Footer user={user} setView={setView} handleLogout={handleLogout} isAdmin={isAdmin} />
+            {view !== 'kitchenView' && <Footer user={user} setView={setView} handleLogout={handleLogout} isAdmin={isAdmin} />}
         </div>
     );
 }
@@ -355,11 +373,10 @@ const Header = ({ cartCount, setView, user, isAdmin, settings }) => (
 const Footer = ({ user, setView, handleLogout, isAdmin }) => (
     <footer className="bg-white mt-10 py-5 text-center text-stone-500 text-sm border-t">
         <p>&copy; {new Date().getFullYear()} Salgados da Bia. Todos os direitos reservados.</p>
-        {!isAdmin && user && user.isAnonymous && (
-            <p className="mt-2">
-                És o administrador? <button onClick={() => setView('adminLogin')} className="text-amber-600 font-semibold hover:underline">Entrar</button>
-            </p>
-        )}
+        <div className="flex justify-center items-center gap-2 mt-2 cursor-pointer" onClick={() => setView('adminLogin')}>
+            <img src="https://images.builderservices.io/s/cdn/v1.0/i/m?url=https%3A%2F%2Fstorage.googleapis.com%2Fproduction-hostgator-brasil-v1-0-0%2F090%2F1710090%2FqxDm1tGU%2F8cfd07d10a204d089d52eac3e4f3bc2f&methods=resize%2C500%2C5000" alt="Nikola TEC Logo" className="h-5" />
+            <p>Desenvolvido por Nikola TEC</p>
+        </div>
         {user && !user.isAnonymous && (
             <p className="mt-2">
                 <button onClick={handleLogout} className="text-red-500 font-semibold hover:underline">Sair da Conta</button>
@@ -414,6 +431,7 @@ const MenuItemCard = ({ item, onOrderClick }) => (
         </div>
         <div className="p-4 flex flex-col flex-grow">
             <h3 className="text-lg font-bold text-stone-800">{item.name}</h3>
+            {item.minimumOrder > 1 && <p className="text-xs text-amber-600 font-semibold mt-1">Pedido mínimo: {item.minimumOrder} unidades</p>}
             <p className="text-stone-600 text-sm flex-grow mt-1">{item.description || ''}</p>
             <div className="flex justify-between items-center mt-4">
                 <span className="text-xl font-bold text-green-600">{item.price.toFixed(2)}€</span>
@@ -577,32 +595,35 @@ const CartView = ({ cart, updateQuantity, cartTotal, setView, emptyCart, user })
     );
 };
 
-const CheckoutView = ({ placeOrder, cartTotal, setView, initialError, user, authLoading }) => {
-    const [name, setName] = useState(user?.displayName || '');
-    const [phone, setPhone] = useState('');
+const CheckoutView = ({ placeOrder, cartTotal, setView, initialError, user, userData, authLoading }) => {
+    const [name, setName] = useState(userData?.name || user?.displayName || '');
+    const [phone, setPhone] = useState(userData?.phone || '');
     const [address, setAddress] = useState('');
     const [formError, setFormError] = useState('');
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        if (name && phone && address) {
+        if (address) {
             setFormError('');
             placeOrder({ name, phone, address });
-        } else { setFormError('Por favor, preencha todos os campos.'); }
+        } else { setFormError('Por favor, preencha a morada de entrega.'); }
     };
 
     return (
         <div className="max-w-lg mx-auto bg-white p-8 rounded-lg shadow-lg animate-fade-in">
             <h2 className="text-3xl font-bold mb-6 text-stone-800">Detalhes da Entrega</h2>
+            <div className="bg-stone-100 p-4 rounded-lg mb-4 space-y-2">
+                <div>
+                    <span className="font-bold text-stone-600">Nome: </span>
+                    <span>{name || "Não definido"}</span>
+                </div>
+                 <div>
+                    <span className="font-bold text-stone-600">Telefone: </span>
+                    <span>{phone || "Não definido"}</span>
+                </div>
+                 <p className="text-xs text-stone-500">Para alterar estes dados, vá para <button onClick={() => setView('accountSettings')} className="font-bold underline">Minha Conta</button>.</p>
+            </div>
             <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                    <label htmlFor="name" className="block text-stone-700 font-bold mb-2">Nome Completo</label>
-                    <input type="text" id="name" value={name} onChange={e => setName(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400" required />
-                </div>
-                <div>
-                    <label htmlFor="phone" className="block text-stone-700 font-bold mb-2">Telemóvel</label>
-                    <input type="tel" id="phone" value={phone} onChange={e => setPhone(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400" required />
-                </div>
                 <div>
                     <label htmlFor="address" className="block text-stone-700 font-bold mb-2">Morada para Entrega</label>
                     <textarea id="address" value={address} onChange={e => setAddress(e.target.value)} rows="3" className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400" required></textarea>
@@ -662,12 +683,18 @@ const LoginView = ({ handleLogin, error, setView, isAdminLogin = false, authLoad
                         Não tem conta? <button type="button" onClick={() => setView('signUp')} className="text-amber-600 font-bold hover:underline">Crie uma aqui.</button>
                     </p>
                 )}
+                {isAdminLogin && (
+                    <a href="https://nikola.tec.br" target="_blank" rel="noopener noreferrer" className="block text-center text-xs text-stone-500 pt-3 hover:underline">
+                        Solicitar Suporte
+                    </a>
+                )}
             </form>
         </div>
     );
 };
 
 const SignUpView = ({ handleSignUp, error, setView, authLoading }) => {
+    const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -680,13 +707,17 @@ const SignUpView = ({ handleSignUp, error, setView, authLoading }) => {
             return;
         }
         setLocalError('');
-        handleSignUp(email, password);
+        handleSignUp(email, password, name);
     };
 
     return (
         <div className="max-w-sm mx-auto mt-10 bg-white p-8 rounded-lg shadow-xl animate-fade-in">
             <h2 className="text-2xl font-bold text-center mb-6">Criar Conta</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
+                 <div>
+                    <label className="block text-stone-700 font-bold mb-2">Nome Completo</label>
+                    <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400" required />
+                </div>
                  <div>
                     <label className="block text-stone-700 font-bold mb-2">Email</label>
                     <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400" required />
@@ -712,10 +743,61 @@ const SignUpView = ({ handleSignUp, error, setView, authLoading }) => {
     );
 }
 
+const AccountSettingsView = ({ user, userData, showToast, setView }) => {
+    const [name, setName] = useState(userData?.name || user?.displayName || '');
+    const [phone, setPhone] = useState(userData?.phone || '');
+    const [isSaving, setIsSaving] = useState(false);
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, user.uid);
+            await setDoc(userDocRef, { name, phone }, { merge: true });
+            
+            if (user.displayName !== name) {
+                await updateProfile(user, { displayName: name });
+            }
+            showToast("Dados atualizados com sucesso!");
+        } catch (error) {
+            console.error("Erro ao atualizar dados:", error);
+            showToast("Ocorreu um erro ao salvar.");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+    
+    return (
+        <div className="max-w-2xl mx-auto">
+             <h2 className="text-3xl font-bold mb-6 text-stone-800">Minha Conta</h2>
+              <div className="bg-white p-6 rounded-lg shadow-lg space-y-4">
+                 <div>
+                    <label className="block text-sm font-bold mb-1 text-stone-600">Nome Completo</label>
+                    <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full p-2 border border-stone-300 rounded" />
+                </div>
+                 <div>
+                    <label className="block text-sm font-bold mb-1 text-stone-600">Telefone de Contato</label>
+                    <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full p-2 border border-stone-300 rounded" />
+                </div>
+                 <div>
+                    <label className="block text-sm font-bold mb-1 text-stone-600">Email</label>
+                    <input type="email" value={user?.email || ''} className="w-full p-2 border bg-stone-100 border-stone-300 rounded" disabled />
+                </div>
+                <div className="pt-4 flex justify-between items-center">
+                    <button onClick={handleSave} disabled={isSaving} className="bg-amber-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-amber-600 transition-colors shadow-sm hover:shadow-md active:scale-95 flex items-center justify-center disabled:bg-amber-300 w-40">
+                        {isSaving ? <Loader2 className="animate-spin" /> : "Salvar Alterações"}
+                    </button>
+                    <button onClick={() => setView('myOrders')} className="text-stone-600 font-semibold hover:underline">Ver meus pedidos</button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 const MyOrdersView = ({ orders, setView }) => {
      const statusStyles = {
         'Pendente': 'bg-yellow-100 text-yellow-800', 'Em Preparo': 'bg-blue-100 text-blue-800',
         'Pronto para Entrega': 'bg-green-100 text-green-800', 'Concluído': 'bg-stone-200 text-stone-600',
+        'Rejeitado': 'bg-red-100 text-red-800',
     };
 
     if (orders.length === 0) {
@@ -733,7 +815,10 @@ const MyOrdersView = ({ orders, setView }) => {
     
     return (
         <div className="max-w-4xl mx-auto animate-fade-in">
-            <h2 className="text-3xl font-bold mb-6 text-stone-800">Meus Pedidos</h2>
+             <div className="flex justify-between items-center mb-6">
+                <h2 className="text-3xl font-bold text-stone-800">Meus Pedidos</h2>
+                <button onClick={() => setView('accountSettings')} className="text-sm font-semibold text-amber-600 hover:underline flex items-center gap-1"><Settings size={14}/> Minha Conta</button>
+            </div>
             <div className="space-y-6">
                 {orders.map(order => (
                     <div key={order.id} className="bg-white p-4 sm:p-6 rounded-lg shadow-lg border border-stone-200">
@@ -764,7 +849,7 @@ const MyOrdersView = ({ orders, setView }) => {
 // --- PAINEL DE ADMINISTRAÇÃO ---
 
 const AdminStats = ({ orders }) => {
-    const totalRevenue = useMemo(() => orders.reduce((acc, order) => acc + order.total, 0), [orders]);
+    const totalRevenue = useMemo(() => orders.filter(o => o.status === 'Concluído').reduce((acc, order) => acc + order.total, 0), [orders]);
     const pendingOrders = useMemo(() => orders.filter(o => o.status === 'Pendente' || o.status === 'Em Preparo').length, [orders]);
 
     return (
@@ -779,14 +864,14 @@ const AdminStats = ({ orders }) => {
             <div className="bg-stone-100 p-4 rounded-lg shadow-sm flex items-center gap-4">
                 <div className="bg-green-200 p-3 rounded-full"><DollarSign className="text-green-600" size={24}/></div>
                 <div>
-                    <p className="text-sm text-stone-500">Faturamento Total</p>
+                    <p className="text-sm text-stone-500">Faturamento (Concluídos)</p>
                     <p className="text-2xl font-bold text-stone-800">{totalRevenue.toFixed(2)}€</p>
                 </div>
             </div>
             <div className="bg-stone-100 p-4 rounded-lg shadow-sm flex items-center gap-4">
                 <div className="bg-yellow-200 p-3 rounded-full"><Clock className="text-yellow-600" size={24}/></div>
                 <div>
-                    <p className="text-sm text-stone-500">Pedidos Pendentes</p>
+                    <p className="text-sm text-stone-500">Pedidos Ativos</p>
                     <p className="text-2xl font-bold text-stone-800">{pendingOrders}</p>
                 </div>
             </div>
@@ -794,7 +879,7 @@ const AdminStats = ({ orders }) => {
     );
 }
 
-const AdminDashboard = ({ menu, orders, handleLogout, showToast, settings }) => {
+const AdminDashboard = ({ menu, orders, handleLogout, showToast, settings, setView }) => {
     const [adminView, setAdminView] = useState('dashboard'); 
     
     const renderAdminView = () => {
@@ -810,7 +895,10 @@ const AdminDashboard = ({ menu, orders, handleLogout, showToast, settings }) => 
         <div className="bg-white p-4 md:p-6 rounded-lg shadow-lg animate-fade-in">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b pb-4">
                 <h2 className="text-3xl font-bold text-stone-800">Painel de Admin</h2>
-                <button onClick={handleLogout} title="Sair" className="p-2 mt-2 sm:mt-0 rounded-full text-red-500 hover:bg-red-100 transition-colors"><LogOut /></button>
+                <div className="flex items-center gap-4 mt-2 sm:mt-0">
+                    <button onClick={() => setView('kitchenView')} className="bg-stone-800 text-white font-semibold py-2 px-4 rounded-lg hover:bg-stone-900 transition-colors text-sm">Visão Cozinha</button>
+                    <button onClick={handleLogout} title="Sair" className="p-2 rounded-full text-red-500 hover:bg-red-100 transition-colors"><LogOut /></button>
+                </div>
             </div>
             <div className="flex flex-wrap gap-2 mb-6 border-b">
                 <button onClick={() => setAdminView('dashboard')} className={`px-4 py-2 font-semibold text-sm rounded-t-md flex items-center gap-2 transition-colors ${adminView === 'dashboard' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Package size={16}/> Resumo</button>
@@ -897,6 +985,7 @@ const ManageOrders = ({ orders }) => {
         'Em Preparo': 'bg-blue-100 text-blue-800',
         'Pronto para Entrega': 'bg-green-100 text-green-800',
         'Concluído': 'bg-stone-200 text-stone-600',
+        'Rejeitado': 'bg-red-100 text-red-800',
     };
 
     return (
@@ -926,6 +1015,7 @@ const ManageOrders = ({ orders }) => {
                              {['Pendente', 'Em Preparo', 'Pronto para Entrega', 'Concluído'].map(status => (
                                  <button key={status} onClick={() => updateStatus(order.id, status)} className={`px-3 py-1 text-sm rounded-md transition-all ${order.status === status ? 'ring-2 ring-offset-1 ring-amber-500 bg-stone-200 font-bold' : 'bg-white hover:bg-stone-200 border'}`}>{status}</button>
                              ))}
+                             <button onClick={() => updateStatus(order.id, 'Rejeitado')} className={`px-3 py-1 text-sm rounded-md transition-all ${order.status === 'Rejeitado' ? 'ring-2 ring-offset-1 ring-red-500 bg-red-200 font-bold' : 'bg-white hover:bg-red-100 border text-red-600'}`}>Rejeitar</button>
                          </div>
                     </div>
                 ))}
@@ -975,7 +1065,7 @@ const ManageMenu = ({ menu }) => {
     
     const startCreating = () => {
         setIsCreating(true);
-        setEditingItem({ name: '', category: 'Salgados Tradicionais', price: 0, image: '', description: '', customizable: false, size: 0 });
+        setEditingItem({ name: '', category: 'Salgados Tradicionais', price: 0, image: '', description: '', customizable: false, size: 0, minimumOrder: 1 });
     };
 
     return (
@@ -1057,10 +1147,15 @@ const MenuItemForm = ({ item, onSave, onCancel }) => {
                         <input type="checkbox" id="customizable" name="customizable" checked={!!formData.customizable} onChange={handleChange} />
                         <label htmlFor="customizable">É um box customizável?</label>
                     </div>
-                     {formData.customizable && (
+                     {formData.customizable ? (
                          <div>
                             <label className="block text-sm font-bold mb-1">Nº de salgados no box</label>
                             <input type="number" name="size" value={formData.size} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded" />
+                         </div>
+                     ) : (
+                         <div>
+                            <label className="block text-sm font-bold mb-1">Pedido Mínimo (Unidades)</label>
+                            <input type="number" name="minimumOrder" value={formData.minimumOrder || 1} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded" />
                          </div>
                      )}
                 </div>
@@ -1069,6 +1164,59 @@ const MenuItemForm = ({ item, onSave, onCancel }) => {
                     <button type="submit" className="bg-amber-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-amber-600 active:scale-95 transition-colors">Salvar</button>
                 </div>
             </form>
+        </div>
+    );
+};
+
+const KitchenView = ({ orders, setView }) => {
+    const updateStatus = async (orderId, status) => {
+        const orderDocPath = `artifacts/${appId}/public/data/orders/${orderId}`;
+        const orderRef = doc(db, orderDocPath);
+        await updateDoc(orderRef, { status });
+    };
+
+    return (
+        <div className="bg-stone-900 min-h-screen p-4 text-white">
+            <div className="flex justify-between items-center mb-4">
+                 <h1 className="text-4xl font-bold text-amber-400">Visão da Cozinha</h1>
+                 <button onClick={() => setView('admin')} className="bg-stone-700 text-white font-semibold py-2 px-4 rounded-lg hover:bg-stone-600 flex items-center gap-2"><ChevronsLeft size={16}/> Voltar ao Painel</button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {orders.map(order => (
+                    <div key={order.id} className={`p-4 rounded-lg shadow-lg flex flex-col ${order.status === 'Pendente' ? 'bg-red-900 border-red-700' : 'bg-blue-900 border-blue-700'} border-2`}>
+                        <div className="flex justify-between items-center border-b border-white/20 pb-2 mb-2">
+                             <h2 className="text-2xl font-bold">{order.name}</h2>
+                             <span className="text-lg font-mono">#{order.id.slice(0, 6).toUpperCase()}</span>
+                        </div>
+                        <div className="flex-grow overflow-y-auto py-2">
+                            <ul className="space-y-1">
+                                {order.items.map(item => (
+                                     <li key={item.id + item.name} className="flex justify-between items-center text-lg">
+                                        <span className="font-semibold">{item.quantity}x {item.name}</span>
+                                        {item.customization && (
+                                            <ul className="text-sm text-stone-300 pl-4">
+                                                 {item.customization.map(c => <li key={c.name}>- {c.quantity}x {c.name}</li>)}
+                                            </ul>
+                                        )}
+                                     </li>
+                                ))}
+                            </ul>
+                        </div>
+                         <div className="mt-auto pt-2">
+                             {order.status === 'Pendente' && (
+                                <button onClick={() => updateStatus(order.id, 'Em Preparo')} className="w-full bg-blue-500 text-white font-bold py-3 rounded-lg hover:bg-blue-600 text-lg transition-colors">
+                                    Iniciar Preparo
+                                </button>
+                             )}
+                              {order.status === 'Em Preparo' && (
+                                <button onClick={() => updateStatus(order.id, 'Pronto para Entrega')} className="w-full bg-green-500 text-white font-bold py-3 rounded-lg hover:bg-green-600 text-lg transition-colors">
+                                    Pedido Finalizado
+                                </button>
+                             )}
+                         </div>
+                    </div>
+                ))}
+            </div>
         </div>
     );
 };
