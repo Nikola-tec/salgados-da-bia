@@ -9,7 +9,9 @@ import {
     signOut,
     signInAnonymously,
     signInWithCustomToken,
-    updateProfile
+    updateProfile,
+    setPersistence,
+    browserLocalPersistence
 } from 'firebase/auth';
 import { 
     getFirestore, 
@@ -24,7 +26,7 @@ import {
     setDoc,
     getDoc
 } from 'firebase/firestore';
-import { ChefHat, ShoppingCart, User, LogOut, PlusCircle, MinusCircle, Trash2, Edit, XCircle, CheckCircle, Package, DollarSign, Clock, Settings, Plus, Star, AlertTriangle, UserCheck, KeyRound, Loader2, ChevronsLeft } from 'lucide-react';
+import { ChefHat, ShoppingCart, User, LogOut, PlusCircle, MinusCircle, Trash2, Edit, XCircle, CheckCircle, Package, DollarSign, Clock, Settings, Plus, Star, AlertTriangle, UserCheck, KeyRound, Loader2, ChevronsLeft, MapPin, Bike } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DO FIREBASE ---
 let firebaseConfig;
@@ -56,6 +58,8 @@ if (firebaseConfig && firebaseConfig.apiKey) {
   try {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
+    // CORREÇÃO: Garante que a sessão do usuário persista no navegador
+    setPersistence(auth, browserLocalPersistence); 
     db = getFirestore(app);
     firebaseInitialized = true;
   } catch (error) {
@@ -83,7 +87,8 @@ const INITIAL_SHOP_SETTINGS = {
     logoUrl: "https://i.imgur.com/kHw2x5L.png",
     email: "contato@salgadosdabia.pt",
     phone: "+351 912 345 678",
-    currency: "EUR"
+    currency: "EUR",
+    pickupAddress: "Rua das Flores, 123, Lisboa, Portugal"
 };
 
 
@@ -113,7 +118,7 @@ export default function App() {
 
     const showToast = (message) => {
         setToastMessage(message);
-        setTimeout(() => setToastMessage(''), 2500);
+        setTimeout(() => setToastMessage(''), 3000);
     };
 
     useEffect(() => {
@@ -139,19 +144,6 @@ export default function App() {
             setLoading(false);
         });
         
-        const initialSignIn = async () => {
-            try {
-                if (!auth.currentUser) {
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await signInWithCustomToken(auth, __initial_auth_token);
-                    } else {
-                        await signInAnonymously(auth);
-                    }
-                }
-            } catch (err) { console.error("Initial sign-in failed", err); setLoading(false); }
-        };
-
-        initialSignIn();
         return () => unsubscribeAuth();
     }, []);
 
@@ -217,15 +209,25 @@ export default function App() {
         setCart(prevCart => {
             const existingItem = prevCart.find(ci => ci.id === item.id && JSON.stringify(ci.customization) === JSON.stringify(customization));
             if (existingItem) {
-                return prevCart.map(ci => ci.id === item.id && JSON.stringify(ci.customization) === JSON.stringify(customization) ? { ...ci, quantity: ci.quantity + quantityToAdd } : ci);
+                return prevCart.map(ci => ci.id === item.id && JSON.stringify(ci.customization) === JSON.stringify(customization) ? { ...ci, quantity: ci.quantity + 1 } : ci);
             }
             return [...prevCart, { ...item, quantity: quantityToAdd, customization }];
         });
-        showToast(`${quantityToAdd}x ${item.name} adicionado!`);
+        showToast(`${item.minimumOrder > 1 ? quantityToAdd + 'x ' : ''}${item.name} adicionado!`);
     };
 
-    const updateQuantity = (itemId, amount, customization) => {
-        setCart(prevCart => prevCart.map(item => item.id === itemId && JSON.stringify(item.customization) === JSON.stringify(customization) ? { ...item, quantity: Math.max(0, item.quantity + amount) } : item).filter(item => item.quantity > 0));
+    const updateQuantity = (itemId, amount, customization, minimumOrder) => {
+        setCart(prevCart => prevCart.map(item => {
+            if (item.id === itemId && JSON.stringify(item.customization) === JSON.stringify(customization)) {
+                let newQuantity = item.quantity + amount;
+                if (newQuantity > 0 && newQuantity < minimumOrder) {
+                    showToast(`O pedido mínimo é de ${minimumOrder} unidades.`);
+                    newQuantity = minimumOrder;
+                }
+                return { ...item, quantity: Math.max(0, newQuantity) };
+            }
+            return item;
+        }).filter(item => item.quantity > 0));
     };
     
     const cartTotal = useMemo(() => cart.reduce((total, item) => total + item.price * item.quantity, 0).toFixed(2), [cart]);
@@ -295,8 +297,8 @@ export default function App() {
     const renderView = () => {
         switch (view) {
             case 'cart': return <CartView cart={cart} updateQuantity={updateQuantity} cartTotal={cartTotal} setView={setView} emptyCart={() => setCart([])} user={user} />;
-            case 'checkout': return <CheckoutView placeOrder={placeOrder} cartTotal={cartTotal} setView={setView} initialError={error} user={user} userData={userData} authLoading={authLoading} />;
-            case 'confirmation': return <ConfirmationView setView={setView} />;
+            case 'checkout': return <CheckoutView placeOrder={placeOrder} cartTotal={cartTotal} setView={setView} initialError={error} user={user} userData={userData} authLoading={authLoading} shopSettings={shopSettings} />;
+            case 'confirmation': return <ConfirmationView setView={setView} showToast={showToast} />;
             case 'adminLogin': return <LoginView handleLogin={handleLogin} error={error} isAdminLogin={true} authLoading={authLoading} />;
             case 'customerLogin': return <LoginView handleLogin={handleLogin} error={error} setView={setView} authLoading={authLoading} />;
             case 'signUp': return <SignUpView handleSignUp={handleSignUp} error={error} setView={setView} authLoading={authLoading} />;
@@ -304,6 +306,7 @@ export default function App() {
             case 'accountSettings': return <AccountSettingsView user={user} userData={userData} showToast={showToast} setView={setView} />;
             case 'admin': return isAdmin ? <AdminDashboard menu={menu} orders={orders} handleLogout={handleLogout} showToast={showToast} settings={shopSettings} setView={setView} /> : <MenuView menu={menu} addToCart={addToCart} cart={cart} setView={setView} cartTotal={cartTotal} />;
             case 'kitchenView': return <KitchenView orders={orders.filter(o => ['Pendente', 'Em Preparo'].includes(o.status))} setView={setView} />;
+            case 'deliveryView': return <DeliveryView orders={orders.filter(o => o.status === 'Pronto para Entrega' || o.status === 'Saiu para Entrega')} setView={setView} />;
             default: return <MenuView menu={menu} addToCart={addToCart} cart={cart} setView={setView} cartTotal={cartTotal} />;
         }
     };
@@ -313,11 +316,11 @@ export default function App() {
     return (
         <div className="bg-stone-50 min-h-screen font-sans text-stone-800" style={{fontFamily: "'Inter', sans-serif"}}>
             {toastMessage && <Toast message={toastMessage} />}
-            {view !== 'kitchenView' && <Header cartCount={cartTotalQuantity} setView={setView} user={user} isAdmin={isAdmin} settings={shopSettings}/>}
-            <main className={view !== 'kitchenView' ? "p-4 md:p-6 max-w-7xl mx-auto" : ""}>
+            {view !== 'kitchenView' && view !== 'deliveryView' && <Header cartCount={cartTotalQuantity} setView={setView} user={user} isAdmin={isAdmin} settings={shopSettings}/>}
+            <main className={!['kitchenView', 'deliveryView'].includes(view) ? "p-4 md:p-6 max-w-7xl mx-auto" : ""}>
                 {renderView()}
             </main>
-            {view !== 'kitchenView' && <Footer user={user} setView={setView} handleLogout={handleLogout} isAdmin={isAdmin} />}
+            {view !== 'kitchenView' && view !== 'deliveryView' && <Footer user={user} setView={setView} handleLogout={handleLogout} isAdmin={isAdmin} />}
         </div>
     );
 }
@@ -391,7 +394,9 @@ const MenuView = ({ menu, addToCart, cart, setView, cartTotal }) => {
     
     const handleCustomizeClick = (boxItem) => {
         let availableSalgados;
-        if (boxItem.name.toLowerCase().includes('especial')) {
+        const boxNameLower = boxItem.name.toLowerCase();
+        
+        if (boxNameLower.includes('especial') || boxNameLower.includes('gigante')) {
             availableSalgados = menu.filter(item => 
                 (item.category === 'Salgados Tradicionais' || item.category === 'Salgados Especiais') && !item.customizable
             );
@@ -522,7 +527,7 @@ const CustomizeBoxModal = ({ box, salgados, onClose, addToCart }) => {
                         </div>
                     </div>
                     <div className="space-y-3">
-                        {salgados.map(salgado => (
+                        {salgados.length > 0 ? salgados.map(salgado => (
                             <div key={salgado.id} className="flex justify-between items-center bg-stone-100 p-3 rounded-md">
                                 <p className="font-semibold text-stone-700">{salgado.name}</p>
                                 <div className="flex items-center gap-2">
@@ -532,7 +537,7 @@ const CustomizeBoxModal = ({ box, salgados, onClose, addToCart }) => {
                                     <button onClick={() => handleSelectionChange(salgado.id, 10)} className="text-xs font-bold w-9 h-9 rounded-md bg-amber-300 text-amber-900 hover:bg-amber-400 disabled:opacity-50 transition-colors active:scale-90" disabled={totalSelected + 10 > box.size}>+10</button>
                                 </div>
                             </div>
-                        ))}
+                        )) : <p className="text-center text-stone-500">Não há salgados disponíveis para este tipo de box.</p>}
                     </div>
                 </div>
                 <div className="p-4 border-t mt-auto bg-stone-50 rounded-b-lg">
@@ -590,7 +595,7 @@ const CartView = ({ cart, updateQuantity, cartTotal, setView, emptyCart, user })
                         </div>
                         <div className="flex flex-col items-end">
                              <div className="flex items-center gap-2">
-                                <button onClick={() => updateQuantity(item.id, -1, item.customization)} className="p-1 rounded-full text-stone-600 hover:bg-stone-200 active:scale-90"><MinusCircle size={20} /></button>
+                                <button onClick={() => updateQuantity(item.id, -1, item.customization, item.minimumOrder || 1)} className="p-1 rounded-full text-stone-600 hover:bg-stone-200 active:scale-90"><MinusCircle size={20} /></button>
                                 <span className="font-bold text-lg w-8 text-center">{item.quantity}</span>
                                 <button onClick={() => updateQuantity(item.id, 1, item.customization)} className="p-1 rounded-full text-stone-600 hover:bg-stone-200 active:scale-90"><PlusCircle size={20} /></button>
                             </div>
@@ -610,39 +615,65 @@ const CartView = ({ cart, updateQuantity, cartTotal, setView, emptyCart, user })
     );
 };
 
-const CheckoutView = ({ placeOrder, cartTotal, setView, initialError, user, userData, authLoading }) => {
-    const [name, setName] = useState(userData?.name || user?.displayName || '');
-    const [phone, setPhone] = useState(userData?.phone || '');
+const CheckoutView = ({ placeOrder, cartTotal, setView, initialError, user, userData, authLoading, shopSettings }) => {
+    const [deliveryMethod, setDeliveryMethod] = useState('deliver');
+    const [name] = useState(userData?.name || user?.displayName || '');
+    const [phone] = useState(userData?.phone || '');
     const [address, setAddress] = useState('');
+    const [pickupTime, setPickupTime] = useState('');
     const [formError, setFormError] = useState('');
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        if (address) {
-            setFormError('');
-            placeOrder({ name, phone, address });
-        } else { setFormError('Por favor, preencha a morada de entrega.'); }
+        const details = { name, phone };
+        if (deliveryMethod === 'deliver') {
+            if (!address) { setFormError('Por favor, preencha a morada de entrega.'); return; }
+            details.address = address;
+        } else {
+            if (!pickupTime) { setFormError('Por favor, selecione um horário para retirada.'); return; }
+            details.pickupTime = pickupTime;
+            details.address = `Retirada em: ${shopSettings.pickupAddress}`;
+        }
+        setFormError('');
+        placeOrder(details);
     };
 
     return (
         <div className="max-w-lg mx-auto bg-white p-8 rounded-lg shadow-lg animate-fade-in">
-            <h2 className="text-3xl font-bold mb-6 text-stone-800">Detalhes da Entrega</h2>
+            <h2 className="text-3xl font-bold mb-6 text-stone-800">Finalizar Pedido</h2>
+            
+            <div className="mb-6">
+                <div className="flex border border-stone-300 rounded-lg p-1">
+                    <button onClick={() => setDeliveryMethod('deliver')} className={`w-1/2 py-2 rounded-md font-semibold transition-colors ${deliveryMethod === 'deliver' ? 'bg-amber-500 text-white' : 'hover:bg-amber-100'}`}>
+                        Entregar
+                    </button>
+                    <button onClick={() => setDeliveryMethod('pickup')} className={`w-1/2 py-2 rounded-md font-semibold transition-colors ${deliveryMethod === 'pickup' ? 'bg-amber-500 text-white' : 'hover:bg-amber-100'}`}>
+                        Retirar
+                    </button>
+                </div>
+            </div>
+
             <div className="bg-stone-100 p-4 rounded-lg mb-4 space-y-2">
-                <div>
-                    <span className="font-bold text-stone-600">Nome: </span>
-                    <span>{name || "Não definido"}</span>
-                </div>
-                 <div>
-                    <span className="font-bold text-stone-600">Telefone: </span>
-                    <span>{phone || "Não definido"}</span>
-                </div>
-                 <p className="text-xs text-stone-500">Para alterar estes dados, vá para <button onClick={() => setView('accountSettings')} className="font-bold underline">Minha Conta</button>.</p>
+                <div><span className="font-bold text-stone-600">Nome: </span><span>{name || "Não definido"}</span></div>
+                <div><span className="font-bold text-stone-600">Telefone: </span><span>{phone || "Não definido"}</span></div>
+                <p className="text-xs text-stone-500">Para alterar estes dados, vá para <button onClick={() => setView('accountSettings')} className="font-bold underline">Minha Conta</button>.</p>
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                    <label htmlFor="address" className="block text-stone-700 font-bold mb-2">Morada para Entrega</label>
-                    <textarea id="address" value={address} onChange={e => setAddress(e.target.value)} rows="3" className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400" required></textarea>
-                </div>
+                {deliveryMethod === 'deliver' ? (
+                    <div>
+                        <label htmlFor="address" className="block text-stone-700 font-bold mb-2">Morada para Entrega</label>
+                        <textarea id="address" value={address} onChange={e => setAddress(e.target.value)} rows="3" className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400" required></textarea>
+                    </div>
+                ) : (
+                    <div>
+                        <label htmlFor="pickupTime" className="block text-stone-700 font-bold mb-2">Horário para Retirada</label>
+                        <input type="time" id="pickupTime" value={pickupTime} onChange={e => setPickupTime(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400" required />
+                        <div className="mt-2 bg-stone-100 p-3 rounded-md text-sm">
+                            <p className="font-bold">Endereço de Retirada:</p>
+                            <p className="text-stone-600">{shopSettings.pickupAddress}</p>
+                        </div>
+                    </div>
+                )}
                 {formError && <p className="text-red-500 text-center">{formError}</p>}
                 {initialError && <p className="text-red-500 text-center">{initialError}</p>}
                 <div className="border-t pt-6 mt-2">
@@ -659,17 +690,119 @@ const CheckoutView = ({ placeOrder, cartTotal, setView, initialError, user, user
     );
 };
 
-const ConfirmationView = ({ setView }) => (
-    <div className="text-center py-16 max-w-lg mx-auto bg-white p-8 rounded-lg shadow-lg animate-fade-in">
-        <CheckCircle size={64} className="mx-auto text-green-500" />
-        <h2 className="text-3xl font-bold mt-4">Pedido Recebido!</h2>
-        <p className="text-stone-600 mt-2">Obrigado pela sua preferência! O seu pedido já está a ser preparado com muito carinho.</p>
-        <p className="text-stone-600 mt-1">Pode acompanhar o estado do seu pedido na secção "Meus Pedidos".</p>
-        <button onClick={() => setView('myOrders')} className="mt-8 bg-amber-500 text-white font-bold py-3 px-8 rounded-full hover:bg-amber-600 transition-colors shadow hover:shadow-lg active:scale-95">
-            Ver Meus Pedidos
-        </button>
-    </div>
-);
+const ConfirmationView = ({ setView, showToast }) => {
+    const [feedbackView, setFeedbackView] = useState(false);
+    const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+
+    const handleFeedbackSubmit = async (feedbackData) => {
+        const feedbackCollectionPath = `artifacts/${appId}/public/data/feedback`;
+        try {
+            await addDoc(collection(db, feedbackCollectionPath), {
+                ...feedbackData,
+                submittedAt: new Date(),
+            });
+            setFeedbackSubmitted(true);
+            showToast("Obrigado pelo seu feedback!");
+        } catch (error) {
+            console.error("Erro ao enviar feedback:", error);
+            showToast("Erro ao enviar feedback.");
+        }
+    };
+
+    if (feedbackSubmitted) {
+        return (
+             <div className="text-center py-16 max-w-lg mx-auto bg-white p-8 rounded-lg shadow-lg animate-fade-in">
+                <Star size={64} className="mx-auto text-amber-500" />
+                <h2 className="text-3xl font-bold mt-4 text-green-600">Desconto de 5% Liberado!</h2>
+                <p className="text-stone-600 mt-2">O seu feedback é muito importante para nós! Um desconto de 5% será aplicado automaticamente no seu próximo pedido.</p>
+                <p className="text-stone-600 mt-1">Agradecemos a sua preferência!</p>
+                <button onClick={() => setView('myOrders')} className="mt-8 bg-amber-500 text-white font-bold py-3 px-8 rounded-full hover:bg-amber-600 transition-colors shadow hover:shadow-lg active:scale-95">
+                    Ver Meus Pedidos
+                </button>
+            </div>
+        );
+    }
+    
+    if (feedbackView) {
+        return <FeedbackForm onSubmit={handleFeedbackSubmit} />;
+    }
+
+    return (
+        <div className="text-center py-16 max-w-lg mx-auto bg-white p-8 rounded-lg shadow-lg animate-fade-in">
+            <CheckCircle size={64} className="mx-auto text-green-500" />
+            <h2 className="text-3xl font-bold mt-4">Pedido Recebido!</h2>
+            <p className="text-stone-600 mt-2">Obrigado pela sua preferência! O seu pedido já está a ser preparado com muito carinho.</p>
+            <p className="text-stone-600 mt-1">Pode acompanhar o estado do seu pedido na secção "Meus Pedidos".</p>
+            <button onClick={() => setView('myOrders')} className="mt-8 bg-amber-500 text-white font-bold py-3 px-8 rounded-full hover:bg-amber-600 transition-colors shadow hover:shadow-lg active:scale-95">
+                Ver Meus Pedidos
+            </button>
+             <div className="mt-8 pt-6 border-t">
+                <h3 className="text-lg font-semibold text-stone-700">Ganhe 5% de Desconto!</h3>
+                <p className="text-stone-500 text-sm mt-1">Ajude-nos a melhorar! Responda a 3 perguntas rápidas e ganhe 5% de desconto no seu próximo pedido.</p>
+                 <button onClick={() => setFeedbackView(true)} className="mt-4 bg-stone-800 text-white font-bold py-2 px-6 rounded-full hover:bg-stone-900 transition-colors shadow active:scale-95">
+                    Dar Feedback
+                </button>
+            </div>
+        </div>
+    );
+};
+
+const FeedbackForm = ({ onSubmit }) => {
+    const [rating, setRating] = useState(0);
+    const [howFound, setHowFound] = useState('');
+    const [wouldRecommend, setWouldRecommend] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        setIsSubmitting(true);
+        onSubmit({ rating, howFound, wouldRecommend });
+    }
+
+    return (
+        <div className="max-w-lg mx-auto bg-white p-8 rounded-lg shadow-lg animate-fade-in">
+            <h2 className="text-2xl font-bold text-center mb-6">Sua Opinião é Importante</h2>
+            <form onSubmit={handleSubmit} className="space-y-6">
+                <div>
+                    <label className="block text-stone-700 font-bold mb-2">Como avalia o nosso aplicativo?</label>
+                    <div className="flex justify-center gap-2">
+                        {[1,2,3,4,5].map(star => (
+                             <Star 
+                                key={star}
+                                size={32}
+                                className={`cursor-pointer transition-colors ${star <= rating ? 'text-amber-500' : 'text-stone-300 hover:text-amber-300'}`}
+                                onClick={() => setRating(star)}
+                             />
+                        ))}
+                    </div>
+                </div>
+                 <div>
+                    <label htmlFor="howFound" className="block text-stone-700 font-bold mb-2">Como nos conheceu?</label>
+                    <select id="howFound" value={howFound} onChange={e => setHowFound(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400" required>
+                        <option value="">Selecione uma opção</option>
+                        <option>Indicação</option>
+                        <option>Pesquisa no Google</option>
+                        <option>Ifood</option>
+                        <option>Facebook</option>
+                        <option>Instagram</option>
+                        <option>WhatsApp</option>
+                        <option>Anúncios de Publicidade</option>
+                    </select>
+                </div>
+                <div>
+                     <label className="block text-stone-700 font-bold mb-2">Indicaria a Salgados da Bia para amigos?</label>
+                     <div className="flex gap-4">
+                        <label className="flex items-center gap-2"><input type="radio" name="recommend" value="Sim" onChange={e => setWouldRecommend(e.target.value)} required /> Sim</label>
+                        <label className="flex items-center gap-2"><input type="radio" name="recommend" value="Não" onChange={e => setWouldRecommend(e.target.value)} required /> Não</label>
+                     </div>
+                </div>
+                 <button type="submit" disabled={isSubmitting} className="w-full bg-green-500 text-white font-bold py-2 rounded-lg hover:bg-green-600 transition-colors shadow hover:shadow-lg active:scale-95 flex justify-center items-center disabled:bg-green-300">
+                    {isSubmitting ? <Loader2 className="animate-spin" /> : "Enviar Feedback e Receber Desconto"}
+                </button>
+            </form>
+        </div>
+    );
+}
 
 const LoginView = ({ handleLogin, error, setView, isAdminLogin = false, authLoading }) => {
     const [email, setEmail] = useState(isAdminLogin ? 'admin@admin.com' : '');
@@ -812,7 +945,7 @@ const MyOrdersView = ({ orders, setView }) => {
      const statusStyles = {
         'Pendente': 'bg-yellow-100 text-yellow-800', 'Em Preparo': 'bg-blue-100 text-blue-800',
         'Pronto para Entrega': 'bg-green-100 text-green-800', 'Concluído': 'bg-stone-200 text-stone-600',
-        'Rejeitado': 'bg-red-100 text-red-800',
+        'Rejeitado': 'bg-red-100 text-red-800', 'Saiu para Entrega': 'bg-purple-100 text-purple-800',
     };
 
     if (orders.length === 0) {
@@ -840,7 +973,7 @@ const MyOrdersView = ({ orders, setView }) => {
                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-3 mb-3">
                              <div>
                                 <p className="text-sm text-stone-500">Pedido #{order.id.slice(0, 8).toUpperCase()}</p>
-                                <p className="text-sm text-stone-500">Feito em: {new Date(order.createdAt?.seconds * 1000).toLocaleDateString('pt-PT')}</p>
+                                <p className="text-sm text-stone-500">Feito em: {new Date(order.createdAt?.seconds * 1000).toLocaleString('pt-PT')}</p>
                              </div>
                              <div className="flex items-center gap-4 mt-2 sm:mt-0">
                                  <span className={`px-3 py-1 text-sm font-semibold rounded-full ${statusStyles[order.status] || 'bg-stone-100'}`}>{order.status}</span>
@@ -865,7 +998,7 @@ const MyOrdersView = ({ orders, setView }) => {
 
 const AdminStats = ({ orders }) => {
     const totalRevenue = useMemo(() => orders.filter(o => o.status === 'Concluído').reduce((acc, order) => acc + order.total, 0), [orders]);
-    const pendingOrders = useMemo(() => orders.filter(o => o.status === 'Pendente' || o.status === 'Em Preparo').length, [orders]);
+    const pendingOrders = useMemo(() => orders.filter(o => ['Pendente', 'Em Preparo', 'Pronto para Entrega', 'Saiu para Entrega'].includes(o.status)).length, [orders]);
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -912,6 +1045,7 @@ const AdminDashboard = ({ menu, orders, handleLogout, showToast, settings, setVi
                 <h2 className="text-3xl font-bold text-stone-800">Painel de Admin</h2>
                 <div className="flex items-center gap-4 mt-2 sm:mt-0">
                     <button onClick={() => setView('kitchenView')} className="bg-stone-800 text-white font-semibold py-2 px-4 rounded-lg hover:bg-stone-900 transition-colors text-sm">Visão Cozinha</button>
+                    <button onClick={() => setView('deliveryView')} className="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors text-sm">Visão Entregador</button>
                     <button onClick={handleLogout} title="Sair" className="p-2 rounded-full text-red-500 hover:bg-red-100 transition-colors"><LogOut /></button>
                 </div>
             </div>
@@ -969,6 +1103,10 @@ const AdminSettings = ({showToast, currentSettings}) => {
                     <label className="block text-sm font-bold mb-1 text-stone-600">Telefone</label>
                     <input type="tel" value={settings.phone} onChange={(e) => setSettings({...settings, phone: e.target.value})} className="w-full p-2 border border-stone-300 rounded" />
                 </div>
+                <div>
+                    <label className="block text-sm font-bold mb-1 text-stone-600">Endereço para Retirar</label>
+                    <input type="text" value={settings.pickupAddress} onChange={(e) => setSettings({...settings, pickupAddress: e.target.value})} className="w-full p-2 border border-stone-300 rounded" />
+                </div>
                  <div>
                     <label className="block text-sm font-bold mb-1 text-stone-600">Moeda</label>
                     <select value={settings.currency} onChange={(e) => setSettings({...settings, currency: e.target.value})} className="w-full p-2 border border-stone-300 rounded bg-white">
@@ -989,18 +1127,25 @@ const AdminSettings = ({showToast, currentSettings}) => {
 
 
 const ManageOrders = ({ orders }) => {
-    const updateStatus = async (orderId, status) => {
+    const handleUpdateStatus = async (orderId, status) => {
         const orderDocPath = `artifacts/${appId}/public/data/orders/${orderId}`;
         const orderRef = doc(db, orderDocPath);
         await updateDoc(orderRef, { status });
     };
+
+    const handleRejectOrder = async (orderId) => {
+         if (window.confirm("Tem a certeza que quer rejeitar e apagar este pedido? Esta ação não pode ser desfeita.")) {
+            const orderDocPath = `artifacts/${appId}/public/data/orders/${orderId}`;
+            await deleteDoc(doc(db, orderDocPath));
+        }
+    }
 
     const statusStyles = {
         'Pendente': 'bg-yellow-100 text-yellow-800',
         'Em Preparo': 'bg-blue-100 text-blue-800',
         'Pronto para Entrega': 'bg-green-100 text-green-800',
         'Concluído': 'bg-stone-200 text-stone-600',
-        'Rejeitado': 'bg-red-100 text-red-800',
+        'Saiu para Entrega': 'bg-purple-100 text-purple-800',
     };
 
     return (
@@ -1026,11 +1171,12 @@ const ManageOrders = ({ orders }) => {
                                 {order.items.map(item => (<li key={item.id + item.name}>{item.quantity}x {item.name}{item.customization && (<span className="text-xs text-stone-500 ml-2">({item.customization.map(c => `${c.quantity}x ${c.name}`).join(', ')})</span>)}</li>))}
                             </ul>
                          </div>
-                         <div className="mt-4 flex flex-wrap gap-2">
-                             {['Pendente', 'Em Preparo', 'Pronto para Entrega', 'Concluído'].map(status => (
-                                 <button key={status} onClick={() => updateStatus(order.id, status)} className={`px-3 py-1 text-sm rounded-md transition-all ${order.status === status ? 'ring-2 ring-offset-1 ring-amber-500 bg-stone-200 font-bold' : 'bg-white hover:bg-stone-200 border'}`}>{status}</button>
+                         <div className="mt-4 flex flex-wrap gap-2 items-center">
+                             {['Pendente', 'Em Preparo', 'Pronto para Entrega'].map(status => (
+                                 <button key={status} onClick={() => handleUpdateStatus(order.id, status)} className={`px-3 py-1 text-sm rounded-md transition-all ${order.status === status ? 'ring-2 ring-offset-1 ring-amber-500 bg-stone-200 font-bold' : 'bg-white hover:bg-stone-200 border'}`}>{status}</button>
                              ))}
-                             <button onClick={() => updateStatus(order.id, 'Rejeitado')} className={`px-3 py-1 text-sm rounded-md transition-all ${order.status === 'Rejeitado' ? 'ring-2 ring-offset-1 ring-red-500 bg-red-200 font-bold' : 'bg-white hover:bg-red-100 border text-red-600'}`}>Rejeitar</button>
+                             <div className="flex-grow"></div>
+                             <button onClick={() => handleRejectOrder(order.id)} className={'bg-red-100 hover:bg-red-200 border border-red-200 text-red-700 px-3 py-1 text-sm rounded-md transition-all'}>Rejeitar</button>
                          </div>
                     </div>
                 ))}
@@ -1206,10 +1352,10 @@ const KitchenView = ({ orders, setView }) => {
                         <div className="flex-grow overflow-y-auto py-2">
                             <ul className="space-y-1">
                                 {order.items.map(item => (
-                                     <li key={item.id + item.name} className="flex justify-between items-center text-lg">
+                                     <li key={item.id + item.name} className="flex justify-between items-start text-lg">
                                         <span className="font-semibold">{item.quantity}x {item.name}</span>
                                         {item.customization && (
-                                            <ul className="text-sm text-stone-300 pl-4">
+                                            <ul className="text-sm text-stone-300 pl-4 text-right">
                                                  {item.customization.map(c => <li key={c.name}>- {c.quantity}x {c.name}</li>)}
                                             </ul>
                                         )}
@@ -1232,6 +1378,52 @@ const KitchenView = ({ orders, setView }) => {
                     </div>
                 ))}
             </div>
+        </div>
+    );
+};
+
+const DeliveryView = ({ orders, setView }) => {
+    const updateStatus = async (orderId, status) => {
+        const orderDocPath = `artifacts/${appId}/public/data/orders/${orderId}`;
+        const orderRef = doc(db, orderDocPath);
+        await updateDoc(orderRef, { status });
+    };
+
+    return (
+        <div className="bg-stone-200 min-h-screen p-4">
+            <div className="flex justify-between items-center mb-4">
+                 <h1 className="text-3xl font-bold text-stone-800">Painel do Entregador</h1>
+                 <button onClick={() => setView('admin')} className="bg-stone-700 text-white font-semibold py-2 px-4 rounded-lg hover:bg-stone-600 flex items-center gap-2"><ChevronsLeft size={16}/> Voltar</button>
+            </div>
+             <div className="space-y-4">
+                {orders.map(order => (
+                     <div key={order.id} className="bg-white p-4 rounded-lg shadow-md">
+                        <div className="flex flex-col sm:flex-row justify-between sm:items-center border-b pb-2 mb-2">
+                             <div>
+                                <h2 className="text-xl font-bold text-stone-800">{order.name}</h2>
+                                <p className="text-sm text-stone-500 font-mono">#{order.id.slice(0, 8).toUpperCase()}</p>
+                             </div>
+                             <p className={`font-bold text-lg ${order.status === 'Saiu para Entrega' ? 'text-purple-600' : 'text-green-600'}`}>{order.status}</p>
+                        </div>
+                        <div className="my-2">
+                             <p className="font-semibold">Telefone: <a href={`tel:${order.phone}`} className="text-blue-600 hover:underline">{order.phone}</a></p>
+                             <p className="font-semibold">Endereço: <span className="font-normal text-stone-700">{order.address}</span></p>
+                        </div>
+                        <div className="flex flex-wrap gap-2 mt-3">
+                              {order.status === 'Pronto para Entrega' && (
+                                <button onClick={() => updateStatus(order.id, 'Saiu para Entrega')} className="flex-1 bg-purple-500 text-white font-bold py-3 rounded-lg hover:bg-purple-600 transition-colors flex items-center justify-center gap-2">
+                                    <Bike size={18}/> Saiu para Entrega
+                                </button>
+                             )}
+                              {order.status === 'Saiu para Entrega' && (
+                                <button onClick={() => updateStatus(order.id, 'Concluído')} className="flex-1 bg-green-500 text-white font-bold py-3 rounded-lg hover:bg-green-600 transition-colors">
+                                    Entrega Concluída
+                                </button>
+                             )}
+                        </div>
+                     </div>
+                ))}
+             </div>
         </div>
     );
 };
