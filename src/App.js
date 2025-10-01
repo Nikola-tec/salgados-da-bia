@@ -130,22 +130,30 @@ export default function App() {
         }
 
         const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
-            setUser(currentUser);
-            setIsAdmin(currentUser?.email === 'admin@admin.com');
+            if (currentUser) {
+                setUser(currentUser);
+                setIsAdmin(currentUser.email === 'admin@admin.com');
 
-            if (currentUser && !currentUser.isAnonymous) {
-                // Adiciona um listener em tempo real para os dados do usuário
-                const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, currentUser.uid);
-                const unsubscribeUser = onSnapshot(userDocRef, (docSnap) => {
-                    if (docSnap.exists()) {
-                        setUserData(docSnap.data());
-                    }
-                });
-                setLoading(false);
-                return () => unsubscribeUser(); // Limpa o listener do usuário ao deslogar
+                if (currentUser && !currentUser.isAnonymous) {
+                    const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, currentUser.uid);
+                    const unsubscribeUser = onSnapshot(userDocRef, (docSnap) => {
+                        if (docSnap.exists()) {
+                            setUserData(docSnap.data());
+                        }
+                    });
+                     setLoading(false);
+                    return () => unsubscribeUser();
+                } else {
+                    setUserData(null);
+                    setLoading(false);
+                }
             } else {
-                setUserData(null);
-                setLoading(false);
+                // Se não houver usuário, faz login anônimo para buscar o cardápio
+                signInAnonymously(auth).catch(err => {
+                    console.error("Falha no login anônimo:", err);
+                    setError("Não foi possível carregar o cardápio. Tente atualizar a página.");
+                    setLoading(false);
+                });
             }
         });
         
@@ -283,7 +291,7 @@ export default function App() {
 
     const handleLogout = async () => {
         await signOut(auth);
-        await signInAnonymously(auth);
+        // O onAuthStateChanged irá lidar com o login anônimo automaticamente
         setCart([]);
         setView('menu');
     };
@@ -1682,4 +1690,3 @@ const DeliveryView = ({ orders, setView }) => {
         </div>
     );
 };
-
