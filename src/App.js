@@ -26,7 +26,9 @@ import {
     setDoc,
     getDoc
 } from 'firebase/firestore';
-import { ChefHat, ShoppingCart, User, LogOut, PlusCircle, MinusCircle, Trash2, Edit, XCircle, CheckCircle, Package, DollarSign, Clock, Settings, Plus, Star, AlertTriangle, UserCheck, KeyRound, Loader2, ChevronsLeft, MapPin, Bike } from 'lucide-react';
+import { ChefHat, ShoppingCart, User, LogOut, PlusCircle, MinusCircle, Trash2, Edit, XCircle, CheckCircle, Package, DollarSign, Clock, Settings, Plus, Star, AlertTriangle, UserCheck, KeyRound, Loader2, ChevronsLeft, MapPin, Bike, TrendingUp } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+
 
 // --- CONFIGURAÇÃO DO FIREBASE ---
 let firebaseConfig;
@@ -106,6 +108,7 @@ export default function App() {
     const [view, setView] = useState('menu'); 
     const [menu, setMenu] = useState([]);
     const [orders, setOrders] = useState([]);
+    const [feedbacks, setFeedbacks] = useState([]);
     const [shopSettings, setShopSettings] = useState(INITIAL_SHOP_SETTINGS);
     const [cart, setCart] = useState([]);
     const [user, setUser] = useState(null);
@@ -179,6 +182,13 @@ export default function App() {
             setOrders(ordersData.sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis()));
         }, (err) => console.error("Erro no listener de pedidos:", err));
         
+        const feedbackCollectionPath = `artifacts/${appId}/public/data/feedback`;
+        const feedbackRef = collection(db, feedbackCollectionPath);
+        const unsubscribeFeedbacks = onSnapshot(feedbackRef, (snapshot) => {
+            const feedbackData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data()}));
+            setFeedbacks(feedbackData);
+        }, (err) => console.error("Erro no listener de feedbacks:", err));
+
         const settingsDocPath = `artifacts/${appId}/public/data/settings`;
         const settingsRef = doc(db, settingsDocPath, 'shopConfig');
         const populateInitialSettings = async () => {
@@ -201,6 +211,7 @@ export default function App() {
             unsubscribeMenu();
             unsubscribeOrders();
             unsubscribeSettings();
+            unsubscribeFeedbacks();
         };
     }, [user, isAdmin]);
 
@@ -304,7 +315,7 @@ export default function App() {
             case 'signUp': return <SignUpView handleSignUp={handleSignUp} error={error} setView={setView} authLoading={authLoading} />;
             case 'myOrders': return <MyOrdersView orders={orders.filter(o => o.userId === user?.uid)} setView={setView} />;
             case 'accountSettings': return <AccountSettingsView user={user} userData={userData} showToast={showToast} setView={setView} />;
-            case 'admin': return isAdmin ? <AdminDashboard menu={menu} orders={orders} handleLogout={handleLogout} showToast={showToast} settings={shopSettings} setView={setView} /> : <MenuView menu={menu} addToCart={addToCart} cart={cart} setView={setView} cartTotal={cartTotal} />;
+            case 'admin': return isAdmin ? <AdminDashboard menu={menu} orders={orders} feedbacks={feedbacks} handleLogout={handleLogout} showToast={showToast} settings={shopSettings} setView={setView} /> : <MenuView menu={menu} addToCart={addToCart} cart={cart} setView={setView} cartTotal={cartTotal} />;
             case 'kitchenView': return <KitchenView orders={orders.filter(o => ['Pendente', 'Em Preparo'].includes(o.status))} setView={setView} />;
             case 'deliveryView': return <DeliveryView orders={orders.filter(o => o.status === 'Pronto para Entrega' || o.status === 'Saiu para Entrega')} setView={setView} />;
             default: return <MenuView menu={menu} addToCart={addToCart} cart={cart} setView={setView} cartTotal={cartTotal} />;
@@ -541,14 +552,14 @@ const CustomizeBoxModal = ({ box, salgados, onClose, addToCart }) => {
                     </div>
                 </div>
                 <div className="p-4 border-t mt-auto bg-stone-50 rounded-b-lg">
-                     {error && <p className="text-red-500 text-center text-sm mb-2">{error}</p>}
-                     <button 
-                         onClick={handleAddToCart} 
-                         disabled={totalSelected !== box.size}
-                         className="w-full bg-green-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-600 transition-all duration-200 disabled:bg-stone-400 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm hover:shadow-lg transform active:scale-95"
-                     >
-                        <ShoppingCart size={20} /> Adicionar ao Carrinho ({box.price.toFixed(2)}€)
-                    </button>
+                         {error && <p className="text-red-500 text-center text-sm mb-2">{error}</p>}
+                         <button 
+                            onClick={handleAddToCart} 
+                            disabled={totalSelected !== box.size}
+                            className="w-full bg-green-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-600 transition-all duration-200 disabled:bg-stone-400 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm hover:shadow-lg transform active:scale-95"
+                        >
+                            <ShoppingCart size={20} /> Adicionar ao Carrinho ({box.price.toFixed(2)}€)
+                        </button>
                 </div>
             </div>
         </div>
@@ -918,25 +929,25 @@ const AccountSettingsView = ({ user, userData, showToast, setView }) => {
         <div className="max-w-2xl mx-auto">
              <h2 className="text-3xl font-bold mb-6 text-stone-800">Minha Conta</h2>
               <div className="bg-white p-6 rounded-lg shadow-lg space-y-4">
-                 <div>
-                    <label className="block text-sm font-bold mb-1 text-stone-600">Nome Completo</label>
-                    <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full p-2 border border-stone-300 rounded" />
-                </div>
-                 <div>
-                    <label className="block text-sm font-bold mb-1 text-stone-600">Telefone de Contato</label>
-                    <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full p-2 border border-stone-300 rounded" />
-                </div>
-                 <div>
-                    <label className="block text-sm font-bold mb-1 text-stone-600">Email</label>
-                    <input type="email" value={user?.email || ''} className="w-full p-2 border bg-stone-100 border-stone-300 rounded" disabled />
-                </div>
-                <div className="pt-4 flex justify-between items-center">
-                    <button onClick={handleSave} disabled={isSaving} className="bg-amber-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-amber-600 transition-colors shadow-sm hover:shadow-md active:scale-95 flex items-center justify-center disabled:bg-amber-300 w-40">
-                        {isSaving ? <Loader2 className="animate-spin" /> : "Salvar Alterações"}
-                    </button>
-                    <button onClick={() => setView('myOrders')} className="text-stone-600 font-semibold hover:underline">Ver meus pedidos</button>
-                </div>
-            </div>
+                  <div>
+                      <label className="block text-sm font-bold mb-1 text-stone-600">Nome Completo</label>
+                      <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full p-2 border border-stone-300 rounded" />
+                  </div>
+                  <div>
+                      <label className="block text-sm font-bold mb-1 text-stone-600">Telefone de Contato</label>
+                      <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full p-2 border border-stone-300 rounded" />
+                  </div>
+                  <div>
+                      <label className="block text-sm font-bold mb-1 text-stone-600">Email</label>
+                      <input type="email" value={user?.email || ''} className="w-full p-2 border bg-stone-100 border-stone-300 rounded" disabled />
+                  </div>
+                  <div className="pt-4 flex justify-between items-center">
+                      <button onClick={handleSave} disabled={isSaving} className="bg-amber-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-amber-600 transition-colors shadow-sm hover:shadow-md active:scale-95 flex items-center justify-center disabled:bg-amber-300 w-40">
+                          {isSaving ? <Loader2 className="animate-spin" /> : "Salvar Alterações"}
+                      </button>
+                      <button onClick={() => setView('myOrders')} className="text-stone-600 font-semibold hover:underline">Ver meus pedidos</button>
+                  </div>
+              </div>
         </div>
     );
 }
@@ -1027,7 +1038,7 @@ const AdminStats = ({ orders }) => {
     );
 }
 
-const AdminDashboard = ({ menu, orders, handleLogout, showToast, settings, setView }) => {
+const AdminDashboard = ({ menu, orders, feedbacks, handleLogout, showToast, settings, setView }) => {
     const [adminView, setAdminView] = useState('dashboard'); 
     
     const renderAdminView = () => {
@@ -1035,6 +1046,8 @@ const AdminDashboard = ({ menu, orders, handleLogout, showToast, settings, setVi
             case 'orders': return <ManageOrders orders={orders} />;
             case 'menu': return <ManageMenu menu={menu} />;
             case 'settings': return <AdminSettings showToast={showToast} currentSettings={settings} />;
+            case 'faturamento': return <FaturamentoView orders={orders} />;
+            case 'feedbacks': return <FeedbacksView feedbacks={feedbacks} />;
             default: return <AdminStats orders={orders} />;
         }
     }
@@ -1053,12 +1066,174 @@ const AdminDashboard = ({ menu, orders, handleLogout, showToast, settings, setVi
                 <button onClick={() => setAdminView('dashboard')} className={`px-4 py-2 font-semibold text-sm rounded-t-md flex items-center gap-2 transition-colors ${adminView === 'dashboard' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Package size={16}/> Resumo</button>
                 <button onClick={() => setAdminView('orders')} className={`px-4 py-2 font-semibold text-sm rounded-t-md flex items-center gap-2 transition-colors ${adminView === 'orders' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><ShoppingCart size={16}/> Pedidos</button>
                 <button onClick={() => setAdminView('menu')} className={`px-4 py-2 font-semibold text-sm rounded-t-md flex items-center gap-2 transition-colors ${adminView === 'menu' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><ChefHat size={16}/> Cardápio</button>
+                <button onClick={() => setAdminView('faturamento')} className={`px-4 py-2 font-semibold text-sm rounded-t-md flex items-center gap-2 transition-colors ${adminView === 'faturamento' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><TrendingUp size={16}/> Faturamento</button>
+                <button onClick={() => setAdminView('feedbacks')} className={`px-4 py-2 font-semibold text-sm rounded-t-md flex items-center gap-2 transition-colors ${adminView === 'feedbacks' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Star size={16}/> Feedbacks</button>
                 <button onClick={() => setAdminView('settings')} className={`px-4 py-2 font-semibold text-sm rounded-t-md flex items-center gap-2 transition-colors ${adminView === 'settings' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Settings size={16}/> Configurações</button>
             </div>
             {renderAdminView()}
         </div>
     );
 };
+
+// --- NOVOS COMPONENTES DE BI ---
+const FaturamentoView = ({ orders }) => {
+    const [filter, setFilter] = useState('30d');
+    const [yearFilter, setYearFilter] = useState(new Date().getFullYear());
+
+    const availableYears = useMemo(() => {
+        if (!orders || orders.length === 0) return [new Date().getFullYear()];
+        const years = new Set(orders.map(o => new Date(o.createdAt?.seconds * 1000).getFullYear()));
+        return Array.from(years).sort((a, b) => b - a);
+    }, [orders]);
+
+    const filteredData = useMemo(() => {
+        const now = new Date();
+        let filteredOrders = orders.filter(o => o.status === 'Concluído' && o.createdAt?.seconds);
+
+        if (filter === '30d') {
+            const thirtyDaysAgo = new Date(now.setDate(now.getDate() - 30));
+            filteredOrders = filteredOrders.filter(o => new Date(o.createdAt.seconds * 1000) >= thirtyDaysAgo);
+        } else if (filter === '60d') {
+            const sixtyDaysAgo = new Date(now.setDate(now.getDate() - 60));
+            filteredOrders = filteredOrders.filter(o => new Date(o.createdAt.seconds * 1000) >= sixtyDaysAgo);
+        } else if (filter === '90d') {
+            const ninetyDaysAgo = new Date(now.setDate(now.getDate() - 90));
+            filteredOrders = filteredOrders.filter(o => new Date(o.createdAt.seconds * 1000) >= ninetyDaysAgo);
+        } else if (filter === 'year') {
+            filteredOrders = filteredOrders.filter(o => new Date(o.createdAt.seconds * 1000).getFullYear() === yearFilter);
+        }
+
+        const monthlyRevenue = filteredOrders.reduce((acc, order) => {
+            const date = new Date(order.createdAt.seconds * 1000);
+            const month = date.toLocaleString('pt-PT', { month: 'long', year: 'numeric' });
+            acc[month] = (acc[month] || 0) + order.total;
+            return acc;
+        }, {});
+        
+        const chartData = Object.keys(monthlyRevenue).map(month => ({
+            name: month,
+            Faturamento: parseFloat(monthlyRevenue[month].toFixed(2))
+        })).reverse(); // Simple reverse to get chronological order for months
+
+        const totalRevenue = filteredOrders.reduce((sum, o) => sum + o.total, 0);
+        const averageTicket = filteredOrders.length > 0 ? totalRevenue / filteredOrders.length : 0;
+        
+        return { chartData, totalRevenue, averageTicket, totalOrders: filteredOrders.length };
+
+    }, [orders, filter, yearFilter]);
+
+    return (
+        <div>
+            <h3 className="text-xl font-bold mb-4 text-stone-700">Análise de Faturamento</h3>
+            <div className="flex flex-wrap gap-2 items-center mb-4 p-2 bg-stone-100 rounded-lg">
+                <button onClick={() => setFilter('30d')} className={`px-3 py-1 text-sm font-semibold rounded-md ${filter === '30d' ? 'bg-amber-500 text-white' : 'bg-white'}`}>Últimos 30 dias</button>
+                <button onClick={() => setFilter('60d')} className={`px-3 py-1 text-sm font-semibold rounded-md ${filter === '60d' ? 'bg-amber-500 text-white' : 'bg-white'}`}>Últimos 60 dias</button>
+                <button onClick={() => setFilter('90d')} className={`px-3 py-1 text-sm font-semibold rounded-md ${filter === '90d' ? 'bg-amber-500 text-white' : 'bg-white'}`}>Últimos 90 dias</button>
+                <div className="flex items-center gap-2">
+                    <button onClick={() => setFilter('year')} className={`px-3 py-1 text-sm font-semibold rounded-md ${filter === 'year' ? 'bg-amber-500 text-white' : 'bg-white'}`}>Por Ano:</button>
+                    <select value={yearFilter} onChange={e => {setYearFilter(Number(e.target.value)); setFilter('year');}} className="p-1 border-stone-300 rounded-md text-sm">
+                        {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div className="bg-green-100 p-4 rounded-lg"><p className="text-sm text-green-800">Faturamento Total (Período)</p><p className="text-2xl font-bold text-green-900">{filteredData.totalRevenue.toFixed(2)}€</p></div>
+                <div className="bg-blue-100 p-4 rounded-lg"><p className="text-sm text-blue-800">Pedidos Concluídos (Período)</p><p className="text-2xl font-bold text-blue-900">{filteredData.totalOrders}</p></div>
+                <div className="bg-yellow-100 p-4 rounded-lg"><p className="text-sm text-yellow-800">Ticket Médio</p><p className="text-2xl font-bold text-yellow-900">{filteredData.averageTicket.toFixed(2)}€</p></div>
+            </div>
+            
+            <div className="bg-white p-4 rounded-lg shadow-sm border h-96">
+                <h4 className="font-bold mb-4">Faturamento Mensal</h4>
+                <ResponsiveContainer width="100%" height="100%">
+                    {filteredData.chartData.length > 0 ? (
+                        <BarChart data={filteredData.chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="name" />
+                            <YAxis tickFormatter={(value) => `${value}€`}/>
+                            <Tooltip formatter={(value) => `${value.toFixed(2)}€`} />
+                            <Legend />
+                            <Bar dataKey="Faturamento" fill="#f59e0b" />
+                        </BarChart>
+                    ) : (
+                        <div className="flex items-center justify-center h-full text-stone-500">Nenhum dado de faturamento para o período selecionado.</div>
+                    )}
+                </ResponsiveContainer>
+            </div>
+        </div>
+    );
+};
+
+const FeedbacksView = ({ feedbacks }) => {
+    const feedbackAnalysis = useMemo(() => {
+        if (!feedbacks || feedbacks.length === 0) {
+            return { total: 0, averageRating: 0, howFoundData: [], recommendData: [] };
+        }
+
+        const total = feedbacks.length;
+        const averageRating = feedbacks.reduce((sum, f) => sum + (f.rating || 0), 0) / total;
+        
+        const howFoundCounts = feedbacks.reduce((acc, f) => {
+            if(f.howFound) acc[f.howFound] = (acc[f.howFound] || 0) + 1;
+            return acc;
+        }, {});
+        const howFoundData = Object.keys(howFoundCounts).map(key => ({ name: key, value: howFoundCounts[key] }));
+
+        const recommendCounts = feedbacks.reduce((acc, f) => {
+            if(f.wouldRecommend) acc[f.wouldRecommend] = (acc[f.wouldRecommend] || 0) + 1;
+            return acc;
+        }, {});
+        const recommendData = Object.keys(recommendCounts).map(key => ({ name: key, value: recommendCounts[key] }));
+
+        return { total, averageRating, howFoundData, recommendData };
+    }, [feedbacks]);
+
+    const COLORS = ['#FBBF24', '#F97316', '#EC4899', '#8B5CF6', '#3B82F6', '#10B981'];
+    
+    if (feedbackAnalysis.total === 0) {
+        return <div className="text-center py-10 text-stone-500">Ainda não há feedbacks para analisar.</div>;
+    }
+
+    return (
+        <div>
+            <h3 className="text-xl font-bold mb-4 text-stone-700">Análise de Feedbacks</h3>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                 <div className="bg-stone-100 p-4 rounded-lg text-center"><p className="text-sm text-stone-600">Total de Respostas</p><p className="text-3xl font-bold">{feedbackAnalysis.total}</p></div>
+                 <div className="bg-stone-100 p-4 rounded-lg text-center"><p className="text-sm text-stone-600">Avaliação Média</p><div className="flex justify-center items-center gap-1"><p className="text-3xl font-bold">{feedbackAnalysis.averageRating.toFixed(2)}</p><Star className="text-amber-500" size={28}/></div></div>
+             </div>
+
+             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                 <div className="bg-white p-4 rounded-lg shadow-sm border h-96">
+                     <h4 className="font-bold mb-4 text-center">Como os clientes nos conheceram?</h4>
+                     <ResponsiveContainer width="100%" height="100%">
+                         <PieChart>
+                             <Pie data={feedbackAnalysis.howFoundData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
+                                 {feedbackAnalysis.howFoundData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                             </Pie>
+                             <Tooltip />
+                             <Legend />
+                         </PieChart>
+                     </ResponsiveContainer>
+                 </div>
+                 <div className="bg-white p-4 rounded-lg shadow-sm border h-96">
+                     <h4 className="font-bold mb-4 text-center">Indicaria a um amigo?</h4>
+                     <ResponsiveContainer width="100%" height="100%">
+                         <PieChart>
+                             <Pie data={feedbackAnalysis.recommendData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={(entry) => `${(entry.percent * 100).toFixed(0)}%`}>
+                                 <Cell key="cell-0" fill="#10B981" />
+                                 <Cell key="cell-1" fill="#EF4444" />
+                             </Pie>
+                             <Tooltip />
+                             <Legend />
+                         </PieChart>
+                     </ResponsiveContainer>
+                 </div>
+             </div>
+        </div>
+    );
+};
+// --- FIM DOS COMPONENTES DE BI ---
+
 
 const AdminSettings = ({showToast, currentSettings}) => {
     const [settings, setSettings] = useState(currentSettings);
@@ -1134,7 +1309,8 @@ const ManageOrders = ({ orders }) => {
     };
 
     const handleRejectOrder = async (orderId) => {
-         if (window.confirm("Tem a certeza que quer rejeitar e apagar este pedido? Esta ação não pode ser desfeita.")) {
+        // NOTE: In a real app, you might want a custom modal instead of window.confirm
+        if (window.confirm("Tem a certeza que quer rejeitar e apagar este pedido? Esta ação não pode ser desfeita.")) {
             const orderDocPath = `artifacts/${appId}/public/data/orders/${orderId}`;
             await deleteDoc(doc(db, orderDocPath));
         }
@@ -1353,12 +1529,12 @@ const KitchenView = ({ orders, setView }) => {
                             <ul className="space-y-1">
                                 {order.items.map(item => (
                                      <li key={item.id + item.name} className="flex justify-between items-start text-lg">
-                                        <span className="font-semibold">{item.quantity}x {item.name}</span>
-                                        {item.customization && (
-                                            <ul className="text-sm text-stone-300 pl-4 text-right">
+                                         <span className="font-semibold">{item.quantity}x {item.name}</span>
+                                         {item.customization && (
+                                             <ul className="text-sm text-stone-300 pl-4 text-right">
                                                  {item.customization.map(c => <li key={c.name}>- {c.quantity}x {c.name}</li>)}
-                                            </ul>
-                                        )}
+                                             </ul>
+                                         )}
                                      </li>
                                 ))}
                             </ul>
@@ -1398,18 +1574,18 @@ const DeliveryView = ({ orders, setView }) => {
              <div className="space-y-4">
                 {orders.map(order => (
                      <div key={order.id} className="bg-white p-4 rounded-lg shadow-md">
-                        <div className="flex flex-col sm:flex-row justify-between sm:items-center border-b pb-2 mb-2">
+                         <div className="flex flex-col sm:flex-row justify-between sm:items-center border-b pb-2 mb-2">
                              <div>
                                 <h2 className="text-xl font-bold text-stone-800">{order.name}</h2>
                                 <p className="text-sm text-stone-500 font-mono">#{order.id.slice(0, 8).toUpperCase()}</p>
                              </div>
                              <p className={`font-bold text-lg ${order.status === 'Saiu para Entrega' ? 'text-purple-600' : 'text-green-600'}`}>{order.status}</p>
-                        </div>
-                        <div className="my-2">
+                         </div>
+                         <div className="my-2">
                              <p className="font-semibold">Telefone: <a href={`tel:${order.phone}`} className="text-blue-600 hover:underline">{order.phone}</a></p>
                              <p className="font-semibold">Endereço: <span className="font-normal text-stone-700">{order.address}</span></p>
-                        </div>
-                        <div className="flex flex-wrap gap-2 mt-3">
+                         </div>
+                         <div className="flex flex-wrap gap-2 mt-3">
                               {order.status === 'Pronto para Entrega' && (
                                 <button onClick={() => updateStatus(order.id, 'Saiu para Entrega')} className="flex-1 bg-purple-500 text-white font-bold py-3 rounded-lg hover:bg-purple-600 transition-colors flex items-center justify-center gap-2">
                                     <Bike size={18}/> Saiu para Entrega
@@ -1420,11 +1596,10 @@ const DeliveryView = ({ orders, setView }) => {
                                     Entrega Concluída
                                 </button>
                              )}
-                        </div>
+                         </div>
                      </div>
                 ))}
              </div>
         </div>
     );
 };
-
