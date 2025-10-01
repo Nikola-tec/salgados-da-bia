@@ -101,6 +101,9 @@ const FirebaseErrorScreen = () => (
     </div>
 );
 
+// Adicione os emails dos administradores aqui.
+const ADMIN_EMAILS = ['bianca.cardosomedeiros@gmail.com'];
+
 
 // --- COMPONENTE PRINCIPAL: App ---
 export default function App() {
@@ -132,7 +135,7 @@ export default function App() {
         const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
             if (currentUser) {
                 setUser(currentUser);
-                setIsAdmin(currentUser.email === 'admin@admin.com');
+                setIsAdmin(ADMIN_EMAILS.includes(currentUser.email));
 
                 if (currentUser && !currentUser.isAnonymous) {
                     const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, currentUser.uid);
@@ -259,7 +262,7 @@ export default function App() {
         setError('');
         try {
             await signInWithEmailAndPassword(auth, email, password);
-            if(email === 'admin@admin.com') {
+            if(ADMIN_EMAILS.includes(email)) {
                 setView('admin');
             } else {
                 setView('cart');
@@ -1690,3 +1693,4 @@ const DeliveryView = ({ orders, setView }) => {
         </div>
     );
 };
+
