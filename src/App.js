@@ -26,7 +26,7 @@ import {
     setDoc,
     getDoc
 } from 'firebase/firestore';
-import { ChefHat, ShoppingCart, User, LogOut, PlusCircle, MinusCircle, Trash2, Edit, XCircle, CheckCircle, Package, DollarSign, Clock, Settings, Plus, Star, AlertTriangle, UserCheck, KeyRound, Loader2, ChevronsLeft, MapPin, Bike, TrendingUp } from 'lucide-react';
+import { ChefHat, ShoppingCart, User, LogOut, PlusCircle, MinusCircle, Trash2, Edit, XCircle, CheckCircle, Package, DollarSign, Clock, Settings, Plus, Star, AlertTriangle, UserCheck, KeyRound, Loader2, ChevronsLeft, MapPin, Bike, TrendingUp, Percent } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 
@@ -60,7 +60,6 @@ if (firebaseConfig && firebaseConfig.apiKey) {
   try {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
-    // CORREÇÃO: Garante que a sessão do usuário persista no navegador
     setPersistence(auth, browserLocalPersistence); 
     db = getFirestore(app);
     firebaseInitialized = true;
@@ -130,21 +129,24 @@ export default function App() {
             return;
         }
 
-        const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
+        const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
             setIsAdmin(currentUser?.email === 'admin@admin.com');
 
             if (currentUser && !currentUser.isAnonymous) {
+                // Adiciona um listener em tempo real para os dados do usuário
                 const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, currentUser.uid);
-                const docSnap = await getDoc(userDocRef);
-                if (docSnap.exists()) {
-                    setUserData(docSnap.data());
-                }
+                const unsubscribeUser = onSnapshot(userDocRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        setUserData(docSnap.data());
+                    }
+                });
+                setLoading(false);
+                return () => unsubscribeUser(); // Limpa o listener do usuário ao deslogar
             } else {
                 setUserData(null);
+                setLoading(false);
             }
-            
-            setLoading(false);
         });
         
         return () => unsubscribeAuth();
@@ -241,7 +243,7 @@ export default function App() {
         }).filter(item => item.quantity > 0));
     };
     
-    const cartTotal = useMemo(() => cart.reduce((total, item) => total + item.price * item.quantity, 0).toFixed(2), [cart]);
+    const cartTotal = useMemo(() => cart.reduce((total, item) => total + item.price * item.quantity, 0), [cart]);
     const cartTotalQuantity = useMemo(() => cart.reduce((total, item) => total + item.quantity, 0), [cart]);
 
     const handleLogin = async (email, password) => {
@@ -266,7 +268,13 @@ export default function App() {
             await updateProfile(userCredential.user, { displayName: name });
             
             const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, userCredential.user.uid);
-            await setDoc(userDocRef, { name, email });
+            // Adiciona campos de controle de feedback/desconto no registro
+            await setDoc(userDocRef, { 
+                name, 
+                email,
+                hasGivenFeedback: false,
+                hasFeedbackDiscount: false
+            });
             
             setView('cart');
         } catch(err) { setError('Não foi possível criar a conta. O email pode já estar em uso.'); }
@@ -288,15 +296,38 @@ export default function App() {
         }
         setAuthLoading(true);
         try {
-            const ordersCollectionPath = `artifacts/${appId}/public/data/orders`;
-            await addDoc(collection(db, ordersCollectionPath), {
+            const discountPercentage = 0.05; // 5%
+            const hasDiscount = userData?.hasFeedbackDiscount;
+            const subtotal = cartTotal;
+            const discountAmount = hasDiscount ? subtotal * discountPercentage : 0;
+            const finalTotal = subtotal - discountAmount;
+
+            const orderData = {
                 ...customerDetails,
                 items: cart,
-                total: parseFloat(cartTotal),
+                subtotal: subtotal,
+                total: finalTotal,
                 status: 'Pendente',
                 createdAt: new Date(),
                 userId: user.uid,
-            });
+            };
+
+            if (hasDiscount) {
+                orderData.discount = {
+                    type: 'feedback',
+                    amount: discountAmount,
+                };
+            }
+
+            const ordersCollectionPath = `artifacts/${appId}/public/data/orders`;
+            await addDoc(collection(db, ordersCollectionPath), orderData);
+
+            // Se o desconto foi usado, remove-o do perfil do usuário
+            if (hasDiscount) {
+                const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, user.uid);
+                await updateDoc(userDocRef, { hasFeedbackDiscount: false });
+            }
+
             setCart([]);
             setView('confirmation');
         } catch (error) { console.error("Erro ao fazer pedido: ", error); setError("Não foi possível processar seu pedido. Tente novamente."); }
@@ -307,18 +338,18 @@ export default function App() {
     
     const renderView = () => {
         switch (view) {
-            case 'cart': return <CartView cart={cart} updateQuantity={updateQuantity} cartTotal={cartTotal} setView={setView} emptyCart={() => setCart([])} user={user} />;
+            case 'cart': return <CartView cart={cart} updateQuantity={updateQuantity} cartTotal={cartTotal.toFixed(2)} setView={setView} emptyCart={() => setCart([])} user={user} />;
             case 'checkout': return <CheckoutView placeOrder={placeOrder} cartTotal={cartTotal} setView={setView} initialError={error} user={user} userData={userData} authLoading={authLoading} shopSettings={shopSettings} />;
-            case 'confirmation': return <ConfirmationView setView={setView} showToast={showToast} />;
+            case 'confirmation': return <ConfirmationView setView={setView} showToast={showToast} user={user} userData={userData} />;
             case 'adminLogin': return <LoginView handleLogin={handleLogin} error={error} isAdminLogin={true} authLoading={authLoading} />;
             case 'customerLogin': return <LoginView handleLogin={handleLogin} error={error} setView={setView} authLoading={authLoading} />;
             case 'signUp': return <SignUpView handleSignUp={handleSignUp} error={error} setView={setView} authLoading={authLoading} />;
             case 'myOrders': return <MyOrdersView orders={orders.filter(o => o.userId === user?.uid)} setView={setView} />;
             case 'accountSettings': return <AccountSettingsView user={user} userData={userData} showToast={showToast} setView={setView} />;
-            case 'admin': return isAdmin ? <AdminDashboard menu={menu} orders={orders} feedbacks={feedbacks} handleLogout={handleLogout} showToast={showToast} settings={shopSettings} setView={setView} /> : <MenuView menu={menu} addToCart={addToCart} cart={cart} setView={setView} cartTotal={cartTotal} />;
+            case 'admin': return isAdmin ? <AdminDashboard menu={menu} orders={orders} feedbacks={feedbacks} handleLogout={handleLogout} showToast={showToast} settings={shopSettings} setView={setView} /> : <MenuView menu={menu} addToCart={addToCart} cart={cart} setView={setView} cartTotal={cartTotal.toFixed(2)} />;
             case 'kitchenView': return <KitchenView orders={orders.filter(o => ['Pendente', 'Em Preparo'].includes(o.status))} setView={setView} />;
             case 'deliveryView': return <DeliveryView orders={orders.filter(o => o.status === 'Pronto para Entrega' || o.status === 'Saiu para Entrega')} setView={setView} />;
-            default: return <MenuView menu={menu} addToCart={addToCart} cart={cart} setView={setView} cartTotal={cartTotal} />;
+            default: return <MenuView menu={menu} addToCart={addToCart} cart={cart} setView={setView} cartTotal={cartTotal.toFixed(2)} />;
         }
     };
 
@@ -634,6 +665,14 @@ const CheckoutView = ({ placeOrder, cartTotal, setView, initialError, user, user
     const [pickupTime, setPickupTime] = useState('');
     const [formError, setFormError] = useState('');
 
+    // Lógica para aplicar o desconto
+    const discountPercentage = 0.05; // 5%
+    const hasDiscount = userData?.hasFeedbackDiscount;
+    const subtotal = cartTotal;
+    const discountAmount = hasDiscount ? subtotal * discountPercentage : 0;
+    const finalTotal = subtotal - discountAmount;
+
+
     const handleSubmit = (e) => {
         e.preventDefault();
         const details = { name, phone };
@@ -688,7 +727,16 @@ const CheckoutView = ({ placeOrder, cartTotal, setView, initialError, user, user
                 {formError && <p className="text-red-500 text-center">{formError}</p>}
                 {initialError && <p className="text-red-500 text-center">{initialError}</p>}
                 <div className="border-t pt-6 mt-2">
-                    <p className="text-xl text-right mb-4">Total a Pagar: <span className="font-bold">{cartTotal}€</span></p>
+                    <div className="space-y-1 text-right mb-4">
+                        <p className="text-md">Subtotal: <span className="font-semibold">{subtotal.toFixed(2)}€</span></p>
+                        {hasDiscount && (
+                            <p className="text-md text-green-600 flex items-center justify-end gap-1">
+                                <Percent size={14}/> Desconto Feedback (5%): <span className="font-semibold">-{discountAmount.toFixed(2)}€</span>
+                            </p>
+                        )}
+                        <p className="text-xl">Total a Pagar: <span className="font-bold text-2xl">{finalTotal.toFixed(2)}€</span></p>
+                    </div>
+
                     <button type="submit" disabled={authLoading} className="w-full bg-green-500 text-white font-bold py-3 rounded-lg hover:bg-green-600 transition-colors text-lg shadow hover:shadow-lg active:scale-95 flex justify-center items-center disabled:bg-green-300">
                         {authLoading ? <Loader2 className="animate-spin" /> : "Confirmar Pedido"}
                     </button>
@@ -701,19 +749,37 @@ const CheckoutView = ({ placeOrder, cartTotal, setView, initialError, user, user
     );
 };
 
-const ConfirmationView = ({ setView, showToast }) => {
+const ConfirmationView = ({ setView, showToast, user, userData }) => {
     const [feedbackView, setFeedbackView] = useState(false);
     const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
 
+    // Verifica se o usuário já deu feedback para não mostrar a oferta novamente
+    const showFeedbackSection = userData && !userData.hasGivenFeedback;
+
     const handleFeedbackSubmit = async (feedbackData) => {
+        if (!user || user.isAnonymous) {
+            showToast("Erro: Usuário não autenticado.");
+            return;
+        }
         const feedbackCollectionPath = `artifacts/${appId}/public/data/feedback`;
+        const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, user.uid);
+        
         try {
+            // Salva o feedback com a ID do usuário
             await addDoc(collection(db, feedbackCollectionPath), {
                 ...feedbackData,
+                userId: user.uid,
                 submittedAt: new Date(),
             });
+
+            // Atualiza o perfil do usuário para dar o desconto e marcar que o feedback foi enviado
+            await updateDoc(userDocRef, {
+                hasGivenFeedback: true,
+                hasFeedbackDiscount: true,
+            });
+            
             setFeedbackSubmitted(true);
-            showToast("Obrigado pelo seu feedback!");
+            showToast("Obrigado! Desconto de 5% ativado para sua próxima compra.");
         } catch (error) {
             console.error("Erro ao enviar feedback:", error);
             showToast("Erro ao enviar feedback.");
@@ -747,13 +813,15 @@ const ConfirmationView = ({ setView, showToast }) => {
             <button onClick={() => setView('myOrders')} className="mt-8 bg-amber-500 text-white font-bold py-3 px-8 rounded-full hover:bg-amber-600 transition-colors shadow hover:shadow-lg active:scale-95">
                 Ver Meus Pedidos
             </button>
-             <div className="mt-8 pt-6 border-t">
-                <h3 className="text-lg font-semibold text-stone-700">Ganhe 5% de Desconto!</h3>
-                <p className="text-stone-500 text-sm mt-1">Ajude-nos a melhorar! Responda a 3 perguntas rápidas e ganhe 5% de desconto no seu próximo pedido.</p>
-                 <button onClick={() => setFeedbackView(true)} className="mt-4 bg-stone-800 text-white font-bold py-2 px-6 rounded-full hover:bg-stone-900 transition-colors shadow active:scale-95">
-                    Dar Feedback
-                </button>
-            </div>
+            {showFeedbackSection && (
+                <div className="mt-8 pt-6 border-t">
+                    <h3 className="text-lg font-semibold text-stone-700">Ganhe 5% de Desconto!</h3>
+                    <p className="text-stone-500 text-sm mt-1">Ajude-nos a melhorar! Responda a 3 perguntas rápidas e ganhe 5% de desconto no seu próximo pedido.</p>
+                    <button onClick={() => setFeedbackView(true)} className="mt-4 bg-stone-800 text-white font-bold py-2 px-6 rounded-full hover:bg-stone-900 transition-colors shadow active:scale-95">
+                        Dar Feedback
+                    </button>
+                </div>
+            )}
         </div>
     );
 };
@@ -911,7 +979,7 @@ const AccountSettingsView = ({ user, userData, showToast, setView }) => {
         setIsSaving(true);
         try {
             const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, user.uid);
-            await setDoc(userDocRef, { name, phone }, { merge: true });
+            await updateDoc(userDocRef, { name, phone });
             
             if (user.displayName !== name) {
                 await updateProfile(user, { displayName: name });
@@ -996,6 +1064,9 @@ const MyOrdersView = ({ orders, setView }) => {
                             <ul className="list-disc list-inside text-sm text-stone-700 pl-2">
                                 {order.items.map(item => (<li key={item.id + item.name}>{item.quantity}x {item.name}{item.customization && (<span className="text-xs text-stone-500 ml-2">({item.customization.map(c => `${c.quantity}x ${c.name}`).join(', ')})</span>)}</li>))}
                             </ul>
+                            {order.discount && (
+                                <p className="text-sm text-green-600 mt-2 font-semibold">Desconto aplicado: {order.discount.amount.toFixed(2)}€</p>
+                            )}
                          </div>
                     </div>
                 ))}
@@ -1091,13 +1162,13 @@ const FaturamentoView = ({ orders }) => {
         let filteredOrders = orders.filter(o => o.status === 'Concluído' && o.createdAt?.seconds);
 
         if (filter === '30d') {
-            const thirtyDaysAgo = new Date(now.setDate(now.getDate() - 30));
+            const thirtyDaysAgo = new Date(new Date().setDate(now.getDate() - 30));
             filteredOrders = filteredOrders.filter(o => new Date(o.createdAt.seconds * 1000) >= thirtyDaysAgo);
         } else if (filter === '60d') {
-            const sixtyDaysAgo = new Date(now.setDate(now.getDate() - 60));
+            const sixtyDaysAgo = new Date(new Date().setDate(now.getDate() - 60));
             filteredOrders = filteredOrders.filter(o => new Date(o.createdAt.seconds * 1000) >= sixtyDaysAgo);
         } else if (filter === '90d') {
-            const ninetyDaysAgo = new Date(now.setDate(now.getDate() - 90));
+            const ninetyDaysAgo = new Date(new Date().setDate(now.getDate() - 90));
             filteredOrders = filteredOrders.filter(o => new Date(o.createdAt.seconds * 1000) >= ninetyDaysAgo);
         } else if (filter === 'year') {
             filteredOrders = filteredOrders.filter(o => new Date(o.createdAt.seconds * 1000).getFullYear() === yearFilter);
@@ -1105,15 +1176,23 @@ const FaturamentoView = ({ orders }) => {
 
         const monthlyRevenue = filteredOrders.reduce((acc, order) => {
             const date = new Date(order.createdAt.seconds * 1000);
-            const month = date.toLocaleString('pt-PT', { month: 'long', year: 'numeric' });
+            const month = date.toLocaleString('pt-PT', { month: 'short', year: 'numeric' });
             acc[month] = (acc[month] || 0) + order.total;
             return acc;
         }, {});
         
-        const chartData = Object.keys(monthlyRevenue).map(month => ({
-            name: month,
+        const sortedMonths = Object.keys(monthlyRevenue).sort((a, b) => {
+            const [monthA, yearA] = a.replace('.', '').split(' de ');
+            const [monthB, yearB] = b.replace('.', '').split(' de ');
+            const dateA = new Date(`${monthA} 1, ${yearA}`);
+            const dateB = new Date(`${monthB} 1, ${yearB}`);
+            return dateA - dateB;
+        });
+
+        const chartData = sortedMonths.map(month => ({
+            name: month.charAt(0).toUpperCase() + month.slice(1),
             Faturamento: parseFloat(monthlyRevenue[month].toFixed(2))
-        })).reverse(); // Simple reverse to get chronological order for months
+        }));
 
         const totalRevenue = filteredOrders.reduce((sum, o) => sum + o.total, 0);
         const averageTicket = filteredOrders.length > 0 ? totalRevenue / filteredOrders.length : 0;
@@ -1145,9 +1224,9 @@ const FaturamentoView = ({ orders }) => {
             
             <div className="bg-white p-4 rounded-lg shadow-sm border h-96">
                 <h4 className="font-bold mb-4">Faturamento Mensal</h4>
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="90%">
                     {filteredData.chartData.length > 0 ? (
-                        <BarChart data={filteredData.chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                        <BarChart data={filteredData.chartData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="name" />
                             <YAxis tickFormatter={(value) => `${value}€`}/>
@@ -1205,7 +1284,7 @@ const FeedbacksView = ({ feedbacks }) => {
              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                  <div className="bg-white p-4 rounded-lg shadow-sm border h-96">
                      <h4 className="font-bold mb-4 text-center">Como os clientes nos conheceram?</h4>
-                     <ResponsiveContainer width="100%" height="100%">
+                     <ResponsiveContainer width="100%" height="90%">
                          <PieChart>
                              <Pie data={feedbackAnalysis.howFoundData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
                                  {feedbackAnalysis.howFoundData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
@@ -1217,7 +1296,7 @@ const FeedbacksView = ({ feedbacks }) => {
                  </div>
                  <div className="bg-white p-4 rounded-lg shadow-sm border h-96">
                      <h4 className="font-bold mb-4 text-center">Indicaria a um amigo?</h4>
-                     <ResponsiveContainer width="100%" height="100%">
+                     <ResponsiveContainer width="100%" height="90%">
                          <PieChart>
                              <Pie data={feedbackAnalysis.recommendData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={(entry) => `${(entry.percent * 100).toFixed(0)}%`}>
                                  <Cell key="cell-0" fill="#10B981" />
@@ -1603,3 +1682,4 @@ const DeliveryView = ({ orders, setView }) => {
         </div>
     );
 };
+
