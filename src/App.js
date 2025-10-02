@@ -536,18 +536,17 @@ const CustomizeBoxModal = ({ box, salgados, onClose, addToCart }) => {
     const [dynamicPrice, setDynamicPrice] = useState(box.price);
 
     useEffect(() => {
-        // Se a quantidade de itens for menor ou igual ao tamanho do box, o preço é o preço fixo promocional.
         if (totalSelected <= box.size || box.size === 0) {
             setDynamicPrice(box.price);
         } else {
-            // Se forem adicionados itens extras, calculamos o preço médio de um item no box...
-            const averageItemPriceInBox = box.price / box.size;
-            const extraItemCount = totalSelected - box.size;
-            // ...e adicionamos o valor dos itens extras ao preço base do box.
-            const newPrice = box.price + (extraItemCount * averageItemPriceInBox);
-            setDynamicPrice(newPrice);
+            // When exceeding the box size, the price becomes the sum of individual items.
+            const calculatedPrice = Object.entries(selection).reduce((sum, [salgadoId, quantity]) => {
+                const salgado = salgados.find(s => s.id === salgadoId);
+                return sum + (salgado ? salgado.price * quantity : 0);
+            }, 0);
+            setDynamicPrice(calculatedPrice);
         }
-    }, [totalSelected, box.price, box.size]);
+    }, [selection, totalSelected, box.price, box.size, salgados]);
 
     const handleSelectionChange = (salgadoId, amount) => {
         setError('');
