@@ -26,7 +26,7 @@ import {
     setDoc,
     getDoc
 } from 'firebase/firestore';
-import { ChefHat, ShoppingCart, User, LogOut, PlusCircle, MinusCircle, Trash2, Edit, XCircle, CheckCircle, Package, DollarSign, Clock, Settings, Plus, Star, AlertTriangle, UserCheck, KeyRound, Loader2, ChevronsLeft, MapPin, Bike, TrendingUp, Percent } from 'lucide-react';
+import { ChefHat, ShoppingCart, User, LogOut, PlusCircle, MinusCircle, Trash2, Edit, XCircle, CheckCircle, Package, DollarSign, Clock, Settings, Plus, Star, AlertTriangle, UserCheck, KeyRound, Loader2, ChevronsLeft, MapPin, Bike, TrendingUp, Percent, Calendar, Eye, EyeOff } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 
@@ -70,17 +70,17 @@ if (firebaseConfig && firebaseConfig.apiKey) {
 
 // --- DADOS INICIAIS ---
 const INITIAL_MENU_DATA = [
-    { name: 'Coxinha de Frango', category: 'Salgados Tradicionais', price: 1.20, image: 'https://i.imgur.com/3h2YqVp.jpg', minimumOrder: 10 },
-    { name: 'Rissoles de Carne', category: 'Salgados Tradicionais', price: 1.20, image: 'https://i.imgur.com/sBw91hB.jpg', minimumOrder: 10 },
-    { name: 'Bolinha de Queijo', category: 'Salgados Tradicionais', price: 1.10, image: 'https://i.imgur.com/bCn7h8S.jpg', minimumOrder: 10 },
-    { name: 'Croquete de Queijo e Fiambre', category: 'Salgados Especiais', price: 1.30, image: 'https://i.imgur.com/K1LdKjW.jpg', minimumOrder: 10 },
-    { name: 'Croquete de Calabresa', category: 'Salgados Especiais', price: 1.30, image: 'https://i.imgur.com/0iYwW5q.jpg', minimumOrder: 10 },
-    { name: 'Kibe', category: 'Salgados Especiais', price: 1.50, image: 'https://i.imgur.com/Y4bBv8e.jpg', minimumOrder: 10 },
-    { name: 'Box Tradicional 15 Salgados', category: 'Boxes', price: 15.00, customizable: true, size: 15, image: 'https://i.imgur.com/uD4fGTy.png' },
-    { name: 'Box Tradicional 30 Salgados', category: 'Boxes', price: 28.00, customizable: true, size: 30, image: 'https://i.imgur.com/uD4fGTy.png' },
-    { name: 'Box Especial 30 Salgados', category: 'Boxes', price: 32.00, customizable: true, size: 30, image: 'https://i.imgur.com/uD4fGTy.png' },
-    { name: 'Box Tradicional 50 Salgados', category: 'Boxes', price: 45.00, customizable: true, size: 50, image: 'https://i.imgur.com/uD4fGTy.png' },
-    { name: 'Box Gigante 100 Salgados', category: 'Boxes', price: 85.00, customizable: true, size: 100, image: 'https://i.imgur.com/uD4fGTy.png' },
+    { name: 'Coxinha de Frango', category: 'Salgados Tradicionais', price: 1.20, image: 'https://i.imgur.com/3h2YqVp.jpg', minimumOrder: 10, isAvailable: true, requiresScheduling: false },
+    { name: 'Rissoles de Carne', category: 'Salgados Tradicionais', price: 1.20, image: 'https://i.imgur.com/sBw91hB.jpg', minimumOrder: 10, isAvailable: true, requiresScheduling: false },
+    { name: 'Bolinha de Queijo', category: 'Salgados Tradicionais', price: 1.10, image: 'https://i.imgur.com/bCn7h8S.jpg', minimumOrder: 10, isAvailable: true, requiresScheduling: false },
+    { name: 'Croquete de Queijo e Fiambre', category: 'Salgados Especiais', price: 1.30, image: 'https://i.imgur.com/K1LdKjW.jpg', minimumOrder: 10, isAvailable: true, requiresScheduling: false },
+    { name: 'Croquete de Calabresa', category: 'Salgados Especiais', price: 1.30, image: 'https://i.imgur.com/0iYwW5q.jpg', minimumOrder: 10, isAvailable: true, requiresScheduling: false },
+    { name: 'Kibe', category: 'Salgados Especiais', price: 1.50, image: 'https://i.imgur.com/Y4bBv8e.jpg', minimumOrder: 10, isAvailable: true, requiresScheduling: false },
+    { name: 'Box Tradicional 15 Salgados', category: 'Boxes', price: 15.00, customizable: true, size: 15, image: 'https://i.imgur.com/uD4fGTy.png', isAvailable: true, requiresScheduling: false },
+    { name: 'Box Tradicional 30 Salgados', category: 'Boxes', price: 28.00, customizable: true, size: 30, image: 'https://i.imgur.com/uD4fGTy.png', isAvailable: true, requiresScheduling: false },
+    { name: 'Box Especial 30 Salgados', category: 'Boxes', price: 32.00, customizable: true, size: 30, image: 'https://i.imgur.com/uD4fGTy.png', isAvailable: true, requiresScheduling: false },
+    { name: 'Box Tradicional 50 Salgados', category: 'Boxes', price: 45.00, customizable: true, size: 50, image: 'https://i.imgur.com/uD4fGTy.png', isAvailable: true, requiresScheduling: false },
+    { name: 'Box Gigante 100 Salgados', category: 'Boxes', price: 85.00, customizable: true, size: 100, image: 'https://i.imgur.com/uD4fGTy.png', isAvailable: true, requiresScheduling: false },
 ];
 
 const INITIAL_SHOP_SETTINGS = {
@@ -89,7 +89,9 @@ const INITIAL_SHOP_SETTINGS = {
     email: "contato@salgadosdabia.pt",
     phone: "+351 912 345 678",
     currency: "EUR",
-    pickupAddress: "Rua das Flores, 123, Lisboa, Portugal"
+    pickupAddress: "Rua das Flores, 123, Lisboa, Portugal",
+    whatsappNumber: "5511999999999",
+    whatsappMessage: "Olá! Quero fazer uma encomenda."
 };
 
 
@@ -151,7 +153,6 @@ export default function App() {
                     setLoading(false);
                 }
             } else {
-                // Se não houver usuário, faz login anônimo para buscar o cardápio
                 signInAnonymously(auth).catch(err => {
                     console.error("Falha no login anônimo:", err);
                     setError("Não foi possível carregar o cardápio. Tente atualizar a página.");
@@ -228,26 +229,26 @@ export default function App() {
         };
     }, [user, isAdmin]);
 
-    const addToCart = (item, customization) => {
-        const quantityToAdd = item.minimumOrder && item.minimumOrder > 1 ? item.minimumOrder : 1;
+    const addToCart = (item, customization, priceOverride) => {
+        const applyMinimumOrder = cart.length === 0;
+        const quantityToAdd = (applyMinimumOrder && item.minimumOrder > 1) ? item.minimumOrder : 1;
+        const finalPrice = priceOverride !== undefined ? priceOverride : item.price;
+        const finalItem = { ...item, price: finalPrice };
+
         setCart(prevCart => {
             const existingItem = prevCart.find(ci => ci.id === item.id && JSON.stringify(ci.customization) === JSON.stringify(customization));
             if (existingItem) {
                 return prevCart.map(ci => ci.id === item.id && JSON.stringify(ci.customization) === JSON.stringify(customization) ? { ...ci, quantity: ci.quantity + 1 } : ci);
             }
-            return [...prevCart, { ...item, quantity: quantityToAdd, customization }];
+            return [...prevCart, { ...finalItem, quantity: quantityToAdd, customization }];
         });
-        showToast(`${item.minimumOrder > 1 ? quantityToAdd + 'x ' : ''}${item.name} adicionado!`);
+        showToast(`${quantityToAdd > 1 ? quantityToAdd + 'x ' : ''}${item.name} adicionado!`);
     };
 
-    const updateQuantity = (itemId, amount, customization, minimumOrder) => {
+    const updateQuantity = (itemId, amount, customization) => {
         setCart(prevCart => prevCart.map(item => {
             if (item.id === itemId && JSON.stringify(item.customization) === JSON.stringify(customization)) {
                 let newQuantity = item.quantity + amount;
-                if (newQuantity > 0 && newQuantity < minimumOrder) {
-                    showToast(`O pedido mínimo é de ${minimumOrder} unidades.`);
-                    newQuantity = minimumOrder;
-                }
                 return { ...item, quantity: Math.max(0, newQuantity) };
             }
             return item;
@@ -279,7 +280,6 @@ export default function App() {
             await updateProfile(userCredential.user, { displayName: name });
             
             const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, userCredential.user.uid);
-            // Adiciona campos de controle de feedback/desconto no registro
             await setDoc(userDocRef, { 
                 name, 
                 email,
@@ -294,7 +294,6 @@ export default function App() {
 
     const handleLogout = async () => {
         await signOut(auth);
-        // O onAuthStateChanged irá lidar com o login anônimo automaticamente
         setCart([]);
         setView('menu');
     };
@@ -307,7 +306,7 @@ export default function App() {
         }
         setAuthLoading(true);
         try {
-            const discountPercentage = 0.05; // 5%
+            const discountPercentage = 0.05;
             const hasDiscount = userData?.hasFeedbackDiscount;
             const subtotal = cartTotal;
             const discountAmount = hasDiscount ? subtotal * discountPercentage : 0;
@@ -333,7 +332,6 @@ export default function App() {
             const ordersCollectionPath = `artifacts/${appId}/public/data/orders`;
             await addDoc(collection(db, ordersCollectionPath), orderData);
 
-            // Se o desconto foi usado, remove-o do perfil do usuário
             if (hasDiscount) {
                 const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, user.uid);
                 await updateDoc(userDocRef, { hasFeedbackDiscount: false });
@@ -350,7 +348,7 @@ export default function App() {
     const renderView = () => {
         switch (view) {
             case 'cart': return <CartView cart={cart} updateQuantity={updateQuantity} cartTotal={cartTotal.toFixed(2)} setView={setView} emptyCart={() => setCart([])} user={user} />;
-            case 'checkout': return <CheckoutView placeOrder={placeOrder} cartTotal={cartTotal} setView={setView} initialError={error} user={user} userData={userData} authLoading={authLoading} shopSettings={shopSettings} />;
+            case 'checkout': return <CheckoutView placeOrder={placeOrder} cartTotal={cartTotal} cartTotalQuantity={cartTotalQuantity} cart={cart} setView={setView} initialError={error} user={user} userData={userData} authLoading={authLoading} shopSettings={shopSettings} />;
             case 'confirmation': return <ConfirmationView setView={setView} showToast={showToast} user={user} userData={userData} />;
             case 'adminLogin': return <LoginView handleLogin={handleLogin} error={error} isAdminLogin={true} authLoading={authLoading} />;
             case 'customerLogin': return <LoginView handleLogin={handleLogin} error={error} setView={setView} authLoading={authLoading} />;
@@ -373,6 +371,7 @@ export default function App() {
             <main className={!['kitchenView', 'deliveryView'].includes(view) ? "p-4 md:p-6 max-w-7xl mx-auto" : ""}>
                 {renderView()}
             </main>
+            {!isAdmin && <WhatsAppButton settings={shopSettings} />}
             {view !== 'kitchenView' && view !== 'deliveryView' && <Footer user={user} setView={setView} handleLogout={handleLogout} isAdmin={isAdmin} />}
         </div>
     );
@@ -385,6 +384,16 @@ const Toast = ({ message }) => (
         <p className="flex items-center gap-2"><CheckCircle size={16}/> {message}</p>
     </div>
 );
+
+const WhatsAppButton = ({ settings }) => {
+    if (!settings.whatsappNumber) return null;
+    const whatsappLink = `https://wa.me/${settings.whatsappNumber.replace(/\D/g, '')}?text=${encodeURIComponent(settings.whatsappMessage || '')}`;
+    return (
+        <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="fixed bottom-6 right-6 bg-green-500 text-white rounded-full p-4 shadow-lg hover:bg-green-600 transition-transform hover:scale-110 z-30 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.894 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 4.315 1.919 6.066l-1.479 5.423 5.57-1.457z"/></svg>
+        </a>
+    )
+}
 
 const Header = ({ cartCount, setView, user, isAdmin, settings }) => (
     <header className="bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-20">
@@ -451,17 +460,17 @@ const MenuView = ({ menu, addToCart, cart, setView, cartTotal }) => {
         
         if (boxNameLower.includes('especial') || boxNameLower.includes('gigante')) {
             availableSalgados = menu.filter(item => 
-                (item.category === 'Salgados Tradicionais' || item.category === 'Salgados Especiais') && !item.customizable
+                (item.category === 'Salgados Tradicionais' || item.category === 'Salgados Especiais') && !item.customizable && item.isAvailable !== false
             );
         } else {
             availableSalgados = menu.filter(item => 
-                item.category === 'Salgados Tradicionais' && !item.customizable
+                item.category === 'Salgados Tradicionais' && !item.customizable && item.isAvailable !== false
             );
         }
         setCustomizingBox({ box: boxItem, availableSalgados });
     };
 
-    const categories = [...new Set(menu.map(item => item.category))].sort((a,b) => a === 'Boxes' ? -1 : b === 'Boxes' ? 1 : a.localeCompare(b));
+    const categories = [...new Set(menu.filter(item => item.isAvailable !== false).map(item => item.category))].sort((a,b) => a === 'Boxes' ? -1 : b === 'Boxes' ? 1 : a.localeCompare(b));
 
     return (
         <div className="animate-fade-in">
@@ -477,14 +486,14 @@ const MenuView = ({ menu, addToCart, cart, setView, cartTotal }) => {
                 <div key={category} className="mb-10">
                     <h2 className="text-3xl font-bold text-amber-600 border-b-2 border-amber-200 pb-2 mb-6">{category}</h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                        {menu.filter(item => item.category === category).map(item => (
-                            <MenuItemCard key={item.id} item={item} onOrderClick={() => item.customizable ? handleCustomizeClick(item) : addToCart(item, null)} />
+                        {menu.filter(item => item.category === category && item.isAvailable !== false).map(item => (
+                            <MenuItemCard key={item.id} item={item} onOrderClick={() => item.customizable ? handleCustomizeClick(item) : addToCart(item)} />
                         ))}
                     </div>
                 </div>
             ))}
             {cart.length > 0 && (
-                <div className="fixed bottom-4 right-4 z-30">
+                <div className="fixed bottom-24 right-4 z-30 md:bottom-4">
                     <button onClick={() => setView('cart')} className="bg-amber-500 text-white font-bold py-3 px-6 rounded-full hover:bg-amber-600 transition-all duration-300 shadow-lg flex items-center gap-3 transform hover:scale-105 active:scale-100">
                         <ShoppingCart size={22} />
                         <span>Ver Carrinho ({cart.reduce((acc, item) => acc + item.quantity, 0)} itens)</span>
@@ -499,8 +508,9 @@ const MenuView = ({ menu, addToCart, cart, setView, cartTotal }) => {
 
 const MenuItemCard = ({ item, onOrderClick }) => (
     <div className="bg-white rounded-xl shadow-md overflow-hidden flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1 group">
-        <div className="h-48 overflow-hidden">
+        <div className="h-48 overflow-hidden relative">
             <img src={item.image} alt={item.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/400x300/FBBF24/FFFFFF?text=Salgado'; }} />
+            {item.requiresScheduling && <div className="absolute top-2 right-2 bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1"><Calendar size={12}/> Sob Encomenda</div>}
         </div>
         <div className="p-4 flex flex-col flex-grow">
             <h3 className="text-lg font-bold text-stone-800">{item.name}</h3>
@@ -520,87 +530,77 @@ const CustomizeBoxModal = ({ box, salgados, onClose, addToCart }) => {
     const [selection, setSelection] = useState({});
     const [error, setError] = useState('');
     const totalSelected = useMemo(() => Object.values(selection).reduce((sum, count) => sum + count, 0), [selection]);
+    const [dynamicPrice, setDynamicPrice] = useState(box.price);
+
+    useEffect(() => {
+        const calculatedPrice = Object.entries(selection).reduce((sum, [salgadoId, quantity]) => {
+            const salgado = salgados.find(s => s.id === salgadoId);
+            return sum + (salgado.price * quantity);
+        }, 0);
+        
+        if (totalSelected < box.size) {
+            setDynamicPrice(box.price);
+        } else {
+            setDynamicPrice(calculatedPrice);
+        }
+    }, [selection, box.size, box.price, salgados, totalSelected]);
 
     const handleSelectionChange = (salgadoId, amount) => {
         setError('');
         const currentCount = selection[salgadoId] || 0;
         const newCount = Math.max(0, currentCount + amount);
-        if (totalSelected - currentCount + newCount <= box.size) {
-            setSelection(prev => ({ ...prev, [salgadoId]: newCount }));
-        } else {
-            setError(`Não pode exceder o limite de ${box.size} salgados.`)
-        }
+        setSelection(prev => ({ ...prev, [salgadoId]: newCount }));
     };
 
-    const handleRandomFill = () => {
-        setError('');
-        let newSelection = {};
-        const availableSalgados = salgados.map(s => s.id);
-        if(availableSalgados.length === 0) return;
-        for (let i = 0; i < box.size; i++) {
-            const randomIndex = Math.floor(Math.random() * availableSalgados.length);
-            const randomSalgadoId = availableSalgados[randomIndex];
-            newSelection[randomSalgadoId] = (newSelection[randomSalgadoId] || 0) + 1;
-        }
-        setSelection(newSelection);
-    };
-    
     const handleAddToCart = () => {
         setError('');
         const customization = Object.entries(selection)
             .filter(([, quantity]) => quantity > 0)
             .map(([salgadoId, quantity]) => {
                 const salgado = salgados.find(s => s.id === salgadoId);
-                return { name: salgado.name, quantity };
+                return { name: salgado.name, quantity, price: salgado.price };
             });
 
-        if (totalSelected === box.size && customization.length > 0) {
-            addToCart(box, customization);
+        if (totalSelected >= box.size && customization.length > 0) {
+            addToCart(box, customization, dynamicPrice);
             onClose();
         } else {
-            setError(`Por favor, selecione exatamente ${box.size} salgados.`);
+            setError(`Por favor, selecione no mínimo ${box.size} salgados.`);
         }
     };
 
     return (
         <div className="fixed inset-0 bg-black/70 z-50 flex justify-center items-center p-4 animate-fade-in">
             <div className="bg-white rounded-lg shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col animate-slide-up">
-                <div className="p-4 border-b flex justify-between items-center flex-wrap gap-2">
+                <div className="p-4 border-b flex justify-between items-center">
                     <h2 className="text-xl font-bold text-amber-600">Monte seu {box.name}</h2>
-                    <div className='flex items-center gap-2'>
-                        <button onClick={handleRandomFill} className="text-sm bg-amber-100 text-amber-800 font-semibold py-1 px-3 rounded-full hover:bg-amber-200 flex items-center gap-1 transition-colors active:scale-95"><Star size={14}/> Montar Aleatoriamente</button>
-                        <button onClick={onClose} className="p-1 rounded-full text-stone-500 hover:bg-stone-200"><XCircle /></button>
-                    </div>
+                    <button onClick={onClose} className="p-1 rounded-full text-stone-500 hover:bg-stone-200"><XCircle /></button>
                 </div>
                 <div className="p-4 overflow-y-auto">
                     <div className="sticky top-0 bg-white py-2 mb-2 z-10">
-                        <p className="mb-2 text-center text-stone-600">Selecione {box.size} salgados. Já selecionou: <strong className="text-amber-600">{totalSelected} de {box.size}</strong></p>
-                        <div className="w-full bg-stone-200 rounded-full h-2.5">
-                           <div className="bg-amber-500 h-2.5 rounded-full transition-all duration-300" style={{ width: `${(totalSelected / box.size) * 100}%` }}></div>
-                        </div>
+                        <p className="mb-2 text-center text-stone-600">Selecione no mínimo {box.size} salgados. Selecionados: <strong className="text-amber-600">{totalSelected}</strong></p>
                     </div>
                     <div className="space-y-3">
-                        {salgados.length > 0 ? salgados.map(salgado => (
+                        {salgados.map(salgado => (
                             <div key={salgado.id} className="flex justify-between items-center bg-stone-100 p-3 rounded-md">
-                                <p className="font-semibold text-stone-700">{salgado.name}</p>
+                                <p className="font-semibold text-stone-700">{salgado.name} (+{salgado.price.toFixed(2)}€)</p>
                                 <div className="flex items-center gap-2">
                                     <button onClick={() => handleSelectionChange(salgado.id, -1)} className="p-1 rounded-full bg-amber-200 text-amber-800 hover:bg-amber-300 disabled:opacity-50 transition-colors active:scale-90" disabled={(selection[salgado.id] || 0) === 0}><MinusCircle size={22} /></button>
                                     <span className="font-bold w-8 text-center text-lg">{selection[salgado.id] || 0}</span>
-                                    <button onClick={() => handleSelectionChange(salgado.id, 1)} className="p-1 rounded-full bg-amber-200 text-amber-800 hover:bg-amber-300 disabled:opacity-50 transition-colors active:scale-90" disabled={totalSelected >= box.size}><PlusCircle size={22} /></button>
-                                    <button onClick={() => handleSelectionChange(salgado.id, 10)} className="text-xs font-bold w-9 h-9 rounded-md bg-amber-300 text-amber-900 hover:bg-amber-400 disabled:opacity-50 transition-colors active:scale-90" disabled={totalSelected + 10 > box.size}>+10</button>
+                                    <button onClick={() => handleSelectionChange(salgado.id, 1)} className="p-1 rounded-full bg-amber-200 text-amber-800 hover:bg-amber-300 transition-colors active:scale-90"><PlusCircle size={22} /></button>
                                 </div>
                             </div>
-                        )) : <p className="text-center text-stone-500">Não há salgados disponíveis para este tipo de box.</p>}
+                        ))}
                     </div>
                 </div>
                 <div className="p-4 border-t mt-auto bg-stone-50 rounded-b-lg">
                          {error && <p className="text-red-500 text-center text-sm mb-2">{error}</p>}
                          <button 
                             onClick={handleAddToCart} 
-                            disabled={totalSelected !== box.size}
+                            disabled={totalSelected < box.size}
                             className="w-full bg-green-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-600 transition-all duration-200 disabled:bg-stone-400 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm hover:shadow-lg transform active:scale-95"
                         >
-                            <ShoppingCart size={20} /> Adicionar ao Carrinho ({box.price.toFixed(2)}€)
+                            <ShoppingCart size={20} /> Adicionar ao Carrinho ({dynamicPrice.toFixed(2)}€)
                         </button>
                 </div>
             </div>
@@ -643,12 +643,12 @@ const CartView = ({ cart, updateQuantity, cartTotal, setView, emptyCart, user })
                                         {item.customization.map(c => <li key={c.name}>{c.quantity}x {c.name}</li>)}
                                     </ul>
                                 )}
-                                <p className="text-stone-600">{item.price.toFixed(2)}€</p>
+                                <p className="text-stone-600">{item.price.toFixed(2)}€ /unidade</p>
                             </div>
                         </div>
                         <div className="flex flex-col items-end">
                              <div className="flex items-center gap-2">
-                                <button onClick={() => updateQuantity(item.id, -1, item.customization, item.minimumOrder || 1)} className="p-1 rounded-full text-stone-600 hover:bg-stone-200 active:scale-90"><MinusCircle size={20} /></button>
+                                <button onClick={() => updateQuantity(item.id, -1, item.customization)} className="p-1 rounded-full text-stone-600 hover:bg-stone-200 active:scale-90"><MinusCircle size={20} /></button>
                                 <span className="font-bold text-lg w-8 text-center">{item.quantity}</span>
                                 <button onClick={() => updateQuantity(item.id, 1, item.customization)} className="p-1 rounded-full text-stone-600 hover:bg-stone-200 active:scale-90"><PlusCircle size={20} /></button>
                             </div>
@@ -668,16 +668,21 @@ const CartView = ({ cart, updateQuantity, cartTotal, setView, emptyCart, user })
     );
 };
 
-const CheckoutView = ({ placeOrder, cartTotal, setView, initialError, user, userData, authLoading, shopSettings }) => {
-    const [deliveryMethod, setDeliveryMethod] = useState('deliver');
+const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView, initialError, user, userData, authLoading, shopSettings }) => {
+    const isLargeOrder = cartTotalQuantity >= 150;
+    const hasScheduledItem = cart.some(item => item.requiresScheduling);
+    const forceScheduling = isLargeOrder || hasScheduledItem;
+
+    const [deliveryMethod, setDeliveryMethod] = useState(forceScheduling ? 'schedule' : 'deliver');
     const [name] = useState(userData?.name || user?.displayName || '');
     const [phone] = useState(userData?.phone || '');
     const [address, setAddress] = useState('');
     const [pickupTime, setPickupTime] = useState('');
+    const [scheduledDate, setScheduledDate] = useState('');
+    const [scheduledTime, setScheduledTime] = useState('');
     const [formError, setFormError] = useState('');
-
-    // Lógica para aplicar o desconto
-    const discountPercentage = 0.05; // 5%
+    
+    const discountPercentage = 0.05;
     const hasDiscount = userData?.hasFeedbackDiscount;
     const subtotal = cartTotal;
     const discountAmount = hasDiscount ? subtotal * discountPercentage : 0;
@@ -686,16 +691,27 @@ const CheckoutView = ({ placeOrder, cartTotal, setView, initialError, user, user
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        const details = { name, phone };
+        setFormError('');
+        const details = { name, phone, deliveryMethod };
+
         if (deliveryMethod === 'deliver') {
             if (!address) { setFormError('Por favor, preencha a morada de entrega.'); return; }
             details.address = address;
-        } else {
+            details.isScheduled = false;
+        } else if (deliveryMethod === 'pickup') {
             if (!pickupTime) { setFormError('Por favor, selecione um horário para retirada.'); return; }
             details.pickupTime = pickupTime;
             details.address = `Retirada em: ${shopSettings.pickupAddress}`;
+            details.isScheduled = false;
+        } else { // schedule
+            if (!scheduledDate || !scheduledTime) { setFormError('Por favor, selecione data e hora para a encomenda.'); return; }
+            if (!address && !shopSettings.pickupAddress) { setFormError('Por favor, preencha a morada para a encomenda.'); return; }
+            details.scheduledDate = scheduledDate;
+            details.scheduledTime = scheduledTime;
+            details.address = address || `Retirada em: ${shopSettings.pickupAddress}`;
+            details.isScheduled = true;
         }
-        setFormError('');
+
         placeOrder(details);
     };
 
@@ -703,13 +719,23 @@ const CheckoutView = ({ placeOrder, cartTotal, setView, initialError, user, user
         <div className="max-w-lg mx-auto bg-white p-8 rounded-lg shadow-lg animate-fade-in">
             <h2 className="text-3xl font-bold mb-6 text-stone-800">Finalizar Pedido</h2>
             
+             {forceScheduling && (
+                <div className="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 mb-6" role="alert">
+                    <p className="font-bold">Apenas Encomenda Disponível</p>
+                    <p>O seu pedido contém itens especiais ou excede 150 unidades, por isso precisa ser agendado.</p>
+                </div>
+            )}
+
             <div className="mb-6">
                 <div className="flex border border-stone-300 rounded-lg p-1">
-                    <button onClick={() => setDeliveryMethod('deliver')} className={`w-1/2 py-2 rounded-md font-semibold transition-colors ${deliveryMethod === 'deliver' ? 'bg-amber-500 text-white' : 'hover:bg-amber-100'}`}>
+                    <button onClick={() => setDeliveryMethod('deliver')} disabled={forceScheduling} className={`w-1/3 py-2 rounded-md font-semibold transition-colors ${deliveryMethod === 'deliver' ? 'bg-amber-500 text-white' : 'hover:bg-amber-100'} disabled:bg-stone-200 disabled:text-stone-400 disabled:cursor-not-allowed`}>
                         Entregar
                     </button>
-                    <button onClick={() => setDeliveryMethod('pickup')} className={`w-1/2 py-2 rounded-md font-semibold transition-colors ${deliveryMethod === 'pickup' ? 'bg-amber-500 text-white' : 'hover:bg-amber-100'}`}>
+                    <button onClick={() => setDeliveryMethod('pickup')} disabled={forceScheduling} className={`w-1/3 py-2 rounded-md font-semibold transition-colors ${deliveryMethod === 'pickup' ? 'bg-amber-500 text-white' : 'hover:bg-amber-100'} disabled:bg-stone-200 disabled:text-stone-400 disabled:cursor-not-allowed`}>
                         Retirar
+                    </button>
+                    <button onClick={() => setDeliveryMethod('schedule')} className={`w-1/3 py-2 rounded-md font-semibold transition-colors ${deliveryMethod === 'schedule' ? 'bg-amber-500 text-white' : 'hover:bg-amber-100'}`}>
+                        Encomendar
                     </button>
                 </div>
             </div>
@@ -720,18 +746,38 @@ const CheckoutView = ({ placeOrder, cartTotal, setView, initialError, user, user
                 <p className="text-xs text-stone-500">Para alterar estes dados, vá para <button onClick={() => setView('accountSettings')} className="font-bold underline">Minha Conta</button>.</p>
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">
-                {deliveryMethod === 'deliver' ? (
+                {deliveryMethod === 'deliver' && (
                     <div>
                         <label htmlFor="address" className="block text-stone-700 font-bold mb-2">Morada para Entrega</label>
                         <textarea id="address" value={address} onChange={e => setAddress(e.target.value)} rows="3" className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400" required></textarea>
                     </div>
-                ) : (
+                )}
+                {deliveryMethod === 'pickup' && (
                     <div>
                         <label htmlFor="pickupTime" className="block text-stone-700 font-bold mb-2">Horário para Retirada</label>
                         <input type="time" id="pickupTime" value={pickupTime} onChange={e => setPickupTime(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400" required />
                         <div className="mt-2 bg-stone-100 p-3 rounded-md text-sm">
                             <p className="font-bold">Endereço de Retirada:</p>
                             <p className="text-stone-600">{shopSettings.pickupAddress}</p>
+                        </div>
+                    </div>
+                )}
+                {deliveryMethod === 'schedule' && (
+                    <div className="space-y-4 bg-stone-50 p-4 rounded-lg">
+                        <h3 className="font-bold text-lg">Agendar Encomenda</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                               <label htmlFor="scheduledDate" className="block text-stone-700 font-bold mb-2">Data</label>
+                               <input type="date" id="scheduledDate" value={scheduledDate} onChange={e => setScheduledDate(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-lg" required />
+                            </div>
+                             <div>
+                               <label htmlFor="scheduledTime" className="block text-stone-700 font-bold mb-2">Hora</label>
+                               <input type="time" id="scheduledTime" value={scheduledTime} onChange={e => setScheduledTime(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-lg" required />
+                            </div>
+                        </div>
+                         <div>
+                            <label htmlFor="address" className="block text-stone-700 font-bold mb-2">Morada de Entrega (ou deixe em branco para retirar no local)</label>
+                            <textarea id="address" placeholder={shopSettings.pickupAddress} value={address} onChange={e => setAddress(e.target.value)} rows="2" className="w-full px-3 py-2 border border-stone-300 rounded-lg"></textarea>
                         </div>
                     </div>
                 )}
@@ -763,8 +809,6 @@ const CheckoutView = ({ placeOrder, cartTotal, setView, initialError, user, user
 const ConfirmationView = ({ setView, showToast, user, userData }) => {
     const [feedbackView, setFeedbackView] = useState(false);
     const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
-
-    // Verifica se o usuário já deu feedback para não mostrar a oferta novamente
     const showFeedbackSection = userData && !userData.hasGivenFeedback;
 
     const handleFeedbackSubmit = async (feedbackData) => {
@@ -776,14 +820,12 @@ const ConfirmationView = ({ setView, showToast, user, userData }) => {
         const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, user.uid);
         
         try {
-            // Salva o feedback com a ID do usuário
             await addDoc(collection(db, feedbackCollectionPath), {
                 ...feedbackData,
                 userId: user.uid,
                 submittedAt: new Date(),
             });
 
-            // Atualiza o perfil do usuário para dar o desconto e marcar que o feedback foi enviado
             await updateDoc(userDocRef, {
                 hasGivenFeedback: true,
                 hasFeedbackDiscount: true,
@@ -802,8 +844,7 @@ const ConfirmationView = ({ setView, showToast, user, userData }) => {
              <div className="text-center py-16 max-w-lg mx-auto bg-white p-8 rounded-lg shadow-lg animate-fade-in">
                 <Star size={64} className="mx-auto text-amber-500" />
                 <h2 className="text-3xl font-bold mt-4 text-green-600">Desconto de 5% Liberado!</h2>
-                <p className="text-stone-600 mt-2">O seu feedback é muito importante para nós! Um desconto de 5% será aplicado automaticamente no seu próximo pedido.</p>
-                <p className="text-stone-600 mt-1">Agradecemos a sua preferência!</p>
+                <p className="text-stone-600 mt-2">Um desconto de 5% será aplicado automaticamente no seu próximo pedido.</p>
                 <button onClick={() => setView('myOrders')} className="mt-8 bg-amber-500 text-white font-bold py-3 px-8 rounded-full hover:bg-amber-600 transition-colors shadow hover:shadow-lg active:scale-95">
                     Ver Meus Pedidos
                 </button>
@@ -895,8 +936,8 @@ const FeedbackForm = ({ onSubmit }) => {
 }
 
 const LoginView = ({ handleLogin, error, setView, isAdminLogin = false, authLoading }) => {
-    const [email, setEmail] = useState(isAdminLogin ? 'admin@admin.com' : '');
-    const [password, setPassword] = useState(isAdminLogin ? 'admin123' : '');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
 
     const handleSubmit = (e) => { e.preventDefault(); handleLogin(email, password); };
 
@@ -920,11 +961,6 @@ const LoginView = ({ handleLogin, error, setView, isAdminLogin = false, authLoad
                     <p className="text-center text-sm text-stone-600 pt-2">
                         Não tem conta? <button type="button" onClick={() => setView('signUp')} className="text-amber-600 font-bold hover:underline">Crie uma aqui.</button>
                     </p>
-                )}
-                {isAdminLogin && (
-                    <a href="https://nikola.tec.br" target="_blank" rel="noopener noreferrer" className="block text-center text-xs text-stone-500 pt-3 hover:underline">
-                        Solicitar Suporte
-                    </a>
                 )}
             </form>
         </div>
@@ -1064,6 +1100,7 @@ const MyOrdersView = ({ orders, setView }) => {
                              <div>
                                 <p className="text-sm text-stone-500">Pedido #{order.id.slice(0, 8).toUpperCase()}</p>
                                 <p className="text-sm text-stone-500">Feito em: {new Date(order.createdAt?.seconds * 1000).toLocaleString('pt-PT')}</p>
+                                {order.isScheduled && <p className="text-sm font-bold text-blue-600">Agendado para: {order.scheduledDate} às {order.scheduledTime}</p>}
                              </div>
                              <div className="flex items-center gap-4 mt-2 sm:mt-0">
                                  <span className={`px-3 py-1 text-sm font-semibold rounded-full ${statusStyles[order.status] || 'bg-stone-100'}`}>{order.status}</span>
@@ -1157,7 +1194,6 @@ const AdminDashboard = ({ menu, orders, feedbacks, handleLogout, showToast, sett
     );
 };
 
-// --- NOVOS COMPONENTES DE BI ---
 const FaturamentoView = ({ orders }) => {
     const [filter, setFilter] = useState('30d');
     const [yearFilter, setYearFilter] = useState(new Date().getFullYear());
@@ -1322,8 +1358,6 @@ const FeedbacksView = ({ feedbacks }) => {
         </div>
     );
 };
-// --- FIM DOS COMPONENTES DE BI ---
-
 
 const AdminSettings = ({showToast, currentSettings}) => {
     const [settings, setSettings] = useState(currentSettings);
@@ -1354,27 +1388,35 @@ const AdminSettings = ({showToast, currentSettings}) => {
             <div className="bg-stone-50 p-6 rounded-lg border border-stone-200 space-y-4 max-w-2xl">
                  <div>
                     <label className="block text-sm font-bold mb-1 text-stone-600">Nome da Loja</label>
-                    <input type="text" value={settings.storeName} onChange={(e) => setSettings({...settings, storeName: e.target.value})} className="w-full p-2 border border-stone-300 rounded" />
+                    <input type="text" value={settings.storeName || ''} onChange={(e) => setSettings({...settings, storeName: e.target.value})} className="w-full p-2 border border-stone-300 rounded" />
                 </div>
                  <div>
                     <label className="block text-sm font-bold mb-1 text-stone-600">URL do Logo</label>
-                    <input type="text" value={settings.logoUrl} onChange={(e) => setSettings({...settings, logoUrl: e.target.value})} className="w-full p-2 border border-stone-300 rounded" />
+                    <input type="text" value={settings.logoUrl || ''} onChange={(e) => setSettings({...settings, logoUrl: e.target.value})} className="w-full p-2 border border-stone-300 rounded" />
                 </div>
                 <div>
                     <label className="block text-sm font-bold mb-1 text-stone-600">Email de Contato</label>
-                    <input type="email" value={settings.email} onChange={(e) => setSettings({...settings, email: e.target.value})} className="w-full p-2 border border-stone-300 rounded" />
+                    <input type="email" value={settings.email || ''} onChange={(e) => setSettings({...settings, email: e.target.value})} className="w-full p-2 border border-stone-300 rounded" />
                 </div>
                  <div>
                     <label className="block text-sm font-bold mb-1 text-stone-600">Telefone</label>
-                    <input type="tel" value={settings.phone} onChange={(e) => setSettings({...settings, phone: e.target.value})} className="w-full p-2 border border-stone-300 rounded" />
+                    <input type="tel" value={settings.phone || ''} onChange={(e) => setSettings({...settings, phone: e.target.value})} className="w-full p-2 border border-stone-300 rounded" />
+                </div>
+                 <div>
+                    <label className="block text-sm font-bold mb-1 text-stone-600">Número do WhatsApp (com código do país)</label>
+                    <input type="tel" value={settings.whatsappNumber || ''} onChange={(e) => setSettings({...settings, whatsappNumber: e.target.value})} className="w-full p-2 border border-stone-300 rounded" />
+                </div>
+                 <div>
+                    <label className="block text-sm font-bold mb-1 text-stone-600">Mensagem Padrão do WhatsApp</label>
+                    <textarea value={settings.whatsappMessage || ''} onChange={(e) => setSettings({...settings, whatsappMessage: e.target.value})} className="w-full p-2 border border-stone-300 rounded" rows="3"></textarea>
                 </div>
                 <div>
                     <label className="block text-sm font-bold mb-1 text-stone-600">Endereço para Retirar</label>
-                    <input type="text" value={settings.pickupAddress} onChange={(e) => setSettings({...settings, pickupAddress: e.target.value})} className="w-full p-2 border border-stone-300 rounded" />
+                    <input type="text" value={settings.pickupAddress || ''} onChange={(e) => setSettings({...settings, pickupAddress: e.target.value})} className="w-full p-2 border border-stone-300 rounded" />
                 </div>
                  <div>
                     <label className="block text-sm font-bold mb-1 text-stone-600">Moeda</label>
-                    <select value={settings.currency} onChange={(e) => setSettings({...settings, currency: e.target.value})} className="w-full p-2 border border-stone-300 rounded bg-white">
+                    <select value={settings.currency || 'EUR'} onChange={(e) => setSettings({...settings, currency: e.target.value})} className="w-full p-2 border border-stone-300 rounded bg-white">
                         <option value="EUR">Euro (€)</option>
                         <option value="BRL">Real (R$)</option>
                         <option value="USD">Dólar ($)</option>
@@ -1399,7 +1441,6 @@ const ManageOrders = ({ orders }) => {
     };
 
     const handleRejectOrder = async (orderId) => {
-        // NOTE: In a real app, you might want a custom modal instead of window.confirm
         if (window.confirm("Tem a certeza que quer rejeitar e apagar este pedido? Esta ação não pode ser desfeita.")) {
             const orderDocPath = `artifacts/${appId}/public/data/orders/${orderId}`;
             await deleteDoc(doc(db, orderDocPath));
@@ -1409,9 +1450,9 @@ const ManageOrders = ({ orders }) => {
     const statusStyles = {
         'Pendente': 'bg-yellow-100 text-yellow-800',
         'Em Preparo': 'bg-blue-100 text-blue-800',
-        'Pronto para Entrega': 'bg-green-100 text-green-800',
-        'Concluído': 'bg-stone-200 text-stone-600',
+        'Pronto para Entrega': 'bg-indigo-100 text-indigo-800',
         'Saiu para Entrega': 'bg-purple-100 text-purple-800',
+        'Concluído': 'bg-green-100 text-green-800',
     };
 
     return (
@@ -1425,6 +1466,7 @@ const ManageOrders = ({ orders }) => {
                                  <p className="font-bold text-lg text-stone-800">{order.name}</p>
                                  <p className="text-sm text-stone-600">{order.phone} | {order.address}</p>
                                  <p className="text-sm text-stone-500">Pedido feito em: {new Date(order.createdAt?.seconds * 1000).toLocaleString('pt-PT')}</p>
+                                 {order.isScheduled && <p className="text-sm font-bold text-blue-600">Agendado para: {order.scheduledDate} às {order.scheduledTime}</p>}
                              </div>
                              <div className="flex items-center gap-4 mt-2 sm:mt-0">
                                  <span className={`px-3 py-1 text-sm font-semibold rounded-full ${statusStyles[order.status] || 'bg-stone-100'}`}>{order.status}</span>
@@ -1438,7 +1480,7 @@ const ManageOrders = ({ orders }) => {
                             </ul>
                          </div>
                          <div className="mt-4 flex flex-wrap gap-2 items-center">
-                             {['Pendente', 'Em Preparo', 'Pronto para Entrega'].map(status => (
+                             {['Pendente', 'Em Preparo', 'Pronto para Entrega', 'Saiu para Entrega', 'Concluído'].map(status => (
                                  <button key={status} onClick={() => handleUpdateStatus(order.id, status)} className={`px-3 py-1 text-sm rounded-md transition-all ${order.status === status ? 'ring-2 ring-offset-1 ring-amber-500 bg-stone-200 font-bold' : 'bg-white hover:bg-stone-200 border'}`}>{status}</button>
                              ))}
                              <div className="flex-grow"></div>
@@ -1492,7 +1534,7 @@ const ManageMenu = ({ menu }) => {
     
     const startCreating = () => {
         setIsCreating(true);
-        setEditingItem({ name: '', category: 'Salgados Tradicionais', price: 0, image: '', description: '', customizable: false, size: 0, minimumOrder: 1 });
+        setEditingItem({ name: '', category: 'Salgados Tradicionais', price: 0, image: '', description: '', customizable: false, size: 0, minimumOrder: 1, isAvailable: true, requiresScheduling: false });
     };
 
     return (
@@ -1505,7 +1547,7 @@ const ManageMenu = ({ menu }) => {
             {(editingItem || isCreating) && <MenuItemForm item={editingItem} onSave={handleSave} onCancel={() => { setEditingItem(null); setIsCreating(false); }} />}
             <div className="space-y-2 mt-6">
                 {menu.map(item => (
-                    <div key={item.id} className="flex items-center justify-between bg-stone-50 p-3 rounded-lg border border-stone-200">
+                    <div key={item.id} className={`flex items-center justify-between p-3 rounded-lg border ${item.isAvailable !== false ? 'bg-stone-50 border-stone-200' : 'bg-stone-200 border-stone-300 opacity-60'}`}>
                         <div className="flex items-center gap-4">
                              <img src={item.image} alt={item.name} className="w-12 h-12 rounded-md object-cover bg-stone-200" onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/100x100/FBBF24/FFFFFF?text=?'; }}/>
                             <div>
@@ -1513,7 +1555,10 @@ const ManageMenu = ({ menu }) => {
                                 <p className="text-sm text-stone-500">{item.category} - {item.price.toFixed(2)}€</p>
                             </div>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 items-center">
+                             <span className="text-xs font-semibold flex items-center gap-1">
+                                {item.isAvailable !== false ? <Eye size={14} className="text-green-600"/> : <EyeOff size={14} className="text-red-600"/>}
+                             </span>
                              <button onClick={() => setEditingItem(item)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-full transition-colors"><Edit size={18} /></button>
                              <button onClick={() => setDeletingItemId(item.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-full transition-colors"><Trash2 size={18}/></button>
                         </div>
@@ -1568,23 +1613,32 @@ const MenuItemForm = ({ item, onSave, onCancel }) => {
                     </div>
                      <div className="md:col-span-2">
                         <label className="block text-sm font-bold mb-1">Descrição (opcional)</label>
-                        <textarea name="description" value={formData.description} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded"></textarea>
+                        <textarea name="description" value={formData.description || ''} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded"></textarea>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <input type="checkbox" id="customizable" name="customizable" checked={!!formData.customizable} onChange={handleChange} />
+                    <div>
+                        <label className="block text-sm font-bold mb-1">Pedido Mínimo (Unidades)</label>
+                        <input type="number" name="minimumOrder" value={formData.minimumOrder || 1} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded" />
+                    </div>
+                    <div className="flex items-center gap-2 border p-2 rounded-md bg-stone-50">
+                        <input type="checkbox" id="customizable" name="customizable" checked={!!formData.customizable} onChange={handleChange} className="h-5 w-5"/>
                         <label htmlFor="customizable">É um box customizável?</label>
                     </div>
-                     {formData.customizable ? (
+                     {formData.customizable && (
                          <div>
-                            <label className="block text-sm font-bold mb-1">Nº de salgados no box</label>
+                            <label className="block text-sm font-bold mb-1">Nº mínimo de salgados no box</label>
                             <input type="number" name="size" value={formData.size} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded" />
                          </div>
-                     ) : (
-                         <div>
-                            <label className="block text-sm font-bold mb-1">Pedido Mínimo (Unidades)</label>
-                            <input type="number" name="minimumOrder" value={formData.minimumOrder || 1} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded" />
-                         </div>
                      )}
+                </div>
+                <div className="grid grid-cols-2 gap-4 mt-4 border-t pt-4">
+                     <div className="flex items-center gap-2 p-2 rounded-md bg-stone-50 border">
+                        <input type="checkbox" id="isAvailable" name="isAvailable" checked={formData.isAvailable !== false} onChange={handleChange} className="h-5 w-5"/>
+                        <label htmlFor="isAvailable">Exibir no catálogo?</label>
+                    </div>
+                     <div className="flex items-center gap-2 p-2 rounded-md bg-stone-50 border">
+                        <input type="checkbox" id="requiresScheduling" name="requiresScheduling" checked={!!formData.requiresScheduling} onChange={handleChange} className="h-5 w-5"/>
+                        <label htmlFor="requiresScheduling">Requer encomenda?</label>
+                    </div>
                 </div>
                 <div className="flex justify-end gap-4 mt-6">
                     <button type="button" onClick={onCancel} className="bg-stone-300 text-stone-800 font-bold py-2 px-4 rounded-lg hover:bg-stone-400 active:scale-95 transition-colors">Cancelar</button>
@@ -1615,6 +1669,7 @@ const KitchenView = ({ orders, setView }) => {
                              <h2 className="text-2xl font-bold">{order.name}</h2>
                              <span className="text-lg font-mono">#{order.id.slice(0, 6).toUpperCase()}</span>
                         </div>
+                         {order.isScheduled && <p className="text-sm font-bold text-amber-300 mb-2">AGENDADO: {order.scheduledDate} {order.scheduledTime}</p>}
                         <div className="flex-grow overflow-y-auto py-2">
                             <ul className="space-y-1">
                                 {order.items.map(item => (
