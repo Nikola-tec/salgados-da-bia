@@ -76,11 +76,11 @@ const INITIAL_MENU_DATA = [
     { name: 'Croquete de Queijo e Fiambre', category: 'Salgados Especiais', price: 1.30, image: 'https://i.imgur.com/K1LdKjW.jpg', minimumOrder: 10, isAvailable: true, requiresScheduling: false },
     { name: 'Croquete de Calabresa', category: 'Salgados Especiais', price: 1.30, image: 'https://i.imgur.com/0iYwW5q.jpg', minimumOrder: 10, isAvailable: true, requiresScheduling: false },
     { name: 'Kibe', category: 'Salgados Especiais', price: 1.50, image: 'https://i.imgur.com/Y4bBv8e.jpg', minimumOrder: 10, isAvailable: true, requiresScheduling: false },
-    { name: 'Box Tradicional 15 Salgados', category: 'Boxes', price: 15.00, customizable: true, size: 15, image: 'https://i.imgur.com/uD4fGTy.png', isAvailable: true, requiresScheduling: false },
-    { name: 'Box Tradicional 30 Salgados', category: 'Boxes', price: 28.00, customizable: true, size: 30, image: 'https://i.imgur.com/uD4fGTy.png', isAvailable: true, requiresScheduling: false },
-    { name: 'Box Especial 30 Salgados', category: 'Boxes', price: 32.00, customizable: true, size: 30, image: 'https://i.imgur.com/uD4fGTy.png', isAvailable: true, requiresScheduling: false },
-    { name: 'Box Tradicional 50 Salgados', category: 'Boxes', price: 45.00, customizable: true, size: 50, image: 'https://i.imgur.com/uD4fGTy.png', isAvailable: true, requiresScheduling: false },
-    { name: 'Box Gigante 100 Salgados', category: 'Boxes', price: 85.00, customizable: true, size: 100, image: 'https://i.imgur.com/uD4fGTy.png', isAvailable: true, requiresScheduling: false },
+    { name: 'Box Tradicional 15 Salgados', category: 'Boxes', price: 15.00, customizable: true, size: 15, image: 'https://i.imgur.com/uD4fGTy.png', isAvailable: true, requiresScheduling: false, allowedCategories: ['Salgados Tradicionais'] },
+    { name: 'Box Tradicional 30 Salgados', category: 'Boxes', price: 28.00, customizable: true, size: 30, image: 'https://i.imgur.com/uD4fGTy.png', isAvailable: true, requiresScheduling: false, allowedCategories: ['Salgados Tradicionais'] },
+    { name: 'Box Especial 30 Salgados', category: 'Boxes', price: 32.00, customizable: true, size: 30, image: 'https://i.imgur.com/uD4fGTy.png', isAvailable: true, requiresScheduling: false, allowedCategories: ['Salgados Tradicionais', 'Salgados Especiais'] },
+    { name: 'Box Tradicional 50 Salgados', category: 'Boxes', price: 45.00, customizable: true, size: 50, image: 'https://i.imgur.com/uD4fGTy.png', isAvailable: true, requiresScheduling: false, allowedCategories: ['Salgados Tradicionais'] },
+    { name: 'Box Gigante 100 Salgados', category: 'Boxes', price: 85.00, customizable: true, size: 100, image: 'https://i.imgur.com/uD4fGTy.png', isAvailable: true, requiresScheduling: false, allowedCategories: ['Salgados Tradicionais', 'Salgados Especiais'] },
 ];
 
 const INITIAL_SHOP_SETTINGS = {
@@ -455,18 +455,13 @@ const MenuView = ({ menu, addToCart, cart, setView, cartTotal }) => {
     const [customizingBox, setCustomizingBox] = useState(null);
     
     const handleCustomizeClick = (boxItem) => {
-        let availableSalgados;
-        const boxNameLower = boxItem.name.toLowerCase();
+        // Fallback for old boxes without `allowedCategories`
+        const allowed = boxItem.allowedCategories || (boxItem.name.toLowerCase().includes('especial') || boxItem.name.toLowerCase().includes('gigante') ? ['Salgados Tradicionais', 'Salgados Especiais'] : ['Salgados Tradicionais']);
         
-        if (boxNameLower.includes('especial') || boxNameLower.includes('gigante')) {
-            availableSalgados = menu.filter(item => 
-                (item.category === 'Salgados Tradicionais' || item.category === 'Salgados Especiais') && !item.customizable && item.isAvailable !== false
-            );
-        } else {
-            availableSalgados = menu.filter(item => 
-                item.category === 'Salgados Tradicionais' && !item.customizable && item.isAvailable !== false
-            );
-        }
+        const availableSalgados = menu.filter(item => 
+            allowed.includes(item.category) && !item.customizable && item.isAvailable !== false
+        );
+
         setCustomizingBox({ box: boxItem, availableSalgados });
     };
 
@@ -533,14 +528,13 @@ const CustomizeBoxModal = ({ box, salgados, onClose, addToCart }) => {
     const [dynamicPrice, setDynamicPrice] = useState(box.price);
 
     useEffect(() => {
-        const calculatedPrice = Object.entries(selection).reduce((sum, [salgadoId, quantity]) => {
-            const salgado = salgados.find(s => s.id === salgadoId);
-            return sum + (salgado.price * quantity);
-        }, 0);
-        
         if (totalSelected < box.size) {
             setDynamicPrice(box.price);
         } else {
+            const calculatedPrice = Object.entries(selection).reduce((sum, [salgadoId, quantity]) => {
+                const salgado = salgados.find(s => s.id === salgadoId);
+                return sum + (salgado ? salgado.price * quantity : 0);
+            }, 0);
             setDynamicPrice(calculatedPrice);
         }
     }, [selection, box.size, box.price, salgados, totalSelected]);
@@ -578,12 +572,13 @@ const CustomizeBoxModal = ({ box, salgados, onClose, addToCart }) => {
                 </div>
                 <div className="p-4 overflow-y-auto">
                     <div className="sticky top-0 bg-white py-2 mb-2 z-10">
-                        <p className="mb-2 text-center text-stone-600">Selecione no mínimo {box.size} salgados. Selecionados: <strong className="text-amber-600">{totalSelected}</strong></p>
+                        <p className="mb-2 text-center text-stone-600">Mínimo de {box.size} salgados. Adicione mais se quiser!</p>
+                        <p className="text-center text-sm text-stone-500">Selecionados: <strong className="text-amber-600">{totalSelected}</strong></p>
                     </div>
                     <div className="space-y-3">
                         {salgados.map(salgado => (
                             <div key={salgado.id} className="flex justify-between items-center bg-stone-100 p-3 rounded-md">
-                                <p className="font-semibold text-stone-700">{salgado.name} (+{salgado.price.toFixed(2)}€)</p>
+                                <p className="font-semibold text-stone-700">{salgado.name}</p>
                                 <div className="flex items-center gap-2">
                                     <button onClick={() => handleSelectionChange(salgado.id, -1)} className="p-1 rounded-full bg-amber-200 text-amber-800 hover:bg-amber-300 disabled:opacity-50 transition-colors active:scale-90" disabled={(selection[salgado.id] || 0) === 0}><MinusCircle size={22} /></button>
                                     <span className="font-bold w-8 text-center text-lg">{selection[salgado.id] || 0}</span>
@@ -1534,8 +1529,10 @@ const ManageMenu = ({ menu }) => {
     
     const startCreating = () => {
         setIsCreating(true);
-        setEditingItem({ name: '', category: 'Salgados Tradicionais', price: 0, image: '', description: '', customizable: false, size: 0, minimumOrder: 1, isAvailable: true, requiresScheduling: false });
+        setEditingItem({ name: '', category: 'Salgados Tradicionais', price: 0, image: '', description: '', customizable: false, size: 0, minimumOrder: 1, isAvailable: true, requiresScheduling: false, allowedCategories: [] });
     };
+    
+    const allCategories = useMemo(() => [...new Set(menu.filter(item => !item.customizable).map(item => item.category))], [menu]);
 
     return (
         <div>
@@ -1544,7 +1541,7 @@ const ManageMenu = ({ menu }) => {
                  <h3 className="text-xl font-bold text-stone-700">Gerenciar Cardápio</h3>
                  <button onClick={startCreating} className="bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-600 flex items-center gap-2 shadow-sm hover:shadow-md active:scale-95"><Plus size={18}/> Novo Item</button>
             </div>
-            {(editingItem || isCreating) && <MenuItemForm item={editingItem} onSave={handleSave} onCancel={() => { setEditingItem(null); setIsCreating(false); }} />}
+            {(editingItem || isCreating) && <MenuItemForm item={editingItem} onSave={handleSave} onCancel={() => { setEditingItem(null); setIsCreating(false); }} allCategories={allCategories} />}
             <div className="space-y-2 mt-6">
                 {menu.map(item => (
                     <div key={item.id} className={`flex items-center justify-between p-3 rounded-lg border ${item.isAvailable !== false ? 'bg-stone-50 border-stone-200' : 'bg-stone-200 border-stone-300 opacity-60'}`}>
@@ -1569,7 +1566,7 @@ const ManageMenu = ({ menu }) => {
     );
 };
 
-const MenuItemForm = ({ item, onSave, onCancel }) => {
+const MenuItemForm = ({ item, onSave, onCancel, allCategories }) => {
     const [formData, setFormData] = useState(item);
 
     useEffect(() => { setFormData(item); }, [item]);
@@ -1580,6 +1577,15 @@ const MenuItemForm = ({ item, onSave, onCancel }) => {
         setFormData(prev => ({...prev, [name]: val}));
     };
     
+    const handleCategoryChange = (category) => {
+        const currentCategories = formData.allowedCategories || [];
+        if (currentCategories.includes(category)) {
+            setFormData(prev => ({...prev, allowedCategories: currentCategories.filter(c => c !== category)}));
+        } else {
+            setFormData(prev => ({...prev, allowedCategories: [...currentCategories, category]}));
+        }
+    }
+
     const handleSubmit = (e) => {
         e.preventDefault();
         onSave(formData);
@@ -1624,12 +1630,33 @@ const MenuItemForm = ({ item, onSave, onCancel }) => {
                         <label htmlFor="customizable">É um box customizável?</label>
                     </div>
                      {formData.customizable && (
-                         <div>
+                        <div className="md:col-span-2">
                             <label className="block text-sm font-bold mb-1">Nº mínimo de salgados no box</label>
                             <input type="number" name="size" value={formData.size} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded" />
-                         </div>
+                        </div>
                      )}
                 </div>
+
+                {formData.customizable && (
+                    <div className="mt-4 border-t pt-4">
+                        <label className="block text-sm font-bold mb-2">Categorias Permitidas no Box</label>
+                        <div className="grid grid-cols-2 gap-2">
+                            {allCategories.map(cat => (
+                                <div key={cat} className="flex items-center gap-2">
+                                    <input 
+                                        type="checkbox" 
+                                        id={`cat-${cat}`}
+                                        checked={(formData.allowedCategories || []).includes(cat)}
+                                        onChange={() => handleCategoryChange(cat)}
+                                        className="h-4 w-4"
+                                    />
+                                    <label htmlFor={`cat-${cat}`}>{cat}</label>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-4 mt-4 border-t pt-4">
                      <div className="flex items-center gap-2 p-2 rounded-md bg-stone-50 border">
                         <input type="checkbox" id="isAvailable" name="isAvailable" checked={formData.isAvailable !== false} onChange={handleChange} className="h-5 w-5"/>
