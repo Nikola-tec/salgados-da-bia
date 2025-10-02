@@ -396,10 +396,16 @@ const Toast = ({ message }) => (
 const WhatsAppButton = ({ settings }) => {
     if (!settings.whatsappNumber) return null;
     const whatsappLink = `https://wa.me/${settings.whatsappNumber.replace(/\D/g, '')}?text=${encodeURIComponent(settings.whatsappMessage || '')}`;
+    
     return (
-        <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="fixed bottom-6 right-6 bg-green-500 text-white rounded-full p-4 shadow-lg hover:bg-green-600 transition-transform hover:scale-110 z-30 flex items-center gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.894 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 4.315 1.919 6.066l-1.479 5.423 5.57-1.457z"/></svg>
-        </a>
+        <div className="fixed bottom-6 right-6 z-30 group flex items-center">
+             <span className="bg-white text-stone-700 text-sm font-semibold py-2 px-4 rounded-l-lg shadow-lg transform transition-transform duration-300 scale-0 group-hover:scale-100 origin-right">
+                Faça sua encomenda
+            </span>
+            <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="bg-green-500 text-white rounded-full p-4 shadow-lg hover:bg-green-600 transition-transform hover:scale-110">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M19.001 4.908A9.817 9.817 0 0012.001 2a9.824 9.824 0 00-9.823 9.823c0 1.745.458 3.486 1.321 5.016l-1.397 5.108 5.22-1.372a9.782 9.782 0 004.678 1.209h.001a9.823 9.823 0 009.823-9.823 9.841 9.841 0 00-2.822-6.953zM12.001 20.132c-1.549 0-3.085-.384-4.46-1.13l-.321-.19-3.31.868.884-3.232-.208-.33a7.803 7.803 0 01-1.21-4.249c0-4.31 3.49-7.8 7.8-7.8s7.8 3.49 7.8 7.8-3.49 7.8-7.8 7.8zm4.38-5.093c-.244-.121-1.442-.712-1.666-.793-.225-.08-.388-.121-.552.121-.164.243-.63.793-.772.956-.143.164-.285.185-.53.064s-1.03-.38-1.96-1.213c-.727-.655-1.213-1.46-1.355-1.704-.143-.243-.015-.375.105-.496.108-.108.244-.285.366-.427.121-.143.164-.243.245-.407.081-.164.041-.306-.02-.427s-.552-1.32-.756-1.808c-.201-.48-.406-.415-.552-.422-.137-.007-.299-.007-.463-.007a.91.91 0 00-.668.306c-.225.225-.853.83-1.042 2.015-.188 1.186.205 2.342.225 2.506.021.164.853 1.38 2.062 1.913.284.126.52.203.793.28.385.108.733.092.996.056.295-.041.928-.38 1.058-.747.13-.368.13-.682.09-.748-.041-.064-.164-.108-.347-.19z"/></svg>
+            </a>
+        </div>
     )
 }
 
@@ -592,6 +598,7 @@ const CustomizeBoxModal = ({ box, salgados, onClose, addToCart }) => {
                                     <button onClick={() => handleSelectionChange(salgado.id, -1)} className="p-1 rounded-full bg-amber-200 text-amber-800 hover:bg-amber-300 disabled:opacity-50 transition-colors active:scale-90" disabled={(selection[salgado.id] || 0) === 0}><MinusCircle size={22} /></button>
                                     <span className="font-bold w-8 text-center text-lg">{selection[salgado.id] || 0}</span>
                                     <button onClick={() => handleSelectionChange(salgado.id, 1)} className="p-1 rounded-full bg-amber-200 text-amber-800 hover:bg-amber-300 transition-colors active:scale-90"><PlusCircle size={22} /></button>
+                                    <button onClick={() => handleSelectionChange(salgado.id, 10)} className="text-xs font-bold w-9 h-9 rounded-md bg-amber-300 text-amber-900 hover:bg-amber-400 transition-colors active:scale-90">+10</button>
                                 </div>
                             </div>
                         ))}
@@ -1798,4 +1805,7 @@ const DeliveryView = ({ orders, setView }) => {
         </div>
     );
 };
+
+
+"
 
