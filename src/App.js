@@ -528,16 +528,18 @@ const CustomizeBoxModal = ({ box, salgados, onClose, addToCart }) => {
     const [dynamicPrice, setDynamicPrice] = useState(box.price);
 
     useEffect(() => {
-        if (totalSelected < box.size) {
+        // Se a quantidade de itens for menor ou igual ao tamanho do box, o preço é o preço fixo promocional.
+        if (totalSelected <= box.size || box.size === 0) {
             setDynamicPrice(box.price);
         } else {
-            const calculatedPrice = Object.entries(selection).reduce((sum, [salgadoId, quantity]) => {
-                const salgado = salgados.find(s => s.id === salgadoId);
-                return sum + (salgado ? salgado.price * quantity : 0);
-            }, 0);
-            setDynamicPrice(calculatedPrice);
+            // Se forem adicionados itens extras, calculamos o preço médio de um item no box...
+            const averageItemPriceInBox = box.price / box.size;
+            const extraItemCount = totalSelected - box.size;
+            // ...e adicionamos o valor dos itens extras ao preço base do box.
+            const newPrice = box.price + (extraItemCount * averageItemPriceInBox);
+            setDynamicPrice(newPrice);
         }
-    }, [selection, box.size, box.price, salgados, totalSelected]);
+    }, [totalSelected, box.price, box.size]);
 
     const handleSelectionChange = (salgadoId, amount) => {
         setError('');
@@ -638,7 +640,11 @@ const CartView = ({ cart, updateQuantity, cartTotal, setView, emptyCart, user })
                                         {item.customization.map(c => <li key={c.name}>{c.quantity}x {c.name}</li>)}
                                     </ul>
                                 )}
-                                <p className="text-stone-600">{item.price.toFixed(2)}€ /unidade</p>
+                                 {item.customizable ? (
+                                    <p className="text-stone-600 font-bold">{item.price.toFixed(2)}€</p>
+                                ) : (
+                                    <p className="text-stone-600">{item.price.toFixed(2)}€ /unidade</p>
+                                )}
                             </div>
                         </div>
                         <div className="flex flex-col items-end">
