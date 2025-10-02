@@ -231,10 +231,15 @@ export default function App() {
 
     const addToCart = (item, customization, priceOverride) => {
         const applyMinimumOrder = cart.length === 0;
-        const quantityToAdd = (applyMinimumOrder && item.minimumOrder > 1) ? item.minimumOrder : 1;
+    
+        // A box is always added as 1 unit. For other items, check minimum order rule if cart is empty.
+        const quantityToAdd = item.customizable 
+            ? 1 
+            : (applyMinimumOrder && item.minimumOrder > 1 ? item.minimumOrder : 1);
+    
         const finalPrice = priceOverride !== undefined ? priceOverride : item.price;
         const finalItem = { ...item, price: finalPrice };
-
+    
         setCart(prevCart => {
             const existingItem = prevCart.find(ci => ci.id === item.id && JSON.stringify(ci.customization) === JSON.stringify(customization));
             if (existingItem) {
@@ -242,7 +247,10 @@ export default function App() {
             }
             return [...prevCart, { ...finalItem, quantity: quantityToAdd, customization }];
         });
-        showToast(`${quantityToAdd > 1 ? quantityToAdd + 'x ' : ''}${item.name} adicionado!`);
+    
+        // Adjust toast message for boxes
+        const toastText = item.customizable ? `${item.name} adicionado!` : `${quantityToAdd > 1 ? quantityToAdd + 'x ' : ''}${item.name} adicionado!`;
+        showToast(toastText);
     };
 
     const updateQuantity = (itemId, amount, customization) => {
@@ -1111,7 +1119,12 @@ const MyOrdersView = ({ orders, setView }) => {
                          <div>
                             <p className="font-semibold text-sm mb-2 text-stone-600">Itens:</p>
                             <ul className="list-disc list-inside text-sm text-stone-700 pl-2">
-                                {order.items.map(item => (<li key={item.id + item.name}>{item.quantity}x {item.name}{item.customization && (<span className="text-xs text-stone-500 ml-2">({item.customization.map(c => `${c.quantity}x ${c.name}`).join(', ')})</span>)}</li>))}
+                                {order.items.map(item => (
+                                    <li key={item.id + item.name}>
+                                        {item.customizable ? '' : `${item.quantity}x `}{item.name}
+                                        {item.customization && (<span className="text-xs text-stone-500 ml-2">({item.customization.map(c => `${c.quantity}x ${c.name}`).join(', ')})</span>)}
+                                    </li>
+                                ))}
                             </ul>
                             {order.discount && (
                                 <p className="text-sm text-green-600 mt-2 font-semibold">Desconto aplicado: {order.discount.amount.toFixed(2)}€</p>
@@ -1477,7 +1490,12 @@ const ManageOrders = ({ orders }) => {
                          <div className="mt-4 border-t pt-2">
                             <p className="font-semibold text-sm mb-1 text-stone-600">Itens:</p>
                             <ul className="list-disc list-inside text-sm text-stone-700">
-                                {order.items.map(item => (<li key={item.id + item.name}>{item.quantity}x {item.name}{item.customization && (<span className="text-xs text-stone-500 ml-2">({item.customization.map(c => `${c.quantity}x ${c.name}`).join(', ')})</span>)}</li>))}
+                                {order.items.map(item => (
+                                     <li key={item.id + item.name}>
+                                        {item.customizable ? '' : `${item.quantity}x `}{item.name}
+                                        {item.customization && (<span className="text-xs text-stone-500 ml-2">({item.customization.map(c => `${c.quantity}x ${c.name}`).join(', ')})</span>)}
+                                    </li>
+                                ))}
                             </ul>
                          </div>
                          <div className="mt-4 flex flex-wrap gap-2 items-center">
