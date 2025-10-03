@@ -357,6 +357,8 @@ export default function App() {
     };
     
     if (!firebaseInitialized) return <FirebaseErrorScreen />;
+
+    const isCartButtonVisible = (view === 'menu' || view === 'cart') && cart.length > 0;
     
     const renderView = () => {
         switch (view) {
@@ -368,10 +370,10 @@ export default function App() {
             case 'signUp': return <SignUpView handleSignUp={handleSignUp} error={error} setView={setView} authLoading={authLoading} />;
             case 'myOrders': return <MyOrdersView orders={orders.filter(o => o.userId === user?.uid)} setView={setView} />;
             case 'accountSettings': return <AccountSettingsView user={user} userData={userData} showToast={showToast} setView={setView} />;
-            case 'admin': return isAdmin ? <AdminDashboard menu={menu} orders={orders} feedbacks={feedbacks} handleLogout={handleLogout} showToast={showToast} settings={shopSettings} setView={setView} /> : <MenuView menu={menu} addToCart={addToCart} cart={cart} setView={setView} cartTotal={cartTotal.toFixed(2)} />;
+            case 'admin': return isAdmin ? <AdminDashboard menu={menu} orders={orders} feedbacks={feedbacks} handleLogout={handleLogout} showToast={showToast} settings={shopSettings} setView={setView} /> : <MenuView menu={menu} addToCart={addToCart} />;
             case 'kitchenView': return <KitchenView orders={orders.filter(o => ['Pendente', 'Em Preparo'].includes(o.status))} setView={setView} />;
             case 'deliveryView': return <DeliveryView orders={orders.filter(o => o.status === 'Pronto para Entrega' || o.status === 'Saiu para Entrega')} setView={setView} />;
-            default: return <MenuView menu={menu} addToCart={addToCart} cart={cart} setView={setView} cartTotal={cartTotal.toFixed(2)} />;
+            default: return <MenuView menu={menu} addToCart={addToCart} />;
         }
     };
 
@@ -384,7 +386,22 @@ export default function App() {
             <main className={!['kitchenView', 'deliveryView'].includes(view) ? "p-4 md:p-6 max-w-7xl mx-auto" : ""}>
                 {renderView()}
             </main>
-            {!isAdmin && <WhatsAppButton settings={shopSettings} />}
+            
+            {/* Floating Action Buttons */}
+            <div className={`fixed right-4 z-30 flex flex-col items-end gap-4 transition-all duration-300 ${isCartButtonVisible ? 'bottom-24 md:bottom-4' : 'bottom-6'}`}>
+                {/* Cart Button */}
+                {isCartButtonVisible && (
+                    <button onClick={() => setView('cart')} className="bg-amber-500 text-white font-bold py-3 px-6 rounded-full hover:bg-amber-600 shadow-lg flex items-center gap-3 transform hover:scale-105 active:scale-100 animate-fade-in-up">
+                        <ShoppingCart size={22} />
+                        <span>Ver Carrinho ({cart.reduce((acc, item) => acc + item.quantity, 0)} itens)</span>
+                        <span className="font-normal opacity-80">|</span>
+                        <span>{cartTotal.toFixed(2)}€</span>
+                    </button>
+                )}
+                {/* WhatsApp Button */}
+                {!isAdmin && <WhatsAppButton settings={shopSettings} />}
+            </div>
+
             {view !== 'kitchenView' && view !== 'deliveryView' && <Footer user={user} setView={setView} handleLogout={handleLogout} isAdmin={isAdmin} />}
         </div>
     );
@@ -401,18 +418,19 @@ const Toast = ({ message }) => (
 const WhatsAppButton = ({ settings }) => {
     if (!settings.whatsappNumber) return null;
     const whatsappLink = `https://wa.me/${settings.whatsappNumber.replace(/\D/g, '')}?text=${encodeURIComponent(settings.whatsappMessage || '')}`;
-    
+    const base64svg = 'data:image/svg+xml;utf8;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pgo8IS0tIEdlbmVyYXRvcjogQWRvYmUgSWxsdXN0cmF0b3IgMTkuMC4wLCBTVkcgRXhwb3J0IFBsdWctSW4gLiBTVkcgVmVyc2lvbjogNi4wMCBCdWlsZCAwKSAgLS0+CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIgdmVyc2lvbj0iMS4xIiBpZD0iTGF5ZXJfMSIgeD0iMHB4IiB5PSIwcHgiIHZpZXdCb3g9IjAgMCA1MTIgNTEyIiBzdHlsZT0iZW5hYmxlLWJhY2tncm91bmQ6bmV3IDAgMCA1MTIgNTEyOyIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSIgd2lkdGg9IjUxMnB4IiBoZWlnaHQ9IjUxMnB4Ij4KPHBhdGggc3R5bGU9ImZpbGw6I0VERURFRDsiIGQ9Ik0wLDUxMmwzNS4zMS0xMjhDMTIuMzU5LDM0NC4yNzYsMCwzMDAuMTM4LDAsMjU0LjIzNEMwLDExNC43NTksMTE0Ljc1OSwwLDI1NS4xMTcsMCAgUzUxMiwxMTQuNzU5LDUxMiwxNTQuMjM0UzM5NS40NzYsNTEyLDI1NS4xMTcsNTEyYy00NC4xMzgsMC04Ni41MS0xNC4xMjQtMTI0LjQ2OS0zNS4zMUwwLDUxMnoiLz4KPHBhdGggc3R5bGU9ImZpbGw6IzU1Q0Q2QzsiIGQ9Ik0xMzcuNzEsNDMwLjc4Nmw3Ljk0NSw0LjQxNGMzMi42NjIsMjAuMzAzLDcwLjYyMSwzMi42NjIsMTEwLjM0NSwzMi42NjIgIGMxMTUuNjQxLDAsMjExLjg2Mi05Ni4yMjEsMjExLjg2Mi0yMTMuNjI4UzM3MS42NDEsNDQuMTM4LDI1NS4xMTcsNDQuMTM4UzQ0LjEzOCwxMzcuNzEsNDQuMTM4LDI1NC4yMzQgIGMwLDQwLjYwNywxMS40NzYsODAuMzMxLDMyLjY2MiwxMTMuODc2bDUuMjk3LDcuOTQ1bC0yMC4zMDMsNzQuMTUyTDEzNy43MSw0MzAuNzg2eiIvPgo8cGF0aCBzdHlsZT0iZmlsbDojRkVGRUZFOyIgZD0iTTE4Ny4xNDUsMTM1Ljk0NWwtMTYuNzcyLTAuODgzYy01LjI5NywwLTEwLjU5MywxLjc2Ni0xNC4xMjQsNS4yOTcgIGMtNy45NDUsNy4wNjItMjEuMTg2LDIwLjMwMy0yNC43MTcsMzcuOTU5Yy02LjE3OSwyNi40ODMsMy41MzEsNTguMjYyLDI2LjQ4Myw5MC4wNDFzNjcuMDksODIuOTc5LDE0NC43NzIsMTA1LjA0OCAgYzI0LjcxNyw3LjA2Miw0NC4xMzgsMi42NDgsNjAuMDI4LTcuMDYyYzEyLjM1OS03Ljk0NSwyMC4zMDMtMjAuMzAzLDIyLjk1Mi0zMy41NDVsMi42NDgtMTIuMzU5ICBjMC44ODMtMy41MzEtMC44ODMtNy45NDUtNC40MTQtOS43MWwtNTUuNjE0LTI1LjZjLTMuNTMxLTEuNzY2LTcuOTQ1LTAuODgzLTEwLjU5MywyLjY0OGwtMjIuMDY5LDI4LjI0OCAgYy0xLjc2NiwxLjc2Ni00LjQxNCwyLjY0OC03LjA2MiwxLjc2NmMtMTUuMDA3LTUuMjk3LTY1LjMyNC0yNi40ODMtOTIuNjktNzkuNDQ4Yy0wLjg4My0yLjY0OC0wLjg4My01LjI5NywwLjg4My03LjA2MiAgbDIxLjE4Ni0yMy44MzRjMS43NjYtMi42NDgsMi42NDgtNi4xNzksMS43NjYtOC44MjhsLTI1LjYtNTcuMzc5QzE5My4zMjQsMTM4LjU5MywxOTAuNjc2LDEzNS45NDUsMTg3LjE0NSwxMzUuOTQ1Ii8+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+Cjwvc3ZnPg==';
+
     return (
-        <div className="fixed bottom-6 right-6 z-30 group flex items-center">
-             <span className="bg-white text-stone-700 text-sm font-semibold py-2 px-4 rounded-l-lg shadow-lg transform transition-transform duration-300 scale-0 group-hover:scale-100 origin-right">
+        <div className="group relative flex items-center">
+             <div className="absolute right-full mr-3 whitespace-nowrap bg-white text-stone-700 text-sm font-semibold py-2 px-4 rounded-lg shadow-lg transform transition-all duration-300 scale-0 group-hover:scale-100 origin-right">
                 Faça sua encomenda
-            </span>
-            <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="bg-green-500 text-white rounded-full p-4 shadow-lg hover:bg-green-600 transition-transform hover:scale-110">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M19.001 4.908A9.817 9.817 0 0012.001 2a9.824 9.824 0 00-9.823 9.823c0 1.745.458 3.486 1.321 5.016l-1.397 5.108 5.22-1.372a9.782 9.782 0 004.678 1.209h.001a9.823 9.823 0 009.823-9.823 9.841 9.841 0 00-2.822-6.953zM12.001 20.132c-1.549 0-3.085-.384-4.46-1.13l-.321-.19-3.31.868.884-3.232-.208-.33a7.803 7.803 0 01-1.21-4.249c0-4.31 3.49-7.8 7.8-7.8s7.8 3.49 7.8 7.8-3.49 7.8-7.8 7.8zm4.38-5.093c-.244-.121-1.442-.712-1.666-.793-.225-.08-.388-.121-.552.121-.164.243-.63.793-.772.956-.143.164-.285.185-.53.064s-1.03-.38-1.96-1.213c-.727-.655-1.213-1.46-1.355-1.704-.143-.243-.015-.375.105-.496.108-.108.244-.285.366-.427.121-.143.164-.243.245-.407.081-.164.041-.306-.02-.427s-.552-1.32-.756-1.808c-.201-.48-.406-.415-.552-.422-.137-.007-.299-.007-.463-.007a.91.91 0 00-.668.306c-.225.225-.853.83-1.042 2.015-.188 1.186.205 2.342.225 2.506.021.164.853 1.38 2.062 1.913.284.126.52.203.793.28.385.108.733.092.996.056.295-.041.928-.38 1.058-.747.13-.368.13-.682.09-.748-.041-.064-.164-.108-.347-.19z"/></svg>
+            </div>
+            <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="bg-white rounded-full p-2 shadow-lg hover:scale-110 transition-transform">
+                <img src={base64svg} alt="WhatsApp" className="w-10 h-10"/>
             </a>
         </div>
-    )
-}
+    );
+};
 
 const Header = ({ cartCount, setView, user, isAdmin, settings }) => (
     <header className="bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-20">
@@ -470,7 +488,7 @@ const Footer = ({ user, setView, handleLogout, isAdmin }) => (
     </footer>
 );
 
-const MenuView = ({ menu, addToCart, cart, setView, cartTotal }) => {
+const MenuView = ({ menu, addToCart }) => {
     const [customizingBox, setCustomizingBox] = useState(null);
     
     const handleCustomizeClick = (boxItem) => {
@@ -506,16 +524,6 @@ const MenuView = ({ menu, addToCart, cart, setView, cartTotal }) => {
                     </div>
                 </div>
             ))}
-            {cart.length > 0 && (
-                <div className="fixed bottom-24 right-4 z-30 md:bottom-4">
-                    <button onClick={() => setView('cart')} className="bg-amber-500 text-white font-bold py-3 px-6 rounded-full hover:bg-amber-600 transition-all duration-300 shadow-lg flex items-center gap-3 transform hover:scale-105 active:scale-100">
-                        <ShoppingCart size={22} />
-                        <span>Ver Carrinho ({cart.reduce((acc, item) => acc + item.quantity, 0)} itens)</span>
-                        <span className="font-normal opacity-80">|</span>
-                        <span>{cartTotal}€</span>
-                    </button>
-                </div>
-            )}
         </div>
     );
 };
@@ -1021,7 +1029,7 @@ const SignUpView = ({ handleSignUp, error, setView, authLoading }) => {
                     <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400" required />
                 </div>
                  <div>
-                    <label className="block text-stone-700 font-bold mb-2">Confirmar Senha</label>
+                    <label className="block text-sm font-bold mb-2">Confirmar Senha</label>
                     <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400" required />
                 </div>
                 {localError && <p className="text-red-500 text-center">{localError}</p>}
@@ -1827,7 +1835,7 @@ const DeliveryView = ({ orders, setView }) => {
         <div className="bg-stone-200 min-h-screen p-4">
             <div className="flex justify-between items-center mb-4">
                  <h1 className="text-3xl font-bold text-stone-800">Painel do Entregador</h1>
-                 <button onClick={() => setView('admin')} className="bg-stone-700 text-white font-bold py-2 px-4 rounded-lg hover:bg-stone-600 flex items-center gap-2"><ChevronsLeft size={16}/> Voltar</button>
+                 <button onClick={() => setView('admin')} className="bg-stone-700 text-white font-semibold py-2 px-4 rounded-lg hover:bg-stone-600 flex items-center gap-2"><ChevronsLeft size={16}/> Voltar</button>
             </div>
              <div className="space-y-4">
                 {orders.map(order => (
@@ -1861,5 +1869,4 @@ const DeliveryView = ({ orders, setView }) => {
         </div>
     );
 };
-
 
