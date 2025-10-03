@@ -264,7 +264,12 @@ export default function App() {
     };
     
     const cartTotal = useMemo(() => cart.reduce((total, item) => total + item.price * item.quantity, 0), [cart]);
-    const cartTotalQuantity = useMemo(() => cart.reduce((total, item) => total + item.quantity, 0), [cart]);
+    const cartTotalQuantity = useMemo(() => cart.reduce((total, item) => {
+        if (item.customizable) {
+            return total + (item.customization || []).reduce((subTotal, custItem) => subTotal + custItem.quantity, 0);
+        }
+        return total + item.quantity;
+    }, 0), [cart]);
 
     const handleLogin = async (email, password) => {
         setAuthLoading(true);
@@ -1805,7 +1810,5 @@ const DeliveryView = ({ orders, setView }) => {
         </div>
     );
 };
-
-
 "
 
