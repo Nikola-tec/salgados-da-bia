@@ -26,7 +26,7 @@ import {
     setDoc,
     getDoc
 } from 'firebase/firestore';
-import { ChefHat, ShoppingCart, User, LogOut, PlusCircle, MinusCircle, Trash2, Edit, XCircle, CheckCircle, Package, DollarSign, Clock, Settings, Plus, Star, AlertTriangle, UserCheck, KeyRound, Loader2, ChevronsLeft, MapPin, Bike, TrendingUp, Percent, Calendar, Eye, EyeOff } from 'lucide-react';
+import { ChefHat, ShoppingCart, User, LogOut, PlusCircle, MinusCircle, Trash2, Edit, XCircle, CheckCircle, Package, DollarSign, Clock, Settings, Plus, Star, AlertTriangle, UserCheck, KeyRound, Loader2, ChevronsLeft, MapPin, Bike, TrendingUp, Percent, Calendar, Eye, EyeOff, Trash } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 
@@ -1191,7 +1191,7 @@ const AdminDashboard = ({ menu, orders, feedbacks, handleLogout, showToast, sett
             case 'menu': return <ManageMenu menu={menu} />;
             case 'settings': return <AdminSettings showToast={showToast} currentSettings={settings} />;
             case 'faturamento': return <FaturamentoView orders={orders} />;
-            case 'feedbacks': return <FeedbacksView feedbacks={feedbacks} />;
+            case 'feedbacks': return <FeedbacksView feedbacks={feedbacks} showToast={showToast} />;
             default: return <AdminStats orders={orders} />;
         }
     }
@@ -1315,7 +1315,40 @@ const FaturamentoView = ({ orders }) => {
     );
 };
 
-const FeedbacksView = ({ feedbacks }) => {
+const FeedbacksView = ({ feedbacks, showToast }) => {
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+    const handleClearAllFeedbacks = async () => {
+        setShowConfirmModal(false);
+        try {
+            // Clear feedbacks collection
+            const feedbackCollectionPath = `artifacts/${appId}/public/data/feedback`;
+            const feedbackQuerySnapshot = await getDocs(collection(db, feedbackCollectionPath));
+            const feedbackBatch = writeBatch(db);
+            feedbackQuerySnapshot.forEach(doc => {
+                feedbackBatch.delete(doc.ref);
+            });
+            await feedbackBatch.commit();
+
+            // Reset user flags
+            const usersCollectionPath = `artifacts/${appId}/public/data/users`;
+            const usersQuerySnapshot = await getDocs(collection(db, usersCollectionPath));
+            const usersBatch = writeBatch(db);
+            usersQuerySnapshot.forEach(doc => {
+                usersBatch.update(doc.ref, {
+                    hasGivenFeedback: false,
+                    hasFeedbackDiscount: false
+                });
+            });
+            await usersBatch.commit();
+
+            showToast("Todos os feedbacks foram limpos com sucesso!");
+        } catch (error) {
+            console.error("Erro ao limpar feedbacks: ", error);
+            showToast("Ocorreu um erro ao limpar os feedbacks.");
+        }
+    };
+
     const feedbackAnalysis = useMemo(() => {
         if (!feedbacks || feedbacks.length === 0) {
             return { total: 0, averageRating: 0, howFoundData: [], recommendData: [] };
@@ -1341,48 +1374,66 @@ const FeedbacksView = ({ feedbacks }) => {
 
     const COLORS = ['#FBBF24', '#F97316', '#EC4899', '#8B5CF6', '#3B82F6', '#10B981'];
     
-    if (feedbackAnalysis.total === 0) {
-        return <div className="text-center py-10 text-stone-500">Ainda não há feedbacks para analisar.</div>;
-    }
-
     return (
         <div>
-            <h3 className="text-xl font-bold mb-4 text-stone-700">Análise de Feedbacks</h3>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                 <div className="bg-stone-100 p-4 rounded-lg text-center"><p className="text-sm text-stone-600">Total de Respostas</p><p className="text-3xl font-bold">{feedbackAnalysis.total}</p></div>
-                 <div className="bg-stone-100 p-4 rounded-lg text-center"><p className="text-sm text-stone-600">Avaliação Média</p><div className="flex justify-center items-center gap-1"><p className="text-3xl font-bold">{feedbackAnalysis.averageRating.toFixed(2)}</p><Star className="text-amber-500" size={28}/></div></div>
-             </div>
+            {showConfirmModal && 
+                <ConfirmDeleteModal 
+                    title="Limpar Todos os Feedbacks" 
+                    message="Tem a certeza que quer apagar TODOS os feedbacks? Esta ação também irá resetar o status de feedback de todos os usuários, permitindo que eles enviem novamente. Esta ação não pode ser desfeita."
+                    onConfirm={handleClearAllFeedbacks}
+                    onCancel={() => setShowConfirmModal(false)}
+                    confirmText="Sim, Limpar Tudo"
+                />
+            }
+            <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold text-stone-700">Análise de Feedbacks</h3>
+                <button onClick={() => setShowConfirmModal(true)} className="bg-red-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-600 flex items-center gap-2 shadow-sm hover:shadow-md active:scale-95 text-sm">
+                    <Trash size={16}/> Limpar Feedbacks
+                </button>
+            </div>
+            
+            {feedbackAnalysis.total === 0 ? (
+                 <div className="text-center py-10 text-stone-500">Ainda não há feedbacks para analisar.</div>
+            ) : (
+                <>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                     <div className="bg-stone-100 p-4 rounded-lg text-center"><p className="text-sm text-stone-600">Total de Respostas</p><p className="text-3xl font-bold">{feedbackAnalysis.total}</p></div>
+                     <div className="bg-stone-100 p-4 rounded-lg text-center"><p className="text-sm text-stone-600">Avaliação Média</p><div className="flex justify-center items-center gap-1"><p className="text-3xl font-bold">{feedbackAnalysis.averageRating.toFixed(2)}</p><Star className="text-amber-500" size={28}/></div></div>
+                 </div>
 
-             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                 <div className="bg-white p-4 rounded-lg shadow-sm border h-96">
-                     <h4 className="font-bold mb-4 text-center">Como os clientes nos conheceram?</h4>
-                     <ResponsiveContainer width="100%" height="90%">
-                         <PieChart>
-                             <Pie data={feedbackAnalysis.howFoundData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
-                                 {feedbackAnalysis.howFoundData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
-                             </Pie>
-                             <Tooltip />
-                             <Legend />
-                         </PieChart>
-                     </ResponsiveContainer>
+                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                     <div className="bg-white p-4 rounded-lg shadow-sm border h-96">
+                         <h4 className="font-bold mb-4 text-center">Como os clientes nos conheceram?</h4>
+                         <ResponsiveContainer width="100%" height="90%">
+                             <PieChart>
+                                 <Pie data={feedbackAnalysis.howFoundData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
+                                     {feedbackAnalysis.howFoundData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                                 </Pie>
+                                 <Tooltip />
+                                 <Legend />
+                             </PieChart>
+                         </ResponsiveContainer>
+                     </div>
+                     <div className="bg-white p-4 rounded-lg shadow-sm border h-96">
+                         <h4 className="font-bold mb-4 text-center">Indicaria a um amigo?</h4>
+                         <ResponsiveContainer width="100%" height="90%">
+                             <PieChart>
+                                 <Pie data={feedbackAnalysis.recommendData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={(entry) => `${(entry.percent * 100).toFixed(0)}%`}>
+                                     <Cell key="cell-0" fill="#10B981" />
+                                     <Cell key="cell-1" fill="#EF4444" />
+                                 </Pie>
+                                 <Tooltip />
+                                 <Legend />
+                             </PieChart>
+                         </ResponsiveContainer>
+                     </div>
                  </div>
-                 <div className="bg-white p-4 rounded-lg shadow-sm border h-96">
-                     <h4 className="font-bold mb-4 text-center">Indicaria a um amigo?</h4>
-                     <ResponsiveContainer width="100%" height="90%">
-                         <PieChart>
-                             <Pie data={feedbackAnalysis.recommendData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={(entry) => `${(entry.percent * 100).toFixed(0)}%`}>
-                                 <Cell key="cell-0" fill="#10B981" />
-                                 <Cell key="cell-1" fill="#EF4444" />
-                             </Pie>
-                             <Tooltip />
-                             <Legend />
-                         </PieChart>
-                     </ResponsiveContainer>
-                 </div>
-             </div>
+                </>
+            )}
         </div>
     );
 };
+
 
 const AdminSettings = ({showToast, currentSettings}) => {
     const [settings, setSettings] = useState(currentSettings);
@@ -1776,7 +1827,7 @@ const DeliveryView = ({ orders, setView }) => {
         <div className="bg-stone-200 min-h-screen p-4">
             <div className="flex justify-between items-center mb-4">
                  <h1 className="text-3xl font-bold text-stone-800">Painel do Entregador</h1>
-                 <button onClick={() => setView('admin')} className="bg-stone-700 text-white font-semibold py-2 px-4 rounded-lg hover:bg-stone-600 flex items-center gap-2"><ChevronsLeft size={16}/> Voltar</button>
+                 <button onClick={() => setView('admin')} className="bg-stone-700 text-white font-bold py-2 px-4 rounded-lg hover:bg-stone-600 flex items-center gap-2"><ChevronsLeft size={16}/> Voltar</button>
             </div>
              <div className="space-y-4">
                 {orders.map(order => (
@@ -1810,5 +1861,5 @@ const DeliveryView = ({ orders, setView }) => {
         </div>
     );
 };
-"
+
 
