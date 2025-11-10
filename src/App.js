@@ -241,6 +241,7 @@ export default function App() {
     }, [storeOpen, view]);
 
 
+    // CORREÇÃO: Removendo shopSettings.storeName da dependência para evitar loops/reinicializações desnecessárias.
     useEffect(() => {
         if (!firebaseInitialized) {
             // Se o firebase não inicializou, define o título, mas marca como pronto para exibir a tela de erro
@@ -285,8 +286,7 @@ export default function App() {
         });
         
         return () => unsubscribeAuth();
-    }, [shopSettings.storeName]); 
-    // Removendo shopSettings.storeName desta lista, pois a autenticação não deve depender dela, mas mantendo document.title update. O título é agora atualizado no useEffect.
+    }, []); // Dependência vazia ou com auth (que é constante) para evitar loops, mas mantendo a atualização do título fora da dependência.
 
     useEffect(() => {
         // CORREÇÃO: Só executa listeners e lógica de dados APÓS a autenticação estar pronta
@@ -392,7 +392,7 @@ export default function App() {
             unsubscribeSettings();
             unsubscribeFeedbacks();
         };
-    }, [isAuthReady, isAdmin]); // Agora depende de isAuthReady
+    }, [isAuthReady, isAdmin]); // Agora depende de isAuthReady e isAdmin
 
     const addToCart = (item, customization, priceOverride) => {
         const applyMinimumOrder = cart.length === 0;
