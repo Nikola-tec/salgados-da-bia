@@ -150,20 +150,40 @@ const fetchAddressByCoords = async (lat, lng) => {
     };
 }
 
-// Lógica de verificação de horário de funcionamento
-const isStoreOpenNow = (workingHours, holidays) => {
-    // ATENÇÃO: Esta função usa o fuso horário do navegador do usuário.
-    // Para maior precisão, seria necessário usar uma biblioteca de fuso horário.
+// eslint-disable-next-line no-unused-vars
+const isStoreOpenNow = (workingHours, holidays, storeTimezone) => {
+    // CORREÇÃO DE ROBUSTEZ: Usa Intl.DateTimeFormat para obter a hora atual no fuso horário da loja
+    
     const now = new Date();
-    const dayIndex = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-    const today = dayNames[dayIndex];
     
+    // Configurações regionais para obter o dia da semana e hora no fuso horário da loja
+    const storeLocaleOptions = { weekday: 'long', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: storeTimezone };
+    
+    // Obtém o dia e hora no fuso horário da loja
+    const storeTimeFormat = new Intl.DateTimeFormat('en-US', storeLocaleOptions).formatToParts(now);
+    
+    const dayNamesMap = { 
+        'monday': 'monday', 'tuesday': 'tuesday', 'wednesday': 'wednesday', 
+        'thursday': 'thursday', 'friday': 'friday', 'saturday': 'saturday', 'sunday': 'sunday'
+    };
+    
+    // Encontra o dia da semana e a hora/minuto
+    const storeDayPart = storeTimeFormat.find(p => p.type === 'weekday')?.value.toLowerCase();
+    const storeTimeParts = storeTimeFormat.filter(p => p.type === 'hour' || p.type === 'minute');
+    
+    // Garante que a hora está no formato HH:MM (ex: 22:00)
+    const storeHour = storeTimeParts.find(p => p.type === 'hour')?.value.padStart(2, '0') || '00';
+    const storeMinute = storeTimeParts.find(p => p.type === 'minute')?.value.padStart(2, '0') || '00';
+    const currentTime = storeHour + ':' + storeMinute;
+
+    const today = dayNamesMap[storeDayPart];
     const todayConfig = workingHours[today];
-    const currentDate = now.toISOString().split('T')[0];
     
+    // Obtém a data no formato YYYY-MM-DD para verificar feriados (usando o timezone da loja)
+    const currentDateString = new Intl.DateTimeFormat('sv-SE', { timeZone: storeTimezone }).format(now); // 'sv-SE' (Suécia) garante YYYY-MM-DD
+
     // 1. Verificar Feriados
-    if (holidays && holidays.includes(currentDate)) {
+    if (holidays && holidays.includes(currentDateString)) {
         return false;
     }
     
@@ -172,26 +192,29 @@ const isStoreOpenNow = (workingHours, holidays) => {
         return false;
     }
     
-    // 3. Verificar horário
-    const [startHour, startMinute] = todayConfig.start.split(':').map(Number);
-    const [endHour, endMinute] = todayConfig.end.split(':').map(Number);
-
-    const startTime = new Date(now);
-    startTime.setHours(startHour, startMinute, 0, 0);
-
-    const endTime = new Date(now);
-    endTime.setHours(endHour, endMinute, 0, 0);
-
-    // Ajusta o fim do dia se o horário de fechamento for 00:00 (próxima meia-noite)
-    if (endHour === 0 && endMinute === 0) {
-        endTime.setDate(endTime.getDate() + 1);
+    // 3. Verificar horário (comparação simples de strings HH:MM)
+    const startTime = todayConfig.start;
+    const endTime = todayConfig.end;
+    
+    if (startTime === endTime) { // Se for 00:00 - 00:00, verifica se não está aberto
+        return todayConfig.open; 
     }
     
-    return now >= startTime && now < endTime;
+    // Trata o caso de horários que passam da meia-noite (ex: 22:00 - 02:00)
+    if (startTime > endTime) {
+        // Horário de funcionamento cruza meia-noite
+        return currentTime >= startTime || currentTime < endTime;
+    } else {
+        // Horário de funcionamento dentro do mesmo dia
+        return currentTime >= startTime && currentTime < endTime;
+    }
 };
 
 // Retorna o intervalo de funcionamento para um dia (para validação)
 const getWorkingInterval = (workingHours, dateString) => {
+    // ATENÇÃO: Esta função usa o horário local do navegador para calcular o dia da semana.
+    // Para uso em validação de agendamento (Schedule), ela funciona para garantir que
+    // o agendamento cai em um dia em que a loja declara estar aberta.
     const date = new Date(dateString);
     const dayIndex = date.getDay();
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -225,12 +248,12 @@ export default function App() {
     // NOVO ESTADO: Garante que a autenticação inicial foi resolvida.
     const [isAuthReady, setIsAuthReady] = useState(false); 
 
-    // CORREÇÃO DE ESTABILIDADE: Força a loja ABERTA para testes. Mudar para 'isStoreOpenNow' após estabilização.
+    // CORREÇÃO: Usa a função isStoreOpenNow robusta com fuso horário
     const storeOpen = useMemo(() => {
-        // Mantenha TRUE para testar a estabilidade da interface inicial.
-        // Se a interface ESTABILIZAR, mude para: return isStoreOpenNow(shopSettings.workingHours, shopSettings.holidays);
-        return true; 
-    }, [shopSettings.workingHours, shopSettings.holidays]);
+        // Agora, use a lógica de horário real com fuso horário.
+        if (!shopSettings.workingHours || !shopSettings.storeTimezone) return false;
+        return isStoreOpenNow(shopSettings.workingHours, shopSettings.holidays, shopSettings.storeTimezone);
+    }, [shopSettings.holidays, shopSettings.workingHours, shopSettings.storeTimezone]);
     
     const [showStoreClosedToast, setShowStoreClosedToast] = useState(false);
 
@@ -241,6 +264,7 @@ export default function App() {
 
     // Efeito para exibir o toast de loja fechada na MenuView
     useEffect(() => {
+        // O toast só será exibido se o cálculo de storeOpen for falso (loja fechada)
         if (!storeOpen && view === 'menu') {
             setShowStoreClosedToast(true);
             const timer = setTimeout(() => setShowStoreClosedToast(false), 10000); // 10 segundos
@@ -251,7 +275,7 @@ export default function App() {
     }, [storeOpen, view]);
 
 
-    // NOVO HOOK: Para definir o título do documento (Corrije o erro de missing dependency)
+    // NOVO HOOK: Para definir o título do documento 
     useEffect(() => {
         document.title = shopSettings.storeName;
     }, [shopSettings.storeName]);
@@ -637,7 +661,7 @@ const FirebaseErrorScreen = () => (
 const WhatsAppButton = ({ settings }) => {
     if (!settings.whatsappNumber) return null;
     const whatsappLink = `https://wa.me/${settings.whatsappNumber.replace(/\D/g, '')}?text=${encodeURIComponent(settings.whatsappMessage || '')}`;
-    const base64svg = 'data:image/svg+xml;utf8;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pgo8IS0tIEdlbmVyYXRvcjogQWRvYmUgSWxsdXN0cmF0b3IgMTkuMC4wLCBTVkcgRXhwb3J0IFBsdWctSW4gLiBTVkcgVmVyc2lvbjogNi4wMCBCdWlsZCAwKSAgLS0+CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIgdmVyc2lvbj0iMS4xIiBpZD0iTGF5ZXJfMSIgeD0iMHB4IiB5PSIwcHgiIHZpZXdCb3g9IjAgMCA1MTIgNTEyIiBzdHlsZT0iZW5hYmxlLWJhY2tncm91bmQ6bmV3IDAgMCA1MTIgNTEyOyIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSIgd2lkdGg9IjUxMnB4IiBoZWlnaHQ9IjUxMnB4Ij4KPHBhdGggc3R5bGU9ImZpbGw6I0VERURFRDsiIGQ9Ik0wLDUxMmwzNS4zMS0xMjhDMTIuMzU5LDM0NC4yNzYsMCwzMDAuMTM4LDAsMjU0LjIzNEMwLDExNC43NTksMTE0Ljc1OSwwLDI1NS4xMTcsMCAgUzUxMiwxMTQuNzU5LDUxMiwxNTQuMjM0UzM5NS40NzYsNTEyLDI1NS4xMTcsNTEyYy00NC4xMzgsMC04Ni41MS0xNC4xMjQtMTI0LjQ2OS0zNS4zMUwwLDUxMnoiLz4KPHBhdGggc3R5bGU9ImZpbGw6IzU1Q0Q2QzsiIGQ9Ik0xMzcuNzEsNDMwLjc4Nmw3Ljk0NSw0LjQxNGMzMi42NjIsMjAuMzAzLDcwLjYyMSwzMi42NjIsMTEwLjM0NSwzMi42NjIgIGMxMTUuNjQxLDAsMjExLjg2Mi05Ni4yMjEsMjExLjg2Mi0yMTMuNjI4UzM3MS42NDEsNDQuMTM4LDI1NS4xMTcsNDQuMTM4UzQ0LjEzOCwxMzcuNzEsNDQuMTM4LDI1NC4yMzQgIGMwLDQwLjYwNywxMS40NzYsODAuMzMxLDMyLjY2MiwxMTMuODc2bDUuMjk3LDcuOTQ1bC0yMC4zMDMsNzQuMTUyTDEzNy43MSw0MzAuNzg2eiIvPgo8cGF0aCBzdHlsZT0iZmlsbDojRkVGRUZFOyIgZD0iTTE4Ny4xNDUsMTM1Ljk0NWwtMTYuNzcyLTAuODgzYy01LjI5NywwLTEwLjU5MywxLjc2Ni0xNC4xMjQsNS4yOTcgIC03Ljk0NSw3LjA2Mi0yMS4xODYsMjAuMzAzLTI0LjcxNywzNy45NTljLTYuMTc5LDI2LjQ4MywzLjUzMSw1OC4yNjIsMjYuNDgzLDkwLjA0MXm2Ny4wOSw4Mi45NzksMTQ0LjgwOCwxMDUuMDQ4ICBjMjQuNzE3LDcuMDYyLDQ0LjEzOCwyLjY0OCw2MC4wMjgtNy4wNjJjMTIuMzU5LTcuOTQ1LDIwLjMwMy0yMC4zMDMsMjIuOTUyLTMzLjU0NWwyLjY0OC0xMi4zNTkgIC0wLjg4My03Ljk0NS00LjQxNC05LjcxbC01NS42MTQtMjUuNmMtMy41MzEtMS43NjYtNy45NDUtMC44ODMtMTAuNTkzLDIuNjQ4bC0yMi4wNjksMjguMjQ4ICAtMS43NjYsMS43NjYtNC40MTQsMi42NDgtNy4wNjIsMS43NjZjLTE1LjAwNy01LjI5Ny02NS4zMjQtMjYuNDgzLTkyLjY5LTc5LjQ0OGMtMC44ODMtMi42NDgtMC44ODMtNS4yOTcsMC44ODMtNy4wNjIgICAgMjEuMTg2LTIzLjgzNGMxLjM5Ni0yLjY0OCwyLjY0OC02LjE3OSwxLjc2Ni04LjgyOGwtMjUuNi01Ny4zNzlDMTkzLjMyNCwxMzguNTkzLDE5MC42NzYsMTM1Ljk0NSwxODcuMTQ1LDEzNS45NDUiLz4KPGc+CjwvZ2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2g+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2g+CjxnPgo8L2c+CjxnPgo8L2g+Cjwvc3ZnPg==';
+    const base64svg = 'data:image/svg+xml;utf8;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pgo8IS0tIEdlbmVyYXRvcjogQWRvYmUgSWxsdXN0cmF0b3IgMTkuMC4wLCBTVkcgRXhwb3J0IFBsdWctSW4gLiBTVkcgVmVyc2lvbjogNi4wMCBCdWlsZCAwKSAgLS0+CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIgdmVyc2lvbj0iMS4xIiBpZD0iTGF5ZXJfMSIgeD0iMHB4IiB5PSIwcHgiIHZpZXdCb3g9IjAgMCA1MTIgNTEyIiBzdHlsZT0iZW5hYmxlLWJhY2tncm91bmQ6bmV3IDAgMCA1MTIgNTEyOyIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSIgd2lkdGg9IjUxMnB4IiBoZWlnaHQ9IjUxMnB4Ij4KPHBhdGggc3R5bGU9ImZpbGw6I0VERURFRDsiIGQ9Ik0wLDUxMmwzNS4zMS0xMjhDMTIuMzU5LDM0NC4yNzYsMCwzMDAuMTM4LDAsMjU0LjIzNEMwLDExNC43NTksMTE0Ljc1OSwwLDI1NS4xMTcsMCAgUzUxMiwxMTQuNzU5LDUxMiwxNTQuMjM0UzM5NS40NzYsNTEyLDI1NS4xMTcsNTEyYy00NC4xMzgsMC04Ni41MS0xNC4xMjQtMTI0LjQ2OS0zNS4zMUwwLDUxMnoiLz4KPHBhdGggc3R5bGU9ImZpbGw6IzU1Q0Q2QzsiIGQ9Ik0xMzcuNzEsNDMwLjc4Nmw3Ljk0NSw0LjQxNGMzMi42NjIsMjAuMzAzLDcwLjYyMSwzMi42NjIsMTEwLjM0NSwzMi42NjIgIGMxMTUuNjQxLDAsMjExLjg2Mi05Ni4yMjEsMjExLjg2Mi0yMTMuNjI4UzM3MS42NDEsNDQuMTM4LDI1NS4xMTcsNDQuMTM4UzQ0LjEzOCwxMzcuNzEsNDQuMTM4LDI1NC4yMzQgIGMwLDQwLjYwNywxMS40NzYsODAuMzMxLDMyLjY2MiwxMTMuODc2bDUuMjk3LDcuOTQ1bC0yMC4zMDMsNzQuMTUyTDEzNy43MSw0MzAuNzg2eiIvPgo8cGF0aCBzdHlsZT0iZmlsbDojRkVGRUZFOyIgZD0iTTE4Ny4xNDUsMTM1Ljk0NWwtMTYuNzcyLTAuODgzYy01LjI5NywwLTEwLjU5MywxLjc2Ni0xNC4xMjQsNS4yOTcgIC03Ljk0NSw3LjA2Mi0yMS4xODYsMjAuMzAzLTI0LjcxNywzNy45NTljLTYuMTc5LDI2LjQ4MywzLjUzMSw1OC4yNjIsMjYuNDgzLDkwLjA0MXm2Ny4wOSw4Mi45NzksMTQ0LjgwOCwxMDUuMDQ4ICBjMjQuNzE3LDcuMDYyLDQ0LjEzOCwyLjY0OCw2MC4wMjgtNy4wNjJjMTIuMzU5LTcuOTQ1LDIwLjMwMy0yMC4zMDMsMjIuOTUyLTMzLjU0NWwyLjY0OC0xMi4zNTkgIC0wLjg4My03Ljk0NS00LjQxNC05LjcxbC01NS42MTQtMjUuNmMtMy41MzEtMS43NjYtNy45NDUtMC44ODMtMTAuNTkzLDIuNjQ4bC0yMi4wNjksMjguMjQ4ICAtMS43NjYsMS43NjYtNC40MTQsMi42NDgtNy4wNjIsMS43NjZjLTE1LjAwNy01LjI5Ny02NS4zMjQtMjYuNDgzLTkyLjY5LTc5LjQ0OGMtMC44ODMtMi42NDgtMC44ODMtNS4yOTcsMC44ODMtNy4wNjIgICAgMjEuMTg2LTIzLjgzNGMxLjM5Ni0yLjY0OCwyLjY0OC02LjE3OSwxLjc2Ni04LjgyOGwtMjUuNi01Ny4zNzlDMTkzLjMyNCwxMzguNTkzLDE5MC42NzYsMTM1Ljk0NSwxODcuMTQ1LDEzNS45NDUiLz4KPGc+CjwvZ2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2g+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2g+CjxnPgo8L2g+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+Cjwvc3ZnPg==';
 
     return (
         <div className="group relative flex items-center">
@@ -2014,7 +2038,7 @@ const FeedbacksView = ({ feedbacks, showToast }) => {
 
             showToast("Todos os feedbacks foram limpos com sucesso!");
         } catch (error) {
-            console.error("Erro ao limpar feedbacks: ", error);
+            console.error("Erro ao limpar feedbacks:", error);
             showToast("Ocorreu um erro ao limpar os feedbacks.");
         }
     };
