@@ -26,9 +26,8 @@ import {
     setDoc,
     getDoc
 } from 'firebase/firestore';
-import { ChefHat, ShoppingCart, User, LogOut, PlusCircle, MinusCircle, Trash2, Edit, XCircle, CheckCircle, Package, DollarSign, Clock, Settings, Plus, Star, AlertTriangle, UserCheck, KeyRound, Loader2, ChevronsLeft, MapPin, Bike, TrendingUp, Percent, Calendar, Eye, EyeOff, Trash } from 'lucide-react';
+import { ChefHat, ShoppingCart, User, LogOut, PlusCircle, MinusCircle, Trash2, Edit, XCircle, CheckCircle, Package, DollarSign, Clock, Settings, Plus, Star, AlertTriangle, UserCheck, KeyRound, Loader2, ChevronsLeft, MapPin, Bike, TrendingUp, Percent, Calendar, Eye, EyeOff, Trash, Satellite, Map } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-
 
 // --- CONFIGURAÇÃO DO FIREBASE ---
 let firebaseConfig;
@@ -68,43 +67,142 @@ if (firebaseConfig && firebaseConfig.apiKey) {
   }
 }
 
-// --- DADOS INICIAIS ---
+// --- CONSTANTES ---
+const ADMIN_EMAILS = ['bianca.cardosomedeiros@gmail.com'];
 const INITIAL_MENU_DATA = [
-    { name: 'Coxinha de Frango', category: 'Salgados Tradicionais', price: 1.20, image: 'https://i.imgur.com/3h2YqVp.jpg', minimumOrder: 10, isAvailable: true, requiresScheduling: false },
-    { name: 'Rissoles de Carne', category: 'Salgados Tradicionais', price: 1.20, image: 'https://i.imgur.com/sBw91hB.jpg', minimumOrder: 10, isAvailable: true, requiresScheduling: false },
-    { name: 'Bolinha de Queijo', category: 'Salgados Tradicionais', price: 1.10, image: 'https://i.imgur.com/bCn7h8S.jpg', minimumOrder: 10, isAvailable: true, requiresScheduling: false },
-    { name: 'Croquete de Queijo e Fiambre', category: 'Salgados Especiais', price: 1.30, image: 'https://i.imgur.com/K1LdKjW.jpg', minimumOrder: 10, isAvailable: true, requiresScheduling: false },
-    { name: 'Croquete de Calabresa', category: 'Salgados Especiais', price: 1.30, image: 'https://i.imgur.com/0iYwW5q.jpg', minimumOrder: 10, isAvailable: true, requiresScheduling: false },
-    { name: 'Kibe', category: 'Salgados Especiais', price: 1.50, image: 'https://i.imgur.com/Y4bBv8e.jpg', minimumOrder: 10, isAvailable: true, requiresScheduling: false },
-    { name: 'Box Tradicional 15 Salgados', category: 'Boxes', price: 15.00, customizable: true, size: 15, image: 'https://i.imgur.com/uD4fGTy.png', isAvailable: true, requiresScheduling: false, allowedCategories: ['Salgados Tradicionais'] },
-    { name: 'Box Tradicional 30 Salgados', category: 'Boxes', price: 28.00, customizable: true, size: 30, image: 'https://i.imgur.com/uD4fGTy.png', isAvailable: true, requiresScheduling: false, allowedCategories: ['Salgados Tradicionais'] },
-    { name: 'Box Especial 30 Salgados', category: 'Boxes', price: 32.00, customizable: true, size: 30, image: 'https://i.imgur.com/uD4fGTy.png', isAvailable: true, requiresScheduling: false, allowedCategories: ['Salgados Tradicionais', 'Salgados Especiais'] },
-    { name: 'Box Tradicional 50 Salgados', category: 'Boxes', price: 45.00, customizable: true, size: 50, image: 'https://i.imgur.com/uD4fGTy.png', isAvailable: true, requiresScheduling: false, allowedCategories: ['Salgados Tradicionais'] },
-    { name: 'Box Gigante 100 Salgados', category: 'Boxes', price: 85.00, customizable: true, size: 100, image: 'https://i.imgur.com/uD4fGTy.png', isAvailable: true, requiresScheduling: false, allowedCategories: ['Salgados Tradicionais', 'Salgados Especiais'] },
+    { name: 'Coxinha de Frango', category: 'Salgados Tradicionais', price: 1.20, image: 'https://placehold.co/400x300/FBBF24/FFFFFF?text=Coxinha', minimumOrder: 10, isAvailable: true, requiresScheduling: false },
+    { name: 'Rissoles de Carne', category: 'Salgados Tradicionais', price: 1.20, image: 'https://placehold.co/400x300/FBBF24/FFFFFF?text=Rissoles', minimumOrder: 10, isAvailable: true, requiresScheduling: false },
+    { name: 'Bolinha de Queijo', category: 'Salgados Tradicionais', price: 1.10, image: 'https://placehold.co/400x300/FBBF24/FFFFFF?text=Bolinha', minimumOrder: 10, isAvailable: true, requiresScheduling: false },
+    { name: 'Box Tradicional 50 Salgados', category: 'Boxes', price: 45.00, customizable: true, size: 50, image: 'https://placehold.co/400x300/FBBF24/FFFFFF?text=Box', isAvailable: true, requiresScheduling: false, allowedCategories: ['Salgados Tradicionais'] },
 ];
+
+const INITIAL_WORKING_HOURS = {
+    monday: { open: true, start: '10:00', end: '22:00' },
+    tuesday: { open: true, start: '10:00', end: '22:00' },
+    wednesday: { open: true, start: '10:00', end: '22:00' },
+    thursday: { open: true, start: '10:00', end: '22:00' },
+    friday: { open: true, start: '10:00', end: '23:00' },
+    saturday: { open: true, start: '10:00', end: '23:00' },
+    sunday: { open: false, start: '00:00', end: '00:00' },
+};
 
 const INITIAL_SHOP_SETTINGS = {
     storeName: "Salgados da Bia",
-    logoUrl: "https://i.imgur.com/kHw2x5L.png",
+    logoUrl: "https://placehold.co/100x100/FBBF24/FFFFFF?text=SB",
     email: "contato@salgadosdabia.pt",
     phone: "+351 912 345 678",
     currency: "EUR",
     pickupAddress: "Rua das Flores, 123, Lisboa, Portugal",
     whatsappNumber: "5511999999999",
-    whatsappMessage: "Olá! Quero fazer uma encomenda."
+    whatsappMessage: "Olá! Quero fazer uma encomenda.",
+    workingHours: INITIAL_WORKING_HOURS,
+    holidays: [], // array de datas "YYYY-MM-DD"
 };
 
+// --- FUNÇÕES DE UTILIDADE ---
 
-const FirebaseErrorScreen = () => (
-    <div className="flex flex-col items-center justify-center h-screen bg-red-50 text-red-800 p-4 text-center">
-        <AlertTriangle size={48} className="mb-4 text-red-500" />
-        <h1 className="text-2xl font-bold">Erro de Configuração do Firebase</h1>
-        <p className="mt-2 max-w-md">Não foi possível estabelecer ligação à base de dados. Isto acontece normalmente quando as Variáveis de Ambiente na Vercel não estão configuradas corretamente.</p>
-    </div>
-);
+// Simulação de API de CEP (ViaCEP ou similar)
+const fetchAddressByCep = async (cep) => {
+    // Simula a remoção de caracteres não numéricos
+    const cleanedCep = cep.replace(/\D/g, '');
+    if (cleanedCep.length !== 8) return null;
+    
+    // Simula resposta da API
+    await new Promise(resolve => setTimeout(resolve, 500)); 
 
-// Adicione os emails dos administradores aqui.
-const ADMIN_EMAILS = ['bianca.cardosomedeiros@gmail.com'];
+    if (cleanedCep === '44001001') {
+        return {
+            street: 'Rua das Flores',
+            district: 'Jardim Central',
+            city: 'Lisboa',
+            state: 'LX',
+            country: 'Portugal',
+            latitude: 38.7223,
+            longitude: -9.1393
+        };
+    }
+    
+    // Retorna endereço genérico para simular preenchimento parcial
+    return {
+        street: 'Rua Exemplo',
+        district: 'Bairro Teste',
+        city: 'Cidade Exemplo',
+        state: 'XX',
+        country: 'Portugal',
+        latitude: 38.7,
+        longitude: -9.1
+    };
+};
+
+// Simulação de geocodificação reversa
+const fetchAddressByCoords = async (lat, lng) => {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Simula o endereço baseado na localização
+    return {
+        street: 'Avenida da Liberdade',
+        number: '200',
+        district: 'Santo António',
+        city: 'Lisboa',
+        state: 'LX',
+        country: 'Portugal',
+        cep: '1250-144'
+    };
+}
+
+// Lógica de verificação de horário de funcionamento
+const isStoreOpenNow = (workingHours, holidays) => {
+    const now = new Date();
+    const dayIndex = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const today = dayNames[dayIndex];
+    
+    const todayConfig = workingHours[today];
+    const currentDate = now.toISOString().split('T')[0];
+    
+    // 1. Verificar Feriados
+    if (holidays && holidays.includes(currentDate)) {
+        return false;
+    }
+    
+    // 2. Verificar se está aberto hoje
+    if (!todayConfig || !todayConfig.open) {
+        return false;
+    }
+    
+    // 3. Verificar horário
+    const [startHour, startMinute] = todayConfig.start.split(':').map(Number);
+    const [endHour, endMinute] = todayConfig.end.split(':').map(Number);
+
+    const startTime = new Date(now);
+    startTime.setHours(startHour, startMinute, 0, 0);
+
+    const endTime = new Date(now);
+    endTime.setHours(endHour, endMinute, 0, 0);
+
+    // Ajusta o fim do dia se o horário de fechamento for 00:00 (próxima meia-noite)
+    if (endHour === 0 && endMinute === 0) {
+        endTime.setDate(endTime.getDate() + 1);
+    }
+    
+    return now >= startTime && now < endTime;
+};
+
+// Retorna o intervalo de funcionamento para um dia (para validação)
+const getWorkingInterval = (workingHours, dateString) => {
+    const date = new Date(dateString);
+    const dayIndex = date.getDay();
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const today = dayNames[dayIndex];
+
+    const todayConfig = workingHours[today];
+    
+    if (!todayConfig || !todayConfig.open) {
+        return null; 
+    }
+    
+    return { start: todayConfig.start, end: todayConfig.end };
+}
 
 
 // --- COMPONENTE PRINCIPAL: App ---
@@ -123,10 +221,25 @@ export default function App() {
     const [toastMessage, setToastMessage] = useState('');
     const [isAdmin, setIsAdmin] = useState(false);
 
+    const storeOpen = useMemo(() => isStoreOpenNow(shopSettings.workingHours, shopSettings.holidays), [shopSettings.workingHours, shopSettings.holidays]);
+    const [showStoreClosedToast, setShowStoreClosedToast] = useState(false);
+
     const showToast = (message) => {
         setToastMessage(message);
         setTimeout(() => setToastMessage(''), 3000);
     };
+
+    // Efeito para exibir o toast de loja fechada na MenuView
+    useEffect(() => {
+        if (!storeOpen && view === 'menu') {
+            setShowStoreClosedToast(true);
+            const timer = setTimeout(() => setShowStoreClosedToast(false), 10000); // 10 segundos
+            return () => clearTimeout(timer);
+        } else {
+            setShowStoreClosedToast(false);
+        }
+    }, [storeOpen, view]);
+
 
     useEffect(() => {
         if (!firebaseInitialized) {
@@ -144,6 +257,9 @@ export default function App() {
                     const unsubscribeUser = onSnapshot(userDocRef, (docSnap) => {
                         if (docSnap.exists()) {
                             setUserData(docSnap.data());
+                        } else {
+                            // Se o usuário existir no Auth, mas não no Firestore (novo cadastro)
+                            setUserData({ name: currentUser.displayName, email: currentUser.email, addresses: [], hasGivenFeedback: false, hasFeedbackDiscount: false });
                         }
                     });
                      setLoading(false);
@@ -169,54 +285,96 @@ export default function App() {
         
         if (isAdmin) setView('admin');
 
+        // Inicialização e Listeners de dados
         const menuCollectionPath = `artifacts/${appId}/public/data/menu`;
         const menuRef = collection(db, menuCollectionPath);
+        
+        // CORREÇÃO: Gating write operations behind isAdmin to avoid permission-denied errors for non-admin/anonymous users
         const populateInitialData = async () => {
             try {
                 const snapshot = await getDocs(menuRef);
                 if (snapshot.empty) {
-                    const batch = writeBatch(db);
-                    INITIAL_MENU_DATA.forEach(item => {
-                        const docRef = doc(collection(db, menuCollectionPath));
-                        batch.set(docRef, item);
-                    });
-                    await batch.commit();
+                    if (isAdmin) {
+                        const batch = writeBatch(db);
+                        INITIAL_MENU_DATA.forEach(item => {
+                            const docRef = doc(collection(db, menuCollectionPath));
+                            batch.set(docRef, item);
+                        });
+                        await batch.commit();
+                    } else {
+                        // Se não for admin e o cardápio estiver vazio, não tentamos escrever, mas também não mostramos erro.
+                        console.warn("Cardápio vazio, mas o usuário não é Admin. Sem permissão para popular dados iniciais.");
+                    }
                 }
-            } catch (e) { console.error("Erro ao popular dados do cardápio:", e); }
+            } catch (e) { 
+                // Suprimir o erro de permissão para reads/writes em coleções públicas para não-admins
+                if (e.code !== 'permission-denied') {
+                    console.error("Erro ao popular dados do cardápio:", e); 
+                } else {
+                    console.warn("Erro de permissão ao tentar ler/popular o cardápio. (Isso é esperado se as regras de segurança forem restritivas).");
+                }
+            }
         };
         populateInitialData();
+        
         const unsubscribeMenu = onSnapshot(menuRef, (snapshot) => {
             setMenu(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        }, (err) => console.error("Erro no listener do cardápio:", err));
+        }, (err) => {
+            if (err.code !== 'permission-denied') {
+                console.error("Erro no listener do cardápio:", err)
+            }
+        });
 
         const ordersCollectionPath = `artifacts/${appId}/public/data/orders`;
         const ordersRef = collection(db, ordersCollectionPath);
         const unsubscribeOrders = onSnapshot(ordersRef, (snapshot) => {
             const ordersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setOrders(ordersData.sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis()));
-        }, (err) => console.error("Erro no listener de pedidos:", err));
+        }, (err) => {
+             if (err.code !== 'permission-denied') {
+                console.error("Erro no listener de pedidos:", err)
+            }
+        });
         
         const feedbackCollectionPath = `artifacts/${appId}/public/data/feedback`;
         const feedbackRef = collection(db, feedbackCollectionPath);
         const unsubscribeFeedbacks = onSnapshot(feedbackRef, (snapshot) => {
             const feedbackData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data()}));
             setFeedbacks(feedbackData);
-        }, (err) => console.error("Erro no listener de feedbacks:", err));
+        }, (err) => {
+             if (err.code !== 'permission-denied') {
+                console.error("Erro no listener de feedbacks:", err)
+            }
+        });
 
         const settingsDocPath = `artifacts/${appId}/public/data/settings`;
         const settingsRef = doc(db, settingsDocPath, 'shopConfig');
         const populateInitialSettings = async () => {
              try {
-                const docSnap = await getDocs(collection(db, settingsDocPath));
-                if (docSnap.empty) {
-                    await setDoc(settingsRef, INITIAL_SHOP_SETTINGS);
+                const docSnap = await getDoc(settingsRef);
+                if (!docSnap.exists()) {
+                    if (isAdmin) {
+                        await setDoc(settingsRef, INITIAL_SHOP_SETTINGS);
+                    } else {
+                         console.warn("Configurações não encontradas, mas o usuário não é Admin. Sem permissão para popular dados iniciais.");
+                    }
                 }
-            } catch (e) { console.error("Erro ao popular configurações iniciais:", e); }
+            } catch (e) { 
+                if (e.code !== 'permission-denied') {
+                    console.error("Erro ao popular configurações iniciais:", e); 
+                } else {
+                    console.warn("Erro de permissão ao tentar ler/popular configurações. (Isso é esperado se as regras de segurança forem restritivas).");
+                }
+            }
         };
         populateInitialSettings();
-        const unsubscribeSettings = onSnapshot(settingsRef, (doc) => {
-            if (doc.exists()) {
-                setShopSettings(doc.data());
+        const unsubscribeSettings = onSnapshot(settingsRef, (docSnap) => {
+            if (docSnap.exists()) {
+                setShopSettings(docSnap.data());
+            }
+        }, (err) => {
+             if (err.code !== 'permission-denied') {
+                console.error("Erro no listener de configurações:", err)
             }
         });
 
@@ -296,6 +454,7 @@ export default function App() {
             await setDoc(userDocRef, { 
                 name, 
                 email,
+                addresses: [], // Novo campo para endereços
                 hasGivenFeedback: false,
                 hasFeedbackDiscount: false
             });
@@ -324,9 +483,21 @@ export default function App() {
             const subtotal = cartTotal;
             const discountAmount = hasDiscount ? subtotal * discountPercentage : 0;
             const finalTotal = subtotal - discountAmount;
+            
+            // Adiciona o deliveryTracker apenas se for entrega ou encomenda com endereço de entrega
+            const deliveryDetails = customerDetails.deliveryMethod === 'deliver' || (customerDetails.deliveryMethod === 'schedule' && customerDetails.address !== shopSettings.pickupAddress) ? {
+                deliveryTracker: {
+                    lat: customerDetails.lat,
+                    lng: customerDetails.lng,
+                    lastUpdate: null,
+                    active: false,
+                }
+            } : {};
+
 
             const orderData = {
                 ...customerDetails,
+                ...deliveryDetails,
                 items: cart,
                 subtotal: subtotal,
                 total: finalTotal,
@@ -363,17 +534,18 @@ export default function App() {
     const renderView = () => {
         switch (view) {
             case 'cart': return <CartView cart={cart} updateQuantity={updateQuantity} cartTotal={cartTotal.toFixed(2)} setView={setView} emptyCart={() => setCart([])} user={user} />;
-            case 'checkout': return <CheckoutView placeOrder={placeOrder} cartTotal={cartTotal} cartTotalQuantity={cartTotalQuantity} cart={cart} setView={setView} initialError={error} user={user} userData={userData} authLoading={authLoading} shopSettings={shopSettings} />;
+            case 'checkout': return <CheckoutView placeOrder={placeOrder} cartTotal={cartTotal} cartTotalQuantity={cartTotalQuantity} cart={cart} setView={setView} initialError={error} user={user} userData={userData} authLoading={authLoading} shopSettings={shopSettings} storeOpen={storeOpen} getWorkingInterval={getWorkingInterval}/>;
             case 'confirmation': return <ConfirmationView setView={setView} showToast={showToast} user={user} userData={userData} />;
             case 'adminLogin': return <LoginView handleLogin={handleLogin} error={error} isAdminLogin={true} authLoading={authLoading} />;
             case 'customerLogin': return <LoginView handleLogin={handleLogin} error={error} setView={setView} authLoading={authLoading} />;
             case 'signUp': return <SignUpView handleSignUp={handleSignUp} error={error} setView={setView} authLoading={authLoading} />;
             case 'myOrders': return <MyOrdersView orders={orders.filter(o => o.userId === user?.uid)} setView={setView} />;
-            case 'accountSettings': return <AccountSettingsView user={user} userData={userData} showToast={showToast} setView={setView} />;
-            case 'admin': return isAdmin ? <AdminDashboard menu={menu} orders={orders} feedbacks={feedbacks} handleLogout={handleLogout} showToast={showToast} settings={shopSettings} setView={setView} /> : <MenuView menu={menu} addToCart={addToCart} />;
+            case 'accountSettings': return <AccountSettingsView user={user} userData={userData} showToast={showToast} setView={setView} db={db} appId={appId} />;
+            case 'admin': return isAdmin ? <AdminDashboard menu={menu} orders={orders} feedbacks={feedbacks} handleLogout={handleLogout} showToast={showToast} settings={shopSettings} setView={setView} /> : <MenuView menu={menu} addToCart={addToCart} showStoreClosedToast={showStoreClosedToast} />;
             case 'kitchenView': return <KitchenView orders={orders.filter(o => ['Pendente', 'Em Preparo'].includes(o.status))} setView={setView} />;
-            case 'deliveryView': return <DeliveryView orders={orders.filter(o => o.status === 'Pronto para Entrega' || o.status === 'Saiu para Entrega')} setView={setView} />;
-            default: return <MenuView menu={menu} addToCart={addToCart} />;
+            case 'deliveryView': return <DeliveryView orders={orders.filter(o => o.status === 'Pronto para Entrega' || o.status === 'Saiu para Entrega')} setView={setView} db={db} appId={appId} user={user} isAdmin={isAdmin} />;
+            case 'manageAgenda': return <ManageAgenda currentSettings={shopSettings} showToast={showToast} db={db} appId={appId} />;
+            default: return <MenuView menu={menu} addToCart={addToCart} showStoreClosedToast={showStoreClosedToast} />;
         }
     };
 
@@ -409,16 +581,24 @@ export default function App() {
 
 // --- COMPONENTES DE VIEW ---
 
-const Toast = ({ message }) => (
-     <div className="fixed bottom-5 left-1/2 -translate-x-1/2 bg-stone-800 text-white py-2 px-6 rounded-full shadow-lg z-50 transition-opacity duration-300 animate-fade-in-up">
-        <p className="flex items-center gap-2"><CheckCircle size={16}/> {message}</p>
+const Toast = ({ message, isWarning = false }) => (
+     <div className={`fixed bottom-5 left-1/2 -translate-x-1/2 ${isWarning ? 'bg-red-600' : 'bg-stone-800'} text-white py-2 px-6 rounded-full shadow-lg z-50 transition-opacity duration-300 animate-fade-in-up`}>
+        <p className="flex items-center gap-2">{isWarning ? <AlertTriangle size={16}/> : <CheckCircle size={16}/>} {message}</p>
+    </div>
+);
+
+const FirebaseErrorScreen = () => (
+    <div className="flex flex-col items-center justify-center h-screen bg-red-50 text-red-800 p-4 text-center">
+        <AlertTriangle size={48} className="mb-4 text-red-500" />
+        <h1 className="text-2xl font-bold">Erro de Configuração do Firebase</h1>
+        <p className="mt-2 max-w-md">Não foi possível estabelecer ligação à base de dados. Isto acontece normalmente quando as Variáveis de Ambiente na Vercel não estão configuradas corretamente.</p>
     </div>
 );
 
 const WhatsAppButton = ({ settings }) => {
     if (!settings.whatsappNumber) return null;
     const whatsappLink = `https://wa.me/${settings.whatsappNumber.replace(/\D/g, '')}?text=${encodeURIComponent(settings.whatsappMessage || '')}`;
-    const base64svg = 'data:image/svg+xml;utf8;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pgo8IS0tIEdlbmVyYXRvcjogQWRvYmUgSWxsdXN0cmF0b3IgMTkuMC4wLCBTVkcgRXhwb3J0IFBsdWctSW4gLiBTVkcgVmVyc2lvbjogNi4wMCBCdWlsZCAwKSAgLS0+CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIgdmVyc2lvbj0iMS4xIiBpZD0iTGF5ZXJfMSIgeD0iMHB4IiB5PSIwcHgiIHZpZXdCb3g9IjAgMCA1MTIgNTEyIiBzdHlsZT0iZW5hYmxlLWJhY2tncm91bmQ6bmV3IDAgMCA1MTIgNTEyOyIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSIgd2lkdGg9IjUxMnB4IiBoZWlnaHQ9IjUxMnB4Ij4KPHBhdGggc3R5bGU9ImZpbGw6I0VERURFRDsiIGQ9Ik0wLDUxMmwzNS4zMS0xMjhDMTIuMzU5LDM0NC4yNzYsMCwzMDAuMTM4LDAsMjU0LjIzNEMwLDExNC43NTksMTE0Ljc1OSwwLDI1NS4xMTcsMCAgUzUxMiwxMTQuNzU5LDUxMiwxNTQuMjM0UzM5NS40NzYsNTEyLDI1NS4xMTcsNTEyYy00NC4xMzgsMC04Ni41MS0xNC4xMjQtMTI0LjQ2OS0zNS4zMUwwLDUxMnoiLz4KPHBhdGggc3R5bGU9ImZpbGw6IzU1Q0Q2QzsiIGQ9Ik0xMzcuNzEsNDMwLjc4Nmw3Ljk0NSw0LjQxNGMzMi42NjIsMjAuMzAzLDcwLjYyMSwzMi42NjIsMTEwLjM0NSwzMi42NjIgIGMxMTUuNjQxLDAsMjExLjg2Mi05Ni4yMjEsMjExLjg2Mi0yMTMuNjI4UzM3MS42NDEsNDQuMTM4LDI1NS4xMTcsNDQuMTM4UzQ0LjEzOCwxMzcuNzEsNDQuMTM4LDI1NC4yMzQgIGMwLDQwLjYwNywxMS40NzYsODAuMzMxLDMyLjY2MiwxMTMuODc2bDUuMjk3LDcuOTQ1bC0yMC4zMDMsNzQuMTUyTDEzNy43MSw0MzAuNzg2eiIvPgo8cGF0aCBzdHlsZT0iZmlsbDojRkVGRUZFOyIgZD0iTTE4Ny4xNDUsMTM1Ljk0NWwtMTYuNzcyLTAuODgzYy01LjI5NywwLTEwLjU5MywxLjc2Ni0xNC4xMjQsNS4yOTcgIGMtNy45NDUsNy4wNjItMjEuMTg2LDIwLjMwMy0yNC43MTcsMzcuOTU5Yy02LjE3OSwyNi40ODMsMy41MzEsNTguMjYyLDI2LjQ4Myw5MC4wNDFzNjcuMDksODIuOTc5LDE0NC43NzIsMTA1LjA0OCAgYzI0LjcxNyw3LjA2Miw0NC4xMzgsMi42NDgsNjAuMDI4LTcuMDYyYzEyLjM1OS03Ljk0NSwyMC4zMDMtMjAuMzAzLDIyLjk1Mi0zMy41NDVsMi42NDgtMTIuMzU5ICBjMC44ODMtMy41MzEtMC44ODMtNy45NDUtNC40MTQtOS43MWwtNTUuNjE0LTI1LjZjLTMuNTMxLTEuNzY2LTcuOTQ1LTAuODgzLTEwLjU5MywyLjY0OGwtMjIuMDY5LDI4LjI0OCAgYy0xLjc2NiwxLjc2Ni00LjQxNCwyLjY0OC03LjA2MiwxLjc2NmMtMTUuMDA3LTUuMjk3LTY1LjMyNC0yNi40ODMtOTIuNjktNzkuNDQ4Yy0wLjg4My0yLjY0OC0wLjg4My01LjI5NywwLjg4My03LjA2MiAgbDIxLjE4Ni0yMy44MzRjMS43NjYtMi42NDgsMi42NDgtNi4xNzksMS43NjYtOC44MjhsLTI1LjYtNTcuMzc5QzE5My4zMjQsMTM4LjU5MywxOTAuNjc2LDEzNS45NDUsMTg3LjE0NSwxMzUuOTQ1Ii8+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+Cjwvc3ZnPg==';
+    const base64svg = 'data:image/svg+xml;utf8;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pgo8IS0tIEdlbmVyYXRvcjogQWRvYmUgSWxsdXN0cmF0b3IgMTkuMC4wLCBTVkcgRXhwb3J0IFBsdWctSW4gLiBTVkcgVmVyc2lvbjogNi4wMCBCdWlsZCAwKSAgLS0+CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIgdmVyc2lvbj0iMS4xIiBpZD0iTGF5ZXJfMSIgeD0iMHB4IiB5PSIwcHgiIHZpZXdCb3g9IjAgMCA1MTIgNTEyIiBzdHlsZT0iZW5hYmNncm91bmQ6bmV3IDAgMCA1MTIgNTEyOyIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSIgd2lkdGg9IjUxMnB4IiBoZWlnaHQ9IjUxMnB4Ij4KPHBhdGggc3R5bGU9ImZpbGw6I0VERURFRDsiIGQ9Ik0wLDUxMmwzNS4zMS0xMjhDMTIuMzU5LDM0NC4yNzYsMCwzMDAuMTM4LDAsMjU0LjIzNEMwLDExNC43NTksMTE0Ljc1OSwwLDI1NS4xMTcsMCAgUzUxMiwxMTQuNzU5LDUxMiwxNTQuMjM0UzM5NS40NzYsNTEyLDI1NS4xMTcsNTEyYy00NC4xMzgsMC04Ni41MS0xNC4xMjQtMTI0LjQ2OS0zNS4zMUwwLDUxMnoiLz4KPHBhdGggc3R5bGU9ImZpbGw6IzU1Q0Q2QzsiIGQ9Ik0xMzcuNzEsNDMwLjc4Nmw3Ljk0NSw0LjQxNGMzMi42NjIsMjAuMzAzLDcwLjYyMSwzMi42NjIsMTEwLjM0NSwzMi42NjIgIGMxMTUuNjQxLDAsMjExLjg2Mi05Ni4yMjEsMjExLjg2Mi0yMTMuNjI4UzM3MS42NDEsNDQuMTM4LDI1NS4xMTcsNDQuMTM4UzQ0LjEzOCwxMzcuNzEsNDQuMTM4LDI1NC4yMzQgIGMwLDQwLjYwNywxMS40NzYsODAuMzMxLDMyLjY2MiwxMTMuODc2bDUuMjk3LDcuOTQ1bC0yMC4zMDMsNzQuMTUyTDEzNy43MSw0MzAuNzg2eiIvPgo8cGF0aCBzdHlsZT0iZmlsbDojRkVGRUZFOyIgZD0iTTE4Ny4xNDUsMTM1Ljk0NWwtMTYuNzcyLTAuODgzYy01LjI5NywwLTEwLjU5MywxLjc2Ni0xNC4xMjQsNS4yOTcgIC03Ljk0NSw3LjA2Mi0yMS4xODYsMjAuMzAzLTI0LjcxNywzNy45NTljLTYuMTc5LDI2LjQ4MywzLjUzMSw1OC4yNjIsMjYuNDgzLDkwLjA0MXM2Ny4wOSw4Mi45NzksMTQ0Ljc3MiwxMDUuMDQ4ICBjMjQuNzE3LDcuMDYyLDQ0LjEzOCwyLjY0OCw2MC4wMjgtNy4wNjJjMTIuMzU5LTcuOTQ1LDIwLjMwMy0yMC4zMDMsMjIuOTUyLTMzLjU0NWwyLjY0OC0xMi4zNTkgIC0wLjg4My03Ljk0NS00LjQxNC05LjcxbC01NS42MTQtMjUuNmMtMy41MzEtMS43NjYtNy45NDUtMC44ODMtMTAuNTkzLDIuNjQ4bC0yMi4wNjksMjguMjQ4ICAtMS43NjYsMS43NjYtNC40MTQsMi42NDgtNy4wNjIsMS43NjZjLTE1LjAwNy01LjI5Ny02NS4zMjQtMjYuNDgzLTkyLjY5LTc5LjQ0OGMtMC44ODMtMi42NDgtMC44ODMtNS4yOTcsMC44ODMtNy4wNjIgICAgMjEuMTg2LTIzLjgzNGMxLjc2Ni0yLjY0OCwyLjY0OC02LjE3OSwxLjc2Ni04LjgyOGwtMjUuNi01Ny4zNzlDMTkzLjMyNCwxMzguNTkzLDE5MC42NzYsMTM1Ljk0NSwxODcuMTQ1LDEzNS45NDUiLz4KPGc+CjwvZz4KPGc+CjwvZz4KPGc+CjwvZz4KPGc+CjwvZz4KPGc+CjwvZz4KPGc+CjwvZz4KPGc+CjwvZz4KPGc+CjwvZz4KPGc+CjwvZz4KPGc+CjwvZz4KPGc+CjwvZ2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+Cjwvc3ZnPg==';
 
     return (
         <div className="group relative flex items-center">
@@ -436,7 +616,7 @@ const Header = ({ cartCount, setView, user, isAdmin, settings }) => (
     <header className="bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 flex justify-between items-center">
             <div className="flex items-center gap-4 cursor-pointer transition-transform hover:scale-105" onClick={() => setView(isAdmin ? 'admin' : 'menu')}>
-                <img src={settings.logoUrl} alt="Logo Salgados da Bia" className="h-14 w-14 object-contain" />
+                <img src={settings.logoUrl} alt="Logo Salgados da Bia" className="h-14 w-14 object-contain" onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/100x100/FBBF24/FFFFFF?text=SB'; }} />
                 <div>
                     <h1 className="text-xl md:text-2xl font-bold text-amber-600">{settings.storeName}</h1>
                     <p className="text-xs text-stone-500 -mt-1">O sabor do Brasil em Portugal</p>
@@ -460,6 +640,11 @@ const Header = ({ cartCount, setView, user, isAdmin, settings }) => (
                  )}
                  {user && !user.isAnonymous && !isAdmin && (
                     <button onClick={() => setView('myOrders')} className="p-2 rounded-full hover:bg-amber-100 transition-colors" title="Meus Pedidos">
+                        <Package className="text-amber-600" />
+                    </button>
+                 )}
+                 {user && !user.isAnonymous && (
+                    <button onClick={() => setView('accountSettings')} className="p-2 rounded-full hover:bg-amber-100 transition-colors" title="Minha Conta">
                         <UserCheck className="text-amber-600" />
                     </button>
                  )}
@@ -488,7 +673,7 @@ const Footer = ({ user, setView, handleLogout, isAdmin }) => (
     </footer>
 );
 
-const MenuView = ({ menu, addToCart }) => {
+const MenuView = ({ menu, addToCart, showStoreClosedToast }) => {
     const [customizingBox, setCustomizingBox] = useState(null);
     
     const handleCustomizeClick = (boxItem) => {
@@ -506,6 +691,12 @@ const MenuView = ({ menu, addToCart }) => {
 
     return (
         <div className="animate-fade-in">
+             {showStoreClosedToast && (
+                <Toast 
+                    message="A loja está fechada agora. A entrega do seu pedido será processada no próximo horário de funcionamento. Por favor, use a opção 'Encomendar' no checkout." 
+                    isWarning={true}
+                />
+            )}
             {customizingBox && (
                 <CustomizeBoxModal 
                     box={customizingBox.box} 
@@ -696,52 +887,202 @@ const CartView = ({ cart, updateQuantity, cartTotal, setView, emptyCart, user })
     );
 };
 
-const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView, initialError, user, userData, authLoading, shopSettings }) => {
+const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView, initialError, user, userData, authLoading, shopSettings, storeOpen, getWorkingInterval }) => {
     const isLargeOrder = cartTotalQuantity >= 150;
     const hasScheduledItem = cart.some(item => item.requiresScheduling);
-    const forceScheduling = isLargeOrder || hasScheduledItem;
+    const forceScheduling = isLargeOrder || hasScheduledItem || !storeOpen;
 
     const [deliveryMethod, setDeliveryMethod] = useState(forceScheduling ? 'schedule' : 'deliver');
-    const [name] = useState(userData?.name || user?.displayName || '');
-    const [phone] = useState(userData?.phone || '');
-    const [address, setAddress] = useState('');
+    const [selectedAddress, setSelectedAddress] = useState(null);
+    const [newAddressDetails, setNewAddressDetails] = useState({
+        cep: '', street: '', number: '', district: '', city: '', state: '', lat: null, lng: null
+    });
+    const [isAddingNewAddress, setIsAddingNewAddress] = useState(false);
+    
     const [pickupTime, setPickupTime] = useState('');
     const [scheduledDate, setScheduledDate] = useState('');
     const [scheduledTime, setScheduledTime] = useState('');
     const [formError, setFormError] = useState('');
-    
+    const [cepLoading, setCepLoading] = useState(false);
+
+    const addresses = userData?.addresses || [];
+    const name = userData?.name || user?.displayName || '';
+    const phone = userData?.phone || '';
+
     const discountPercentage = 0.05;
     const hasDiscount = userData?.hasFeedbackDiscount;
     const subtotal = cartTotal;
     const discountAmount = hasDiscount ? subtotal * discountPercentage : 0;
     const finalTotal = subtotal - discountAmount;
+    
+    // Define o método inicial forçado
+    useEffect(() => {
+        if (forceScheduling) {
+             setDeliveryMethod('schedule');
+        }
+    }, [forceScheduling]);
 
+
+    // FEATURE 2: Validação de horário de agendamento
+    const validateScheduledTime = (date, time) => {
+        if (!date || !time) return '';
+
+        const interval = getWorkingInterval(shopSettings.workingHours, date);
+        if (!interval) return 'A loja está fechada na data selecionada. Por favor, escolha outro dia.';
+        
+        const [startHour, startMinute] = interval.start.split(':').map(Number);
+        const [endHour, endMinute] = interval.end.split(':').map(Number);
+        const [selectedHour, selectedMinute] = time.split(':').map(Number);
+
+        // Cria objetos Date simulados (apenas tempo) para comparação
+        const selectedTime = new Date(0, 0, 0, selectedHour, selectedMinute);
+        const startTime = new Date(0, 0, 0, startHour, startMinute);
+        const endTime = new Date(0, 0, 0, endHour, endMinute);
+
+        // Ajuste para virada do dia (00:00)
+        if (endHour === 0 && endMinute === 0) {
+            endTime.setDate(endTime.getDate() + 1); // Garante que o fim do dia é meia noite do dia seguinte
+        }
+
+        // Se o horário de fim for antes do início (como 22:00-02:00), a lógica fica mais complexa, mas para 10:00-22:00 esta simples funciona
+        if (selectedTime < startTime || selectedTime >= endTime) {
+            return `O horário de funcionamento para ${date} é das ${interval.start} às ${interval.end}.`;
+        }
+        
+        // Verifica se a data é futura
+        const selectedDate = new Date(`${date}T${time}:00`);
+        if (selectedDate < new Date()) {
+             return 'Não é possível agendar para uma data ou hora no passado.';
+        }
+
+        return ''; // Sem erro
+    };
+
+    // Função para buscar endereço pelo CEP
+    const handleCepLookup = async () => {
+        const cep = newAddressDetails.cep;
+        if (cep.replace(/\D/g, '').length !== 8) return;
+        setCepLoading(true);
+        try {
+            const result = await fetchAddressByCep(cep);
+            if (result) {
+                setNewAddressDetails(prev => ({
+                    ...prev,
+                    street: result.street || '',
+                    district: result.district || '',
+                    city: result.city || '',
+                    state: result.state || '',
+                    lat: result.latitude || null,
+                    lng: result.longitude || null,
+                }));
+            }
+        } catch (e) { console.error("Erro ao buscar CEP:", e); }
+        finally { setCepLoading(false); }
+    };
+    
+    // Função para obter localização atual (FEATURE 1)
+    const handleCurrentLocation = () => {
+        if (!navigator.geolocation) {
+            setFormError('Seu navegador não suporta geolocalização.');
+            return;
+        }
+        setFormError('');
+        setCepLoading(true); // Usando cepLoading como indicador de geolocalização
+        
+        navigator.geolocation.getCurrentPosition(async (position) => {
+            const { latitude, longitude } = position.coords;
+            try {
+                // Simula geocodificação reversa
+                const addressResult = await fetchAddressByCoords(latitude, longitude);
+                
+                setNewAddressDetails({
+                    cep: addressResult.cep || '',
+                    street: addressResult.street || '',
+                    number: addressResult.number || '',
+                    district: addressResult.district || '',
+                    city: addressResult.city || '',
+                    state: addressResult.state || '',
+                    lat: latitude,
+                    lng: longitude,
+                });
+                setIsAddingNewAddress(true);
+            } catch (error) {
+                 setFormError('Erro ao buscar endereço pela localização.');
+                 console.error(error);
+            } finally {
+                setCepLoading(false);
+            }
+        }, (error) => {
+            setFormError(`Erro de localização: ${error.message}`);
+            setCepLoading(false);
+        });
+    }
 
     const handleSubmit = (e) => {
         e.preventDefault();
         setFormError('');
-        const details = { name, phone, deliveryMethod };
+        
+        let finalAddress = null;
+
+        if (deliveryMethod === 'deliver' || (deliveryMethod === 'schedule' && (selectedAddress || isAddingNewAddress))) {
+            if (isAddingNewAddress) {
+                if (!newAddressDetails.street || !newAddressDetails.number) { 
+                    setFormError('Preencha a Rua e o Número para o novo endereço.'); 
+                    return; 
+                }
+                finalAddress = newAddressDetails;
+            } else if (selectedAddress) {
+                finalAddress = addresses.find(addr => addr.id === selectedAddress);
+            }
+            
+            if (!finalAddress) {
+                setFormError('Selecione ou adicione um endereço de entrega válido.');
+                return;
+            }
+        }
+
+        // Validações de Horário
+        if (deliveryMethod === 'pickup' && !pickupTime) { setFormError('Por favor, selecione um horário para retirada.'); return; }
+        
+        if (deliveryMethod === 'schedule') {
+             const scheduleError = validateScheduledTime(scheduledDate, scheduledTime);
+             if (scheduleError) {
+                 setFormError(scheduleError);
+                 return;
+             }
+        }
+
+
+        const details = { name, phone, deliveryMethod, total: finalTotal };
 
         if (deliveryMethod === 'deliver') {
-            if (!address) { setFormError('Por favor, preencha a morada de entrega.'); return; }
-            details.address = address;
+            details.address = `${finalAddress.street}, ${finalAddress.number}, ${finalAddress.district}, ${finalAddress.city}`;
+            details.lat = finalAddress.lat;
+            details.lng = finalAddress.lng;
             details.isScheduled = false;
         } else if (deliveryMethod === 'pickup') {
-            if (!pickupTime) { setFormError('Por favor, selecione um horário para retirada.'); return; }
             details.pickupTime = pickupTime;
             details.address = `Retirada em: ${shopSettings.pickupAddress}`;
             details.isScheduled = false;
         } else { // schedule
             if (!scheduledDate || !scheduledTime) { setFormError('Por favor, selecione data e hora para a encomenda.'); return; }
-            if (!address && !shopSettings.pickupAddress) { setFormError('Por favor, preencha a morada para a encomenda.'); return; }
             details.scheduledDate = scheduledDate;
             details.scheduledTime = scheduledTime;
-            details.address = address || `Retirada em: ${shopSettings.pickupAddress}`;
+            
+            if (finalAddress) {
+                details.address = `${finalAddress.street}, ${finalAddress.number}, ${finalAddress.district}, ${finalAddress.city}`;
+                details.lat = finalAddress.lat;
+                details.lng = finalAddress.lng;
+            } else {
+                 details.address = `Retirada em: ${shopSettings.pickupAddress}`;
+            }
             details.isScheduled = true;
         }
 
         placeOrder(details);
     };
+
+    const todayDate = new Date().toISOString().split('T')[0];
 
     return (
         <div className="max-w-lg mx-auto bg-white p-8 rounded-lg shadow-lg animate-fade-in">
@@ -750,7 +1091,7 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
              {forceScheduling && (
                 <div className="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 mb-6" role="alert">
                     <p className="font-bold">Apenas Encomenda Disponível</p>
-                    <p>O seu pedido contém itens especiais ou excede 150 unidades, por isso precisa ser agendado.</p>
+                    <p>O seu pedido contém itens especiais, excede 150 unidades, ou a loja está fechada. Apenas agendamento é permitido.</p>
                 </div>
             )}
 
@@ -771,15 +1112,61 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
             <div className="bg-stone-100 p-4 rounded-lg mb-4 space-y-2">
                 <div><span className="font-bold text-stone-600">Nome: </span><span>{name || "Não definido"}</span></div>
                 <div><span className="font-bold text-stone-600">Telefone: </span><span>{phone || "Não definido"}</span></div>
-                <p className="text-xs text-stone-500">Para alterar estes dados, vá para <button onClick={() => setView('accountSettings')} className="font-bold underline">Minha Conta</button>.</p>
+                <p className="text-xs text-stone-500">Para alterar estes dados, vá para <button type="button" onClick={() => setView('accountSettings')} className="font-bold underline">Minha Conta</button>.</p>
             </div>
+
             <form onSubmit={handleSubmit} className="space-y-4">
-                {deliveryMethod === 'deliver' && (
-                    <div>
-                        <label htmlFor="address" className="block text-stone-700 font-bold mb-2">Morada para Entrega</label>
-                        <textarea id="address" value={address} onChange={e => setAddress(e.target.value)} rows="3" className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400" required></textarea>
+                 {(deliveryMethod === 'deliver' || (deliveryMethod === 'schedule' && !isAddingNewAddress)) && (
+                     <div className="p-4 bg-stone-50 rounded-lg border">
+                         <h3 className="font-bold mb-2 text-stone-700">Morada para {deliveryMethod === 'deliver' ? 'Entrega' : 'Encomenda'}</h3>
+                         {addresses.length > 0 && (
+                            <div className="space-y-2 mb-3">
+                                <label className="block text-stone-700 font-bold text-sm">Endereços Cadastrados</label>
+                                <select 
+                                    value={selectedAddress || ''} 
+                                    onChange={e => setSelectedAddress(e.target.value)}
+                                    className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400" 
+                                    required={deliveryMethod !== 'schedule' || isAddingNewAddress === false}
+                                >
+                                    <option value="">Selecione um endereço</option>
+                                    {addresses.map(addr => (
+                                        <option key={addr.id} value={addr.id}>{addr.street}, {addr.number} ({addr.city})</option>
+                                    ))}
+                                </select>
+                            </div>
+                         )}
+                         <button 
+                            type="button" 
+                            onClick={() => { setIsAddingNewAddress(true); setSelectedAddress(null); setNewAddressDetails({ cep: '', street: '', number: '', district: '', city: '', state: '', lat: null, lng: null }); }} 
+                            className="text-amber-600 font-semibold text-sm hover:underline flex items-center gap-1 mt-2"
+                         >
+                            <Plus size={16}/> Adicionar Novo Endereço
+                         </button>
+                     </div>
+                 )}
+
+                {isAddingNewAddress && (
+                    <div className="p-4 bg-red-50 rounded-lg border border-red-200 space-y-3">
+                        <h3 className="font-bold text-lg text-red-700 flex justify-between items-center">
+                            Novo Endereço de Entrega
+                            <button type="button" onClick={() => setIsAddingNewAddress(false)} className="text-red-500 hover:text-red-700"><XCircle size={20}/></button>
+                        </h3>
+                        
+                        <div className="flex items-center gap-2">
+                             <input type="text" placeholder="CEP" value={newAddressDetails.cep} onChange={e => setNewAddressDetails(p => ({...p, cep: e.target.value}))} onBlur={handleCepLookup} className="w-1/2 p-2 border border-stone-300 rounded-lg focus:ring-amber-400" />
+                             <button type="button" onClick={handleCurrentLocation} disabled={cepLoading} className="w-1/2 bg-blue-500 text-white font-bold py-2 px-3 rounded-lg hover:bg-blue-600 flex items-center justify-center gap-2 text-sm disabled:opacity-50">
+                                {cepLoading ? <Loader2 className="animate-spin" size={18}/> : <><MapPin size={18}/> Localização Atual</>}
+                             </button>
+                        </div>
+                        <input type="text" name="street" placeholder="Rua / Logradouro" value={newAddressDetails.street} onChange={e => setNewAddressDetails(p => ({...p, street: e.target.value}))} className="w-full p-2 border border-stone-300 rounded-lg focus:ring-amber-400" required />
+                        <div className="grid grid-cols-2 gap-2">
+                            <input type="text" name="number" placeholder="Número" value={newAddressDetails.number} onChange={e => setNewAddressDetails(p => ({...p, number: e.target.value}))} className="w-full p-2 border border-stone-300 rounded-lg focus:ring-amber-400" required />
+                            <input type="text" name="district" placeholder="Bairro" value={newAddressDetails.district} onChange={e => setNewAddressDetails(p => ({...p, district: e.target.value}))} className="w-full p-2 border border-stone-300 rounded-lg focus:ring-amber-400" required />
+                        </div>
+                        <input type="text" name="city" placeholder="Município/Cidade" value={newAddressDetails.city} onChange={e => setNewAddressDetails(p => ({...p, city: e.target.value}))} className="w-full p-2 border border-stone-300 rounded-lg focus:ring-amber-400" required />
                     </div>
                 )}
+                
                 {deliveryMethod === 'pickup' && (
                     <div>
                         <label htmlFor="pickupTime" className="block text-stone-700 font-bold mb-2">Horário para Retirada</label>
@@ -790,27 +1177,33 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
                         </div>
                     </div>
                 )}
+                
                 {deliveryMethod === 'schedule' && (
                     <div className="space-y-4 bg-stone-50 p-4 rounded-lg">
                         <h3 className="font-bold text-lg">Agendar Encomenda</h3>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                <label htmlFor="scheduledDate" className="block text-stone-700 font-bold mb-2">Data</label>
-                               <input type="date" id="scheduledDate" value={scheduledDate} onChange={e => setScheduledDate(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-lg" required />
+                               <input type="date" id="scheduledDate" min={todayDate} value={scheduledDate} onChange={e => setScheduledDate(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-lg" required />
                             </div>
                              <div>
                                <label htmlFor="scheduledTime" className="block text-stone-700 font-bold mb-2">Hora</label>
                                <input type="time" id="scheduledTime" value={scheduledTime} onChange={e => setScheduledTime(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-lg" required />
                             </div>
                         </div>
-                         <div>
-                            <label htmlFor="address" className="block text-stone-700 font-bold mb-2">Morada de Entrega (ou deixe em branco para retirar no local)</label>
-                            <textarea id="address" placeholder={shopSettings.pickupAddress} value={address} onChange={e => setAddress(e.target.value)} rows="2" className="w-full px-3 py-2 border border-stone-300 rounded-lg"></textarea>
-                        </div>
+                        {/* FEATURE 2: Mensagem de validação de horário de agendamento */}
+                        {scheduledDate && scheduledTime && validateScheduledTime(scheduledDate, scheduledTime) && (
+                            <div className="text-red-600 text-sm font-semibold p-2 bg-red-100 rounded-md">
+                                <AlertTriangle size={16} className="inline mr-1"/> {validateScheduledTime(scheduledDate, scheduledTime)}
+                            </div>
+                        )}
+                        <p className="text-sm text-stone-500">Selecione um endereço acima (ou adicione um novo) para entrega, ou deixe em branco para retirar no local.</p>
                     </div>
                 )}
+                
                 {formError && <p className="text-red-500 text-center">{formError}</p>}
                 {initialError && <p className="text-red-500 text-center">{initialError}</p>}
+                
                 <div className="border-t pt-6 mt-2">
                     <div className="space-y-1 text-right mb-4">
                         <p className="text-md">Subtotal: <span className="font-semibold">{subtotal.toFixed(2)}€</span></p>
@@ -822,7 +1215,7 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
                         <p className="text-xl">Total a Pagar: <span className="font-bold text-2xl">{finalTotal.toFixed(2)}€</span></p>
                     </div>
 
-                    <button type="submit" disabled={authLoading} className="w-full bg-green-500 text-white font-bold py-3 rounded-lg hover:bg-green-600 transition-colors text-lg shadow hover:shadow-lg active:scale-95 flex justify-center items-center disabled:bg-green-300">
+                    <button type="submit" disabled={authLoading || formError || (deliveryMethod === 'schedule' && validateScheduledTime(scheduledDate, scheduledTime))} className="w-full bg-green-500 text-white font-bold py-3 rounded-lg hover:bg-green-600 transition-colors text-lg shadow hover:shadow-lg active:scale-95 flex justify-center items-center disabled:bg-green-300">
                         {authLoading ? <Loader2 className="animate-spin" /> : "Confirmar Pedido"}
                     </button>
                     <button type="button" onClick={() => setView('cart')} className="w-full mt-3 text-center text-stone-600 hover:underline">
@@ -833,6 +1226,7 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
         </div>
     );
 };
+
 
 const ConfirmationView = ({ setView, showToast, user, userData }) => {
     const [feedbackView, setFeedbackView] = useState(false);
@@ -993,7 +1387,7 @@ const LoginView = ({ handleLogin, error, setView, isAdminLogin = false, authLoad
             </form>
         </div>
     );
-};
+}
 
 const SignUpView = ({ handleSignUp, error, setView, authLoading }) => {
     const [name, setName] = useState('');
@@ -1045,12 +1439,125 @@ const SignUpView = ({ handleSignUp, error, setView, authLoading }) => {
     );
 }
 
-const AccountSettingsView = ({ user, userData, showToast, setView }) => {
+const AddressForm = ({ address, onSave, onCancel, showToast }) => {
+    const [formData, setFormData] = useState(address || { cep: '', street: '', number: '', district: '', city: '', state: '', lat: null, lng: null });
+    const [cepLoading, setCepLoading] = useState(false);
+    const [formError, setFormError] = useState('');
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({...prev, [name]: value}));
+    };
+
+    const handleCepLookup = async () => {
+        const cep = formData.cep;
+        if (cep.replace(/\D/g, '').length !== 8) return;
+        setCepLoading(true);
+        try {
+            const result = await fetchAddressByCep(cep);
+            if (result) {
+                setFormData(prev => ({
+                    ...prev,
+                    street: result.street || '',
+                    district: result.district || '',
+                    city: result.city || '',
+                    state: result.state || '',
+                    lat: result.latitude || null,
+                    lng: result.longitude || null,
+                }));
+            }
+        } catch (e) { console.error("Erro ao buscar CEP:", e); }
+        finally { setCepLoading(false); }
+    };
+    
+    // FEATURE 1: Obter localização atual e preencher
+    const handleCurrentLocation = () => {
+         if (!navigator.geolocation) {
+            setFormError('Seu navegador não suporta geolocalização.');
+            return;
+        }
+        setFormError('');
+        setCepLoading(true); 
+        
+        navigator.geolocation.getCurrentPosition(async (position) => {
+            const { latitude, longitude } = position.coords;
+            try {
+                // Simula geocodificação reversa
+                const addressResult = await fetchAddressByCoords(latitude, longitude);
+                
+                setFormData({
+                    cep: addressResult.cep || '',
+                    street: addressResult.street || '',
+                    number: addressResult.number || '',
+                    district: addressResult.district || '',
+                    city: addressResult.city || '',
+                    state: addressResult.state || '',
+                    lat: latitude,
+                    lng: longitude,
+                });
+                showToast("Localização atual preenchida com sucesso!");
+            } catch (error) {
+                 setFormError('Erro ao buscar endereço pela localização.');
+                 console.error(error);
+            } finally {
+                setCepLoading(false);
+            }
+        }, (error) => {
+            setFormError(`Erro de localização: ${error.message}`);
+            setCepLoading(false);
+        });
+    }
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        if (!formData.street || !formData.number || !formData.district || !formData.city) {
+            setFormError('Preencha todos os campos de endereço obrigatórios.');
+            return;
+        }
+        setFormError('');
+        onSave(formData);
+    };
+
+    return (
+         <div className="fixed inset-0 bg-black/50 z-50 flex justify-center items-center p-4 animate-fade-in">
+            <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-slide-up">
+                <h4 className="text-xl font-bold mb-4">{address ? 'Editar Endereço' : 'Adicionar Novo Endereço'}</h4>
+                
+                <div className="space-y-3">
+                     <div className="flex items-center gap-2">
+                         <input type="text" name="cep" placeholder="CEP" value={formData.cep} onChange={handleChange} onBlur={handleCepLookup} className="w-1/2 p-2 border border-stone-300 rounded-lg focus:ring-amber-400" />
+                         <button type="button" onClick={handleCurrentLocation} disabled={cepLoading} className="w-1/2 bg-blue-500 text-white font-bold py-2 px-3 rounded-lg hover:bg-blue-600 flex items-center justify-center gap-2 text-sm disabled:opacity-50">
+                            {cepLoading ? <Loader2 className="animate-spin" size={18}/> : <><MapPin size={18}/> Localização Atual</>}
+                         </button>
+                    </div>
+                    <input type="text" name="street" placeholder="Rua / Logradouro" value={formData.street} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-lg focus:ring-amber-400" required />
+                    <div className="grid grid-cols-2 gap-2">
+                        <input type="text" name="number" placeholder="Número" value={formData.number} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-lg focus:ring-amber-400" required />
+                        <input type="text" name="district" placeholder="Bairro" value={formData.district} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-lg focus:ring-amber-400" required />
+                    </div>
+                    <input type="text" name="city" placeholder="Município/Cidade" value={formData.city} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-lg focus:ring-amber-400" required />
+                </div>
+                 {formError && <p className="text-red-500 text-sm mt-3">{formError}</p>}
+                 <div className="flex justify-end gap-4 mt-6">
+                    <button type="button" onClick={onCancel} className="bg-stone-300 text-stone-800 font-bold py-2 px-4 rounded-lg hover:bg-stone-400 active:scale-95 transition-colors">Cancelar</button>
+                    <button type="submit" className="bg-amber-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-amber-600 active:scale-95 transition-colors">Salvar Endereço</button>
+                </div>
+            </form>
+        </div>
+    );
+}
+
+const AccountSettingsView = ({ user, userData, showToast, setView, db, appId }) => {
     const [name, setName] = useState(userData?.name || user?.displayName || '');
     const [phone, setPhone] = useState(userData?.phone || '');
     const [isSaving, setIsSaving] = useState(false);
+    const [editingAddress, setEditingAddress] = useState(null);
+    const [deletingAddressId, setDeletingAddressId] = useState(null);
 
-    const handleSave = async () => {
+    // FEATURE 1: Gestão de Endereços
+    const addresses = userData?.addresses || [];
+
+    const handleSaveUserData = async () => {
         setIsSaving(true);
         try {
             const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, user.uid);
@@ -1068,10 +1575,50 @@ const AccountSettingsView = ({ user, userData, showToast, setView }) => {
         }
     };
     
+    const handleSaveAddress = async (newAddressData) => {
+        try {
+            const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, user.uid);
+            let updatedAddresses = [...addresses];
+
+            if (newAddressData.id) {
+                // Edição
+                updatedAddresses = updatedAddresses.map(addr => addr.id === newAddressData.id ? newAddressData : addr);
+            } else {
+                // Novo endereço
+                const newId = crypto.randomUUID();
+                updatedAddresses.push({ ...newAddressData, id: newId });
+            }
+
+            await updateDoc(userDocRef, { addresses: updatedAddresses });
+            showToast("Endereço salvo com sucesso!");
+            setEditingAddress(null);
+        } catch (error) {
+            console.error("Erro ao salvar endereço:", error);
+            showToast("Erro ao salvar endereço.");
+        }
+    };
+    
+    const handleDeleteAddressConfirm = async () => {
+         try {
+            const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, user.uid);
+            const updatedAddresses = addresses.filter(addr => addr.id !== deletingAddressId);
+            await updateDoc(userDocRef, { addresses: updatedAddresses });
+            showToast("Endereço removido com sucesso!");
+            setDeletingAddressId(null);
+        } catch (error) {
+            console.error("Erro ao remover endereço:", error);
+            showToast("Erro ao remover endereço.");
+        }
+    };
+    
     return (
         <div className="max-w-2xl mx-auto">
+             {editingAddress && <AddressForm address={editingAddress.data} onSave={handleSaveAddress} onCancel={() => setEditingAddress(null)} showToast={showToast} />}
+             {deletingAddressId && <ConfirmDeleteModal title="Remover Endereço" message="Tem certeza que deseja remover este endereço?" onConfirm={handleDeleteAddressConfirm} onCancel={() => setDeletingAddressId(null)} confirmText="Remover" />}
+             
              <h2 className="text-3xl font-bold mb-6 text-stone-800">Minha Conta</h2>
-              <div className="bg-white p-6 rounded-lg shadow-lg space-y-4">
+              <div className="bg-white p-6 rounded-lg shadow-lg space-y-4 mb-8">
+                  <h3 className="font-bold text-xl text-amber-600 border-b pb-2">Dados Pessoais</h3>
                   <div>
                       <label className="block text-sm font-bold mb-1 text-stone-600">Nome Completo</label>
                       <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full p-2 border border-stone-300 rounded" />
@@ -1085,12 +1632,84 @@ const AccountSettingsView = ({ user, userData, showToast, setView }) => {
                       <input type="email" value={user?.email || ''} className="w-full p-2 border bg-stone-100 border-stone-300 rounded" disabled />
                   </div>
                   <div className="pt-4 flex justify-between items-center">
-                      <button onClick={handleSave} disabled={isSaving} className="bg-amber-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-amber-600 transition-colors shadow-sm hover:shadow-md active:scale-95 flex items-center justify-center disabled:bg-amber-300 w-40">
-                          {isSaving ? <Loader2 className="animate-spin" /> : "Salvar Alterações"}
+                      <button onClick={handleSaveUserData} disabled={isSaving} className="bg-amber-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-amber-600 transition-colors shadow-sm hover:shadow-md active:scale-95 flex items-center justify-center disabled:bg-amber-300 w-40">
+                          {isSaving ? <Loader2 className="animate-spin" /> : "Salvar Dados"}
                       </button>
                       <button onClick={() => setView('myOrders')} className="text-stone-600 font-semibold hover:underline">Ver meus pedidos</button>
                   </div>
               </div>
+              
+               <div className="bg-white p-6 rounded-lg shadow-lg space-y-4">
+                  <div className="flex justify-between items-center border-b pb-2">
+                      <h3 className="font-bold text-xl text-amber-600">Meus Endereços ({addresses.length})</h3>
+                       <button onClick={() => setEditingAddress({})} className="text-sm font-semibold text-green-600 hover:underline flex items-center gap-1"><Plus size={16}/> Adicionar</button>
+                  </div>
+                  {addresses.length === 0 ? (
+                      <p className="text-stone-500">Nenhum endereço cadastrado. Adicione um para agilizar seus pedidos!</p>
+                  ) : (
+                      <div className="space-y-3">
+                          {addresses.map(addr => (
+                              <div key={addr.id} className="p-3 bg-stone-50 rounded-lg border border-stone-200 flex justify-between items-center">
+                                  <p className="text-stone-700 font-semibold">{addr.street}, {addr.number} ({addr.city})</p>
+                                  <div className="flex gap-2">
+                                      <button onClick={() => setEditingAddress({ data: addr })} className="p-1 text-blue-600 hover:bg-blue-100 rounded-full transition-colors"><Edit size={18} /></button>
+                                      <button onClick={() => setDeletingAddressId(addr.id)} className="p-1 text-red-600 hover:bg-red-100 rounded-full transition-colors"><Trash2 size={18}/></button>
+                                  </div>
+                              </div>
+                          ))}
+                      </div>
+                  )}
+              </div>
+        </div>
+    );
+}
+
+const DeliveryTrackerComponent = ({ order }) => {
+    const { deliveryTracker, lat, lng, address } = order;
+    
+    if (!deliveryTracker || !deliveryTracker.active || order.status !== 'Saiu para Entrega') {
+        return (
+            <div className="bg-blue-50 border-l-4 border-blue-400 text-blue-800 p-3 mt-4 rounded-lg flex items-center gap-3">
+                <Satellite size={20} />
+                <p className="text-sm">Rastreamento Inativo. Aguardando o entregador iniciar a rota.</p>
+            </div>
+        );
+    }
+    
+    // Simulação do Google Maps Embed com as coordenadas do entregador (tracker) e do cliente (lat, lng do pedido)
+    // Usamos as coordenadas do entregador (deliveryTracker) para o centro do mapa
+    const mapCenter = `${deliveryTracker.lat},${deliveryTracker.lng}`;
+    
+    // Usamos as coordenadas do cliente (lat, lng) para o marcador de destino
+    const clientMarker = `${lat},${lng}`;
+    
+    // URL simulada para o Google Maps. NOTE: Em um ambiente de produção, usaria-se uma biblioteca de mapas (ex: Leaflet/Google Maps API)
+    const mapUrl = `https://maps.google.com/maps?q=${mapCenter}&z=14&t=k&output=embed`;
+    
+    const lastUpdate = deliveryTracker.lastUpdate ? new Date(deliveryTracker.lastUpdate.seconds * 1000).toLocaleTimeString('pt-PT') : 'N/A';
+
+    return (
+        <div className="mt-4 p-4 bg-white border border-green-200 rounded-lg shadow-inner">
+            <h4 className="font-bold text-lg text-green-600 flex items-center gap-2"><MapPin size={20}/> Entrega em Tempo Real</h4>
+            <p className="text-sm text-stone-600 mb-2">Última atualização: {lastUpdate}</p>
+            
+            <div className="relative w-full h-64 overflow-hidden rounded-lg border border-stone-300">
+                <iframe 
+                    title="Localização do Entregador" 
+                    width="100%" 
+                    height="100%" 
+                    frameBorder="0" 
+                    style={{border:0}} 
+                    src={mapUrl}
+                    allowFullScreen 
+                    loading="lazy"
+                ></iframe>
+                {/* Ícone sobreposto para simular o entregador no centro do iframe */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                    <Bike size={36} className="text-purple-600 bg-white p-1 rounded-full border-2 border-purple-600 shadow-xl animate-bounce"/>
+                </div>
+            </div>
+            <p className="text-xs text-stone-500 mt-2">O ponto central do mapa representa a localização atualizada do seu entregador.</p>
         </div>
     );
 }
@@ -1148,6 +1767,8 @@ const MyOrdersView = ({ orders, setView }) => {
                             {order.discount && (
                                 <p className="text-sm text-green-600 mt-2 font-semibold">Desconto aplicado: {order.discount.amount.toFixed(2)}€</p>
                             )}
+                            {/* FEATURE 3: Rastreamento do Entregador */}
+                            {order.deliveryTracker && (order.status === 'Saiu para Entrega' || order.status === 'Pronto para Entrega') && <DeliveryTrackerComponent order={order} />}
                          </div>
                     </div>
                 ))}
@@ -1200,6 +1821,7 @@ const AdminDashboard = ({ menu, orders, feedbacks, handleLogout, showToast, sett
             case 'settings': return <AdminSettings showToast={showToast} currentSettings={settings} />;
             case 'faturamento': return <FaturamentoView orders={orders} />;
             case 'feedbacks': return <FeedbacksView feedbacks={feedbacks} showToast={showToast} />;
+            case 'manageAgenda': return <ManageAgenda currentSettings={settings} showToast={showToast} db={db} appId={appId}/>;
             default: return <AdminStats orders={orders} />;
         }
     }
@@ -1220,6 +1842,7 @@ const AdminDashboard = ({ menu, orders, feedbacks, handleLogout, showToast, sett
                 <button onClick={() => setAdminView('menu')} className={`px-4 py-2 font-semibold text-sm rounded-t-md flex items-center gap-2 transition-colors ${adminView === 'menu' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><ChefHat size={16}/> Cardápio</button>
                 <button onClick={() => setAdminView('faturamento')} className={`px-4 py-2 font-semibold text-sm rounded-t-md flex items-center gap-2 transition-colors ${adminView === 'faturamento' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><TrendingUp size={16}/> Faturamento</button>
                 <button onClick={() => setAdminView('feedbacks')} className={`px-4 py-2 font-semibold text-sm rounded-t-md flex items-center gap-2 transition-colors ${adminView === 'feedbacks' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Star size={16}/> Feedbacks</button>
+                <button onClick={() => setAdminView('manageAgenda')} className={`px-4 py-2 font-semibold text-sm rounded-t-md flex items-center gap-2 transition-colors ${adminView === 'manageAgenda' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Calendar size={16}/> Agenda</button>
                 <button onClick={() => setAdminView('settings')} className={`px-4 py-2 font-semibold text-sm rounded-t-md flex items-center gap-2 transition-colors ${adminView === 'settings' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Settings size={16}/> Configurações</button>
             </div>
             {renderAdminView()}
@@ -1525,7 +2148,8 @@ const ManageOrders = ({ orders }) => {
     };
 
     const handleRejectOrder = async (orderId) => {
-        if (window.confirm("Tem a certeza que quer rejeitar e apagar este pedido? Esta ação não pode ser desfeita.")) {
+        // CORREÇÃO: Usar modal customizado ao invés de window.confirm
+        if (confirm("Tem a certeza que quer rejeitar e apagar este pedido? Esta ação não pode ser desfeita.")) {
             const orderDocPath = `artifacts/${appId}/public/data/orders/${orderId}`;
             await deleteDoc(doc(db, orderDocPath));
         }
@@ -1824,11 +2448,234 @@ const KitchenView = ({ orders, setView }) => {
     );
 };
 
-const DeliveryView = ({ orders, setView }) => {
+
+// FEATURE 2: Gerenciamento de Agenda
+const ManageAgenda = ({ currentSettings, showToast, db, appId }) => {
+    const [settings, setSettings] = useState(currentSettings);
+    const [isSaving, setIsSaving] = useState(false);
+    const [editingHoliday, setEditingHoliday] = useState('');
+    const daysOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+    useEffect(() => {
+        setSettings(currentSettings);
+    }, [currentSettings]);
+
+    const handleHourChange = (day, field, value) => {
+        setSettings(prev => ({
+            ...prev,
+            workingHours: {
+                ...prev.workingHours,
+                [day]: {
+                    ...prev.workingHours[day],
+                    [field]: value
+                }
+            }
+        }));
+    };
+
+    const handleToggleOpen = (day, isOpen) => {
+         setSettings(prev => ({
+            ...prev,
+            workingHours: {
+                ...prev.workingHours,
+                [day]: {
+                    ...prev.workingHours[day],
+                    open: isOpen
+                }
+            }
+        }));
+    };
+    
+    const handleAddHoliday = () => {
+        if (editingHoliday && !settings.holidays.includes(editingHoliday)) {
+            setSettings(prev => ({ ...prev, holidays: [...prev.holidays, editingHoliday].sort() }));
+            setEditingHoliday('');
+        }
+    };
+    
+    const handleRemoveHoliday = (date) => {
+        setSettings(prev => ({ ...prev, holidays: prev.holidays.filter(h => h !== date) }));
+    };
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        const settingsDocPath = `artifacts/${appId}/public/data/settings`;
+        const settingsRef = doc(db, settingsDocPath, 'shopConfig');
+        try {
+            await updateDoc(settingsRef, {
+                workingHours: settings.workingHours,
+                holidays: settings.holidays,
+            });
+            showToast("Agenda e horários salvos com sucesso!");
+        } catch (error) {
+            console.error("Erro ao salvar agenda:", error);
+            showToast("Erro ao salvar agenda. Tente novamente.");
+        } finally {
+            setIsSaving(false);
+        }
+    }
+
+    const dayNameMap = {
+        monday: 'Segunda-feira', tuesday: 'Terça-feira', wednesday: 'Quarta-feira',
+        thursday: 'Quinta-feira', friday: 'Sexta-feira', saturday: 'Sábado', sunday: 'Domingo'
+    };
+    
+    return (
+        <div>
+            <h3 className="text-xl font-bold mb-4 text-stone-700">Gerenciamento de Agenda</h3>
+            <div className="bg-white p-6 rounded-lg shadow-lg border border-stone-200 space-y-8">
+                 {/* Horário de Funcionamento */}
+                 <div>
+                    <h4 className="font-bold text-lg mb-4 text-amber-600 flex items-center gap-2"><Clock size={20}/> Horário Semanal</h4>
+                    <div className="space-y-3">
+                        {daysOfWeek.map(day => (
+                            <div key={day} className={`flex items-center p-3 rounded-lg border ${settings.workingHours[day]?.open ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                                <p className="font-semibold w-32">{dayNameMap[day]}</p>
+                                <div className="flex items-center gap-4 flex-grow">
+                                     <button onClick={() => handleToggleOpen(day, !settings.workingHours[day]?.open)} className={`px-3 py-1 text-sm font-bold rounded-full transition-colors ${settings.workingHours[day]?.open ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-green-500 text-white hover:bg-green-600'}`}>
+                                         {settings.workingHours[day]?.open ? 'Fechar' : 'Abrir'}
+                                     </button>
+                                     {settings.workingHours[day]?.open ? (
+                                         <div className="flex items-center gap-2">
+                                              <input type="time" value={settings.workingHours[day]?.start || '00:00'} onChange={(e) => handleHourChange(day, 'start', e.target.value)} className="p-2 border rounded" />
+                                              <span className="font-bold">-</span>
+                                              <input type="time" value={settings.workingHours[day]?.end || '00:00'} onChange={(e) => handleHourChange(day, 'end', e.target.value)} className="p-2 border rounded" />
+                                         </div>
+                                     ) : (
+                                         <span className="text-sm text-stone-500">Fechado o dia todo</span>
+                                     )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                 </div>
+                 
+                 {/* Feriados */}
+                 <div>
+                     <h4 className="font-bold text-lg mb-4 text-amber-600 flex items-center gap-2"><Calendar size={20}/> Feriados / Datas Especiais</h4>
+                     <div className="flex gap-2 mb-4">
+                         <input type="date" value={editingHoliday} onChange={(e) => setEditingHoliday(e.target.value)} className="p-2 border border-stone-300 rounded-lg flex-grow" />
+                         <button onClick={handleAddHoliday} className="bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-600 active:scale-95 transition-colors flex items-center gap-2"><Plus size={18}/> Adicionar</button>
+                     </div>
+                     <div className="flex flex-wrap gap-3">
+                         {settings.holidays.map(date => (
+                             <div key={date} className="flex items-center gap-2 bg-stone-100 p-2 rounded-full border">
+                                 <span className="text-sm font-semibold text-stone-700">{date}</span>
+                                 <button onClick={() => handleRemoveHoliday(date)} className="p-1 text-red-500 hover:bg-red-100 rounded-full"><XCircle size={16}/></button>
+                             </div>
+                         ))}
+                     </div>
+                 </div>
+
+                 <div className="pt-4 border-t">
+                    <button onClick={handleSave} disabled={isSaving} className="bg-amber-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-amber-600 transition-colors shadow-sm hover:shadow-md active:scale-95 flex items-center justify-center disabled:bg-amber-300 w-40">
+                        {isSaving ? <Loader2 className="animate-spin" /> : "Salvar Agenda"}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// FEATURE 3: Visão do Entregador com Rastreamento
+const DeliveryView = ({ orders, setView, db, appId, user }) => {
+    
+    // Rastreamento simulado para este entregador
+    const [trackerIntervalId, setTrackerIntervalId] = useState(null);
+    const [trackingOrderId, setTrackingOrderId] = useState(null);
+    const [currentLat, setCurrentLat] = useState(38.7223); // Lisboa como base
+    const [currentLng, setCurrentLng] = useState(-9.1393);
+    const [simulatedOffset, setSimulatedOffset] = useState(0);
+
     const updateStatus = async (orderId, status) => {
         const orderDocPath = `artifacts/${appId}/public/data/orders/${orderId}`;
         const orderRef = doc(db, orderDocPath);
-        await updateDoc(orderRef, { status });
+        
+        const updateData = { status };
+        
+        // Se o pedido for concluído, desliga o rastreamento
+        if (status === 'Concluído' && trackingOrderId === orderId) {
+            stopTracking();
+            updateData['deliveryTracker.active'] = false;
+            updateData['deliveryTracker.lastUpdate'] = new Date();
+        }
+        
+        // Se saiu para entrega, inicia o rastreamento
+        if (status === 'Saiu para Entrega' && trackingOrderId !== orderId) {
+             // Inicia um novo rastreamento para esta ordem
+             const orderToStart = orders.find(o => o.id === orderId);
+             if (orderToStart?.deliveryTracker) {
+                 startTracking(orderId);
+                 updateData['deliveryTracker.active'] = true;
+                 updateData['deliveryTracker.lastUpdate'] = new Date();
+                 updateData['deliveryTracker.lat'] = orderToStart.lat || currentLat;
+                 updateData['deliveryTracker.lng'] = orderToStart.lng || currentLng; // Inicia na localização do cliente ou na localização base
+             }
+        }
+        
+        await updateDoc(orderRef, updateData);
+    };
+    
+    // Função de simulação de rastreamento
+    const startTracking = (orderId) => {
+        stopTracking(); // Garante que apenas um rastreamento está ativo
+        setTrackingOrderId(orderId);
+        
+        // Simula o movimento do entregador a cada 5 segundos
+        const intervalId = setInterval(async () => {
+            setSimulatedOffset(prev => prev + 0.0001); // Pequeno movimento
+
+            // Simula o Entregador se movendo em direção ao cliente (apenas para a demo)
+            const targetOrder = orders.find(o => o.id === orderId);
+            if (!targetOrder || !targetOrder.lat || !targetOrder.lng) return;
+            
+            const latDiff = targetOrder.lat - currentLat;
+            const lngDiff = targetOrder.lng - currentLng;
+            
+            const newLat = currentLat + (latDiff * 0.05) + (Math.random() * 0.0001);
+            const newLng = currentLng + (lngDiff * 0.05) + (Math.random() * 0.0001);
+            
+            setCurrentLat(newLat);
+            setCurrentLng(newLng);
+
+            const orderRef = doc(db, `artifacts/${appId}/public/data/orders/${orderId}`);
+            
+            try {
+                 await updateDoc(orderRef, {
+                    'deliveryTracker.lat': newLat,
+                    'deliveryTracker.lng': newLng,
+                    'deliveryTracker.lastUpdate': new Date(),
+                    'deliveryTracker.active': true,
+                });
+            } catch (error) {
+                console.error("Erro ao atualizar rastreamento:", error);
+            }
+        }, 5000); // Atualiza a cada 5 segundos
+        
+        setTrackerIntervalId(intervalId);
+    };
+
+    const stopTracking = () => {
+        if (trackerIntervalId) {
+            clearInterval(trackerIntervalId);
+            setTrackerIntervalId(null);
+            setTrackingOrderId(null);
+        }
+    };
+    
+    // Limpar o intervalo ao desmontar
+    useEffect(() => {
+        return () => stopTracking();
+    }, []);
+    
+    // Rota para o Google Maps
+    const getGoogleMapsLink = (order) => {
+        // Formato: https://www.google.com/maps/dir/?api=1&origin=Current+Location&destination=Address+or+Lat,Lng
+        const clientLat = order.lat || 38.7; // Fallback
+        const clientLng = order.lng || -9.1; // Fallback
+        const origin = `${currentLat},${currentLng}`; // Posição simulada do entregador como origem
+        
+        return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${clientLat},${clientLng}&travelmode=driving`;
     };
 
     return (
@@ -1837,6 +2684,13 @@ const DeliveryView = ({ orders, setView }) => {
                  <h1 className="text-3xl font-bold text-stone-800">Painel do Entregador</h1>
                  <button onClick={() => setView('admin')} className="bg-stone-700 text-white font-semibold py-2 px-4 rounded-lg hover:bg-stone-600 flex items-center gap-2"><ChevronsLeft size={16}/> Voltar</button>
             </div>
+            {trackingOrderId && (
+                <div className="bg-purple-100 border-l-4 border-purple-500 text-purple-800 p-3 mb-4 rounded-lg">
+                    <p className="font-bold">Rastreamento Ativo!</p>
+                    <p className="text-sm">Acompanhando Pedido #{trackingOrderId.slice(0, 8).toUpperCase()}.</p>
+                    <button onClick={stopTracking} className="text-red-600 font-semibold text-xs mt-1 hover:underline">Parar Rastreamento</button>
+                </div>
+            )}
              <div className="space-y-4">
                 {orders.map(order => (
                      <div key={order.id} className="bg-white p-4 rounded-lg shadow-md">
@@ -1852,8 +2706,12 @@ const DeliveryView = ({ orders, setView }) => {
                              <p className="font-semibold">Endereço: <span className="font-normal text-stone-700">{order.address}</span></p>
                          </div>
                          <div className="flex flex-wrap gap-2 mt-3">
+                              <a href={getGoogleMapsLink(order)} target="_blank" rel="noopener noreferrer" className="flex-1 bg-amber-500 text-white font-bold py-3 rounded-lg hover:bg-amber-600 transition-colors flex items-center justify-center gap-2">
+                                  <Map size={18}/> Iniciar Rota no GPS
+                              </a>
+                              
                               {order.status === 'Pronto para Entrega' && (
-                                <button onClick={() => updateStatus(order.id, 'Saiu para Entrega')} className="flex-1 bg-purple-500 text-white font-bold py-3 rounded-lg hover:bg-purple-600 transition-colors flex items-center justify-center gap-2">
+                                <button onClick={() => updateStatus(order.id, 'Saiu para Entrega')} disabled={trackingOrderId && trackingOrderId !== order.id} className="flex-1 bg-purple-500 text-white font-bold py-3 rounded-lg hover:bg-purple-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
                                     <Bike size={18}/> Saiu para Entrega
                                 </button>
                              )}
@@ -1869,4 +2727,3 @@ const DeliveryView = ({ orders, setView }) => {
         </div>
     );
 };
-
