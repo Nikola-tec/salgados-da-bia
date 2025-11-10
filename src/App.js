@@ -219,6 +219,8 @@ export default function App() {
     const [error, setError] = useState('');
     const [toastMessage, setToastMessage] = useState('');
     const [isAdmin, setIsAdmin] = useState(false);
+    // NOVO ESTADO: Garante que a autenticação inicial foi resolvida.
+    const [isAuthReady, setIsAuthReady] = useState(false); 
 
     const storeOpen = useMemo(() => isStoreOpenNow(shopSettings.workingHours, shopSettings.holidays), [shopSettings.workingHours, shopSettings.holidays]);
     const [showStoreClosedToast, setShowStoreClosedToast] = useState(false);
@@ -246,7 +248,6 @@ export default function App() {
             return;
         }
 
-        // CORREÇÃO: Define o título do documento (Feature do usuário)
         document.title = shopSettings.storeName;
 
         const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
@@ -260,30 +261,38 @@ export default function App() {
                         if (docSnap.exists()) {
                             setUserData(docSnap.data());
                         } else {
-                            // Se o usuário existir no Auth, mas não no Firestore (novo cadastro)
                             setUserData({ name: currentUser.displayName, email: currentUser.email, addresses: [], hasGivenFeedback: false, hasFeedbackDiscount: false });
                         }
                     });
-                     setLoading(false);
+                    // Otimização: A autenticação foi resolvida.
+                    setIsAuthReady(true);
+                    setLoading(false);
                     return () => unsubscribeUser();
                 } else {
                     setUserData(null);
+                    // Otimização: A autenticação foi resolvida.
+                    setIsAuthReady(true);
                     setLoading(false);
                 }
             } else {
                 signInAnonymously(auth).catch(err => {
                     console.error("Falha no login anônimo:", err);
                     setError("Não foi possível carregar o cardápio. Tente atualizar a página.");
+                }).finally(() => {
+                    // Garante que o estado de autenticação anónima ou falha seja resolvido
+                    setIsAuthReady(true);
                     setLoading(false);
                 });
             }
         });
         
         return () => unsubscribeAuth();
-    }, [shopSettings.storeName]); // Dependência adicionada para atualizar o título se o nome da loja mudar
+    }, [shopSettings.storeName]); 
+    // CORREÇÃO: Removendo shopSettings.storeName desta lista, pois a autenticação não deve depender dela, mas mantendo document.title update. O título é agora atualizado no useEffect.
 
     useEffect(() => {
-        if (!user || !firebaseInitialized) return;
+        // CORREÇÃO: Só executa listeners e lógica de dados APÓS a autenticação estar pronta
+        if (!isAuthReady || !firebaseInitialized) return;
         
         if (isAdmin) setView('admin');
 
@@ -291,7 +300,7 @@ export default function App() {
         const menuCollectionPath = `artifacts/${appId}/public/data/menu`;
         const menuRef = collection(db, menuCollectionPath);
         
-        // CORREÇÃO: Gating write operations behind isAdmin to avoid permission-denied errors for non-admin/anonymous users
+        // Gating write operations behind isAdmin to avoid permission-denied errors for non-admin/anonymous users
         const populateInitialData = async () => {
             try {
                 const snapshot = await getDocs(menuRef);
@@ -304,12 +313,10 @@ export default function App() {
                         });
                         await batch.commit();
                     } else {
-                        // Se não for admin e o cardápio estiver vazio, não tentamos escrever, mas também não mostramos erro.
                         console.warn("Cardápio vazio, mas o usuário não é Admin. Sem permissão para popular dados iniciais.");
                     }
                 }
             } catch (e) { 
-                // Suprimir o erro de permissão para reads/writes em coleções públicas para não-admins
                 if (e.code !== 'permission-denied') {
                     console.error("Erro ao popular dados do cardápio:", e); 
                 } else {
@@ -387,7 +394,7 @@ export default function App() {
             unsubscribeSettings();
             unsubscribeFeedbacks();
         };
-    }, [user, isAdmin]);
+    }, [isAuthReady, isAdmin]); // Agora depende de isAuthReady
 
     const addToCart = (item, customization, priceOverride) => {
         const applyMinimumOrder = cart.length === 0;
@@ -529,7 +536,8 @@ export default function App() {
         finally { setAuthLoading(false); }
     };
     
-    if (!firebaseInitialized) return <FirebaseErrorScreen />;
+    // CORREÇÃO: Agora, 'loading' só é true se o Firebase não estiver inicializado OU a autenticação não estiver pronta.
+    if (!firebaseInitialized || !isAuthReady) return <div className="flex justify-center items-center h-screen bg-amber-50"><ChefHat className="animate-spin text-amber-500" size={64} /></div>;
 
     const isCartButtonVisible = (view === 'menu' || view === 'cart') && cart.length > 0;
     
@@ -550,8 +558,6 @@ export default function App() {
             default: return <MenuView menu={menu} addToCart={addToCart} showStoreClosedToast={showStoreClosedToast} />;
         }
     };
-
-    if (loading) return <div className="flex justify-center items-center h-screen bg-amber-50"><ChefHat className="animate-spin text-amber-500" size={64} /></div>;
 
     return (
         <div className="bg-stone-50 min-h-screen font-sans text-stone-800" style={{fontFamily: "'Inter', sans-serif"}}>
@@ -600,7 +606,7 @@ const FirebaseErrorScreen = () => (
 const WhatsAppButton = ({ settings }) => {
     if (!settings.whatsappNumber) return null;
     const whatsappLink = `https://wa.me/${settings.whatsappNumber.replace(/\D/g, '')}?text=${encodeURIComponent(settings.whatsappMessage || '')}`;
-    const base64svg = 'data:image/svg+xml;utf8;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pgo8IS0tIEdlbmVyYXRvcjogQWRvYmUgSWxsdXN0cmF0b3IgMTkuMC4wLCBTVkcgRXhwb3J0IFBsdWctSW4gLiBTVkcgVmVyc2lvbjogNi4wMCBCdWlsZCAwKSAgLS0+CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIgdmVyc2lvbj0iMS4xIiBpZD0iTGF5ZXJfMSIgeD0iMHB4IiB5PSIwcHgiIHZpZXdCb3g9IjAgMCA1MTIgNTEyIiBzdHlsZT0iZW5hYmNncm91bmQ6bmV3IDAgMCA1MTIgNTEyOyIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSIgd2lkdGg9IjUxMnB4IiBoZWlnaHQ9IjUxMnB4Ij4KPHBhdGggc3R5bGU9ImZpbGw6I0VERURFRDsiIGQ9Ik0wLDUxMmwzNS4zMS0xMjhDMTIuMzU5LDM0NC4yNzYsMCwzMDAuMTM4LDAsMjU0LjIzNEMwLDExNC43NTksMTE0Ljc1OSwwLDI1NS4xMTcsMCAgUzUxMiwxMTQuNzU5LDUxMiwxNTQuMjM0UzM5NS40NzYsNTEyLDI1NS4xMTcsNTEyYy00NC4xMzgsMC04Ni41MS0xNC4xMjQtMTI0LjQ2OS0zNS4zMUwwLDUxMnoiLz4KPHBhdGggc3R5bGU9ImZpbGw6IzU1Q0Q2QzsiIGQ9Ik0xMzcuNzEsNDMwLjc4Nmw3Ljk0NSw0LjQxNGMzMi42NjIsMjAuMzAzLDcwLjYyMSwzMi42NjIsMTEwLjM0NSwzMi42NjIgIGMxMTUuNjQxLDAsMjExLjg2Mi05Ni4yMjEsMjExLjg2Mi0yMTMuNjI4UzM3MS42NDEsNDQuMTM4LDI1NS4xMTcsNDQuMTM4UzQ0LjEzOCwxMzcuNzEsNDQuMTM4LDI1NC4yMzQgIGMwLDQwLjYwNywxMS40NzYsODAuMzMxLDMyLjY2MiwxMTMuODc2bDUuMjk3LDcuOTQ1bC0yMC4zMDMsNzQuMTUyTDEzNy43MSw0MzAuNzg2eiIvPgo8cGF0aCBzdHlsZT0iZmlsbDojRkVGRUZFOyIgZD0iTTE4Ny4xNDUsMTM1Ljk0NWwtMTYuNzcyLTAuODgzYy01LjI5NywwLTEwLjU5MywxLjc2Ni0xNC4xMjQsNS4yOTcgIC03Ljk0NSw3LjA2Mi0yMS4xODYsMjAuMzAzLTI0LjcxNywzNy45NTljLTYuMTc5LDI2LjQ4MywzLjUzMSw1OC4yNjIsMjYuNDgzLDkwLjA0MXm2Ny4wOSw4Mi45NzksMTQ0LjgwOCwxMDUuMDQ4ICBjMjQuNzE3LDcuMDYyLDQ0LjEzOCwyLjY0OCw2MC4wMjgtNy4wNjJjMTIuMzU5LTcuOTQ1LDIwLjMwMy0yMC4zMDMsMjIuOTUyLTMzLjU0NWwyLjY0OC0xMi4zNTkgIC0wLjg4My03Ljk0NS00LjQxNC05LjcxbC01NS42MTQtMjUuNmMtMy41MzEtMS43NjYtNy45NDUtMC44ODMtMTAuNTkzLDIuNjQ4bC0yMi4wNjksMjguMjQ4ICAtMS43NjYsMS43NjYtNC40MTQsMi42NDgtNy4wNjIsMS43NjZjLTE1LjAwNy01LjI5Ny02NS4zMjQtMjYuNDgzLTkyLjY5LTc5LjQ0OGMtMC44ODMtMi42NDgtMC44ODMtNS4yOTcsMC44ODMtNy4wNjIgICAgMjEuMTg2LTIzLjgzNGMxLjM5Ni0yLjY0OCwyLjY0OC02LjE3OSwxLjc2Ni04LjgyOGwtMjUuNi01Ny4zNzlDMTkzLjMyNCwxMzguNTkzLDE5MC42NzYsMTM1Ljk0NSwxODcuMTQ1LDEzNS45NDUiLz4KPGc+CjwvZ2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2g+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2g+CjxnPgo8L2c+CjxnPgo8L2c+Cjwvc3ZnPg==';
+    const base64svg = 'data:image/svg+xml;utf8;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pgo8IS0tIEdlbmVyYXRvcjogQWRvYmUgSWxsdXN0cmF0b3IgMTkuMC4wLCBTVkcgRXhwb3J0IFBsdWctSW4gLiBTVkcgVmVyc2lvbjogNi4wMCBCdWlsZCAwKSAgLS0+CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIgdmVyc2lvbj0iMS4xIiBpZD0iTGF5ZXJfMSIgeD0iMHB4IiB5PSIwcHgiIHZpZXdCb3g9IjAgMCA1MTIgNTEyIiBzdHlsZT0iZW5hYmNncm91bmQ6bmV3IDAgMCA1MTIgNTEyOyIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSIgd2lkdGg9IjUxMnB4IiBoZWlnaHQ9IjUxMnB4Ij4KPHBhdGggc3R5bGU9ImZpbGw6I0VERURFRDsiIGQ9Ik0wLDUxMmwzNS4zMS0xMjhDMTIuMzU5LDM0NC4yNzYsMCwzMDAuMTM4LDAsMjU0LjIzNEMwLDExNC43NTksMTE0Ljc1OSwwLDI1NS4xMTcsMCAgUzUxMiwxMTQuNzU5LDUxMiwxNTQuMjM0UzM5NS40NzYsNTEyLDI1NS4xMTcsNTEyYy00NC4xMzgsMC04Ni41MS0xNC4xMjQtMTI0LjQ2OS0zNS4zMUwwLDUxMnoiLz4KPHBhdGogc3R5bGU9ImZpbGw6IzU1Q0Q2QzsiIGQ9Ik0xMzcuNzEsNDMwLjc4Nmw3Ljk0NSw0LjQxNGMzMi42NjIsMjAuMzAzLDcwLjYyMSwzMi42NjIsMTEwLjM0NSwzMi42NjIgIGMxMTUuNjQxLDAsMjExLjg2Mi05Ni4yMjEsMjExLjg2Mi0yMTMuNjI4UzM3MS42NDEsNDQuMTM4LDI1NS4xMTcsNDQuMTM4UzQ0LjEzOCwxMzcuNzEsNDQuMTM4LDI1NC4yMzQgIGMwLDQwLjYwNywxMS40NzYsODAuMzMxLDMyLjY2MiwxMTMuODc2bDUuMjk3LDcuOTQ1bC0yMC4zMDMsNzQuMTUyTDEzNy43MSw0MzAuNzg2eiIvPgo8cGF0aCBzdHlsZT0iZmlsbDojRkVGRUZFOyIgZD0iTTE4Ny4xNDUsMTM1Ljk0NWwtMTYuNzcyLTAuODgzYy01LjI5NywwLTEwLjU5MywxLjc2Ni0xNC4xMjQsNS4yOTcgIC03Ljk0NSw3LjA2Mi0yMS4xODYsMjAuMzAzLTI0LjcxNywzNy45NTljLTYuMTc5LDI2LjQ4MywzLjUzMSw1OC4yNjIsMjYuNDgzLDkwLjA0MXm2Ny4wOSw4Mi45NzksMTQ0LjgwOCwxMDUuMDQ4ICBjMjQuNzE3LDcuMDYyLDQ0LjEzOCwyLjY0OCw2MC4wMjgtNy4wNjJjMTIuMzU5LTcuOTQ1LDIwLjMwMy0yMC4zMDMsMjIuOTUyLTMzLjU0NWwyLjY0OC0xMi4zNTkgIC0wLjg4My03Ljk0NS00LjQxNC05LjcxbC01NS42MTQtMjUuNmMtMy41MzEtMS43NjYtNy45NDUtMC44ODMtMTAuNTkzLDIuNjQ4bC0yMi4wNjksMjguMjQ4ICAtMS43NjYsMS43NjYtNC40MTQsMi42NDgtNy4wNjIsMS43NjZjLTE1LjAwNy01LjI5Ny02NS4zMjQtMjYuNDgzLTkyLjY5LTc5.NDQ4Yy0wLjg4My0yLjY0OC0wLjg4My01LjI5NywwLjg4My03LjA2MiAgICAyMS4xODYtMjMuODM0YzEuMzk2LTIuNjQ4LDIuNjQ4LTYuMTc5LDEuNzY2LTguODI4bC0yNS42LTU3LjM3OUMxOTMuMzI0LDEzOC41OTMsMTkwLjY3NiwxMzUuOTQ1LDE4Ny4xNDUsMTM1Ljk0NSIvPgo8Zz4KPC9nPgo8Zz4KPC9nPgo8Zz4KPC9nPgo8Zz4KPC9nPgo8Zz4KPC9nPgo8Zz4KPC9nPgo8Zz4KPC9nPgo8Zz4KPC9nPgo8Zz4KPC9nPgo8Zz4KPC9nPgo8Zz4KPC9nPgo8Zz4KPC9nPgo8Zz4KPC9nPgo8Zz4KPC9nPgo8Zz4KPC9nPgo8L3N2Zz4=';
 
     return (
         <div className="group relative flex items-center">
