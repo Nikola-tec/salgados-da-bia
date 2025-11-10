@@ -25,7 +25,7 @@ import {
     setDoc,
     getDoc
 } from 'firebase/firestore';
-import { ChefHat, ShoppingCart, User, LogOut, PlusCircle, MinusCircle, Trash2, Edit, XCircle, CheckCircle, Package, DollarSign, Clock, Settings, Plus, Star, AlertTriangle, UserCheck, KeyRound, Loader2, ChevronsLeft, MapPin, Bike, TrendingUp, Percent, Calendar, Eye, EyeOff, Trash, Satellite, Map } from 'lucide-react';
+import { ChefHat, ShoppingCart, User, LogOut, PlusCircle, MinusCircle, Trash2, Edit, XCircle, CheckCircle, Package, DollarSign, Clock, Settings, Plus, Star, AlertTriangle, UserCheck, KeyRound, Loader2, ChevronsLeft, MapPin, Bike, TrendingUp, Percent, Calendar, Eye, EyeOff, Trash, Satellite, Map, MessageSquare } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 // --- CONFIGURAÇÃO DO FIREBASE ---
@@ -661,15 +661,15 @@ const FirebaseErrorScreen = () => (
 const WhatsAppButton = ({ settings }) => {
     if (!settings.whatsappNumber) return null;
     const whatsappLink = `https://wa.me/${settings.whatsappNumber.replace(/\D/g, '')}?text=${encodeURIComponent(settings.whatsappMessage || '')}`;
-    const base64svg = 'data:image/svg+xml;utf8;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pgo8IS0tIEdlbmVyYXRvcjogQWRvYmUgSWxsdXN0cmF0b3IgMTkuMC4wLCBTVkcgRXhwb3J0IFBsdWctSW4gLiBTVkcgVmVyc2lvbjogNi4wMCBCdWlsZCAwKSAgLS0+CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIgdmVyc2lvbj0iMS4xIiBpZD0iTGF5ZXJfMSIgeD0iMHB4IiB5PSIwcHgiIHZpZXdCb3g9IjAgMCA1MTIgNTEyIiBzdHlsZT0iZW5hYmxlLWJhY2tncm91bmQ6bmV3IDAgMCA1MTIgNTEyOyIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSIgd2lkdGg9IjUxMnB4IiBoZWlnaHQ9IjUxMnB4Ij4KPHBhdGggc3R5bGU9ImZpbGw6I0VERURFRDsiIGQ9Ik0wLDUxMmwzNS4zMS0xMjhDMTIuMzU5LDM0NC4yNzYsMCwzMDAuMTM4LDAsMjU0LjIzNEMwLDExNC43NTksMTE0Ljc1OSwwLDI1NS4xMTcsMCAgUzUxMiwxMTQuNzU5LDUxMiwxNTQuMjM0UzM5NS40NzYsNTEyLDI1NS4xMTcsNTEyYy00NC4xMzgsMC04Ni41MS0xNC4xMjQtMTI0LjQ2OS0zNS4zMUwwLDUxMnoiLz4KPHBhdGggc3R5bGU9ImZpbGw6IzU1Q0Q2QzsiIGQ9Ik0xMzcuNzEsNDMwLjc4Nmw3Ljk0NSw0LjQxNGMzMi42NjIsMjAuMzAzLDcwLjYyMSwzMi42NjIsMTEwLjM0NSwzMi42NjIgIGMxMTUuNjQxLDAsMjExLjg2Mi05Ni4yMjEsMjExLjg2Mi0yMTMuNjI4UzM3MS42NDEsNDQuMTM4LDI1NS4xMTcsNDQuMTM4UzQ0LjEzOCwxMzcuNzEsNDQuMTM4LDI1NC4yMzQgIGMwLDQwLjYwNywxMS40NzYsODAuMzMxLDMyLjY2MiwxMTMuODc2bDUuMjk3LDcuOTQ1bC0yMC4zMDMsNzQuMTUyTDEzNy43MSw0MzAuNzg2eiIvPgo8cGF0aCBzdHlsZT0iZmlsbDojRkVGRUZFOyIgZD0iTTE4Ny4xNDUsMTM1Ljk0NWwtMTYuNzcyLTAuODgzYy01LjI5NywwLTEwLjU5MywxLjc2Ni0xNC4xMjQsNS4yOTcgIC03Ljk0NSw3LjA2Mi0yMS4xODYsMjAuMzAzLTI0LjcxNywzNy45NTljLTYuMTc5LDI2LjQ4MywzLjUzMSw1OC4yNjIsMjYuNDgzLDkwLjA0MXm2Ny4wOSw4Mi45NzksMTQ0LjgwOCwxMDUuMDQ4ICBjMjQuNzE3LDcuMDYyLDQ0LjEzOCwyLjY0OCw2MC4wMjgtNy4wNjJjMTIuMzU5LTcuOTQ1LDIwLjMwMy0yMC4zMDMsMjIuOTUyLTMzLjU0NWwyLjY0OC0xMi4zNTkgIC0wLjg4My03Ljk0NS00LjQxNC05LjcxbC01NS42MTQtMjUuNmMtMy41MzEtMS43NjYtNy45NDUtMC44ODMtMTAuNTkzLDIuNjQ4bC0yMi4wNjksMjguMjQ4ICAtMS43NjYsMS43NjYtNC40MTQsMi42NDgtNy4wNjIsMS43NjZjLTE1LjAwNy01LjI5Ny02NS4zMjQtMjYuNDgzLTkyLjY5LTc5LjQ0OGMtMC44ODMtMi42NDgtMC44ODMtNS4yOTcsMC44ODMtNy4wNjIgICAgMjEuMTg2LTIzLjgzNGMxLjM5Ni0yLjY0OCwyLjY0OC02LjE3OSwxLjc2Ni04LjgyOGwtMjUuNi01Ny4zNzlDMTkzLjMyNCwxMzguNTkzLDE5MC42NzYsMTM1Ljk0NSwxODcuMTQ1LDEzNS45NDUiLz4KPGc+CjwvZ2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2g+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2g+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+Cjwvc3ZnPg==';
-
+    
+    // CORREÇÃO: Usando ícone Lucide/SVG simples em vez de Base64 complexo para evitar erro de string literal
     return (
         <div className="group relative flex items-center">
              <div className="absolute right-full mr-3 whitespace-nowrap bg-white text-stone-700 text-sm font-semibold py-2 px-4 rounded-lg shadow-lg transform transition-all duration-300 scale-0 group-hover:scale-100 origin-right">
-                Faça sua encomenda
+                Fale Connosco
             </div>
-            <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="bg-white rounded-full p-2 shadow-lg hover:scale-110 transition-transform">
-                <img src={base64svg} alt="WhatsApp" className="w-10 h-10"/>
+            <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="bg-green-500 text-white rounded-full p-3 shadow-lg hover:scale-110 transition-transform flex items-center justify-center">
+                <MessageSquare size={24}/>
             </a>
         </div>
     );
@@ -2556,14 +2556,21 @@ const KitchenView = ({ orders, setView }) => {
 
 // FEATURE 2: Gerenciamento de Agenda
 const ManageAgenda = ({ currentSettings, showToast, db, appId }) => {
-    const [settings, setSettings] = useState(currentSettings);
+    // CORREÇÃO: Inicializa com um objeto settings seguro para evitar quebras de props aninhadas
+    const safeSettings = useMemo(() => ({
+        ...currentSettings,
+        workingHours: currentSettings.workingHours || INITIAL_WORKING_HOURS,
+        holidays: currentSettings.holidays || [],
+    }), [currentSettings]);
+    
+    const [settings, setSettings] = useState(safeSettings);
     const [isSaving, setIsSaving] = useState(false);
     const [editingHoliday, setEditingHoliday] = useState('');
     const daysOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
     useEffect(() => {
-        setSettings(currentSettings);
-    }, [currentSettings]);
+        setSettings(safeSettings);
+    }, [safeSettings]);
 
     const handleHourChange = (day, field, value) => {
         setSettings(prev => ({
@@ -2604,12 +2611,20 @@ const ManageAgenda = ({ currentSettings, showToast, db, appId }) => {
 
     const handleSave = async () => {
         setIsSaving(true);
+        // CORREÇÃO: Garante que db está definido antes de tentar salvar
+        if (!db || !appId) {
+             showToast("Erro: Conexão com o Firebase não disponível.");
+             setIsSaving(false);
+             return;
+        }
+
         const settingsDocPath = `artifacts/${appId}/public/data/settings`;
         const settingsRef = doc(db, settingsDocPath, 'shopConfig');
         try {
             await updateDoc(settingsRef, {
                 workingHours: settings.workingHours,
                 holidays: settings.holidays,
+                // O storeTimezone é salvo no AdminSettings, mas deve estar presente aqui para consistência
             });
             showToast("Agenda e horários salvos com sucesso!");
         } catch (error) {
