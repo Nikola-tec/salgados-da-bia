@@ -152,7 +152,7 @@ const fetchAddressByCoords = async (lat, lng) => {
 
 // eslint-disable-next-line no-unused-vars
 const isStoreOpenNow = (workingHours, holidays, storeTimezone) => {
-    // CORREÇÃO DE ROBUSTEZ: Usa Intl.DateTimeFormat para obter a hora atual no fuso horário da loja
+    // CORREÇÃO: Usa Intl.DateTimeFormat para obter a hora atual no fuso horário da loja
     
     const now = new Date();
     
@@ -783,7 +783,7 @@ const MenuView = ({ menu, addToCart, showStoreClosedToast }) => {
 };
 
 const MenuItemCard = ({ item, onOrderClick }) => (
-    <div className="bg-white rounded-xl shadow-md overflow-hidden flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1 group">
+    <div className="bg-white rounded-xl shadow-lg overflow-hidden flex flex-col transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 group">
         <div className="h-48 overflow-hidden relative">
             <img src={item.image} alt={item.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/400x300/FBBF24/FFFFFF?text=Salgado'; }} />
             {item.requiresScheduling && <div className="absolute top-2 right-2 bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1"><Calendar size={12}/> Sob Encomenda</div>}
@@ -847,7 +847,7 @@ const CustomizeBoxModal = ({ box, salgados, onClose, addToCart }) => {
 
     return (
         <div className="fixed inset-0 bg-black/70 z-50 flex justify-center items-center p-4 animate-fade-in">
-            <div className="bg-white rounded-lg shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col animate-slide-up">
+            <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col animate-slide-up">
                 <div className="p-4 border-b flex justify-between items-center">
                     <h2 className="text-xl font-bold text-amber-600">Monte seu {box.name}</h2>
                     <button onClick={onClose} className="p-1 rounded-full text-stone-500 hover:bg-stone-200"><XCircle /></button>
@@ -871,12 +871,12 @@ const CustomizeBoxModal = ({ box, salgados, onClose, addToCart }) => {
                         ))}
                     </div>
                 </div>
-                <div className="p-4 border-t mt-auto bg-stone-50 rounded-b-lg">
+                <div className="p-4 border-t mt-auto bg-stone-50 rounded-b-xl">
                          {error && <p className="text-red-500 text-center text-sm mb-2">{error}</p>}
                          <button 
                             onClick={handleAddToCart} 
                             disabled={totalSelected < box.size}
-                            className="w-full bg-green-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-600 transition-all duration-200 disabled:bg-stone-400 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm hover:shadow-lg transform active:scale-95"
+                            className="w-full bg-green-500 text-white font-bold py-3 px-4 rounded-full hover:bg-green-600 transition-all duration-200 disabled:bg-stone-400 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm hover:shadow-lg transform active:scale-95"
                         >
                             <ShoppingCart size={20} /> Adicionar ao Carrinho ({dynamicPrice.toFixed(2)}€)
                         </button>
@@ -903,7 +903,7 @@ const CartView = ({ cart, updateQuantity, cartTotal, setView, emptyCart, user })
         );
     }
     return (
-        <div className="max-w-3xl mx-auto bg-white p-6 rounded-lg shadow-lg animate-fade-in">
+        <div className="max-w-3xl mx-auto bg-white p-6 rounded-xl shadow-lg animate-fade-in">
             {confirmingEmpty && <ConfirmDeleteModal title="Esvaziar Carrinho" message="Tem a certeza que quer remover todos os itens do carrinho?" onConfirm={handleEmptyCart} onCancel={() => setConfirmingEmpty(false)} confirmText="Esvaziar" />}
             <div className="flex justify-between items-center mb-6">
                  <h2 className="text-3xl font-bold text-stone-800">Meu Carrinho</h2>
@@ -913,7 +913,7 @@ const CartView = ({ cart, updateQuantity, cartTotal, setView, emptyCart, user })
                 {cart.map((item, index) => (
                     <div key={item.id + index} className="flex items-start justify-between border-b pb-4">
                         <div className="flex items-start gap-4">
-                            <img src={item.image} alt={item.name} className="w-20 h-20 rounded-md object-cover" onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/200x200/FBBF24/FFFFFF?text=Item'; }}/>
+                            <img src={item.image} alt={item.name} className="w-20 h-20 rounded-xl object-cover" onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/200x200/FBBF24/FFFFFF?text=Item'; }}/>
                             <div>
                                 <h3 className="font-bold text-stone-800">{item.name}</h3>
                                 {item.customization && (
@@ -1148,31 +1148,31 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
     const todayDate = new Date().toISOString().split('T')[0];
 
     return (
-        <div className="max-w-lg mx-auto bg-white p-8 rounded-lg shadow-lg animate-fade-in">
+        <div className="max-w-lg mx-auto bg-white p-8 rounded-xl shadow-lg animate-fade-in">
             <h2 className="text-3xl font-bold mb-6 text-stone-800">Finalizar Pedido</h2>
             
              {forceScheduling && (
-                <div className="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 mb-6" role="alert">
+                <div className="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 mb-6 rounded-xl" role="alert">
                     <p className="font-bold">Apenas Encomenda Disponível</p>
                     <p>O seu pedido contém itens especiais, excede 150 unidades, ou a loja está fechada. Apenas agendamento é permitido.</p>
                 </div>
             )}
 
             <div className="mb-6">
-                <div className="flex border border-stone-300 rounded-lg p-1">
-                    <button onClick={() => setDeliveryMethod('deliver')} disabled={forceScheduling} className={`w-1/3 py-2 rounded-md font-semibold transition-colors ${deliveryMethod === 'deliver' ? 'bg-amber-500 text-white' : 'hover:bg-amber-100'} disabled:bg-stone-200 disabled:text-stone-400 disabled:cursor-not-allowed`}>
+                <div className="flex border border-stone-300 rounded-xl p-1 bg-stone-100">
+                    <button onClick={() => setDeliveryMethod('deliver')} disabled={forceScheduling} className={`w-1/3 py-2 rounded-lg font-semibold transition-colors ${deliveryMethod === 'deliver' ? 'bg-amber-500 text-white shadow-md' : 'hover:bg-amber-200'} disabled:bg-stone-200 disabled:text-stone-400 disabled:cursor-not-allowed`}>
                         Entregar
                     </button>
-                    <button onClick={() => setDeliveryMethod('pickup')} disabled={forceScheduling} className={`w-1/3 py-2 rounded-md font-semibold transition-colors ${deliveryMethod === 'pickup' ? 'bg-amber-500 text-white' : 'hover:bg-amber-100'} disabled:bg-stone-200 disabled:text-stone-400 disabled:cursor-not-allowed`}>
+                    <button onClick={() => setDeliveryMethod('pickup')} disabled={forceScheduling} className={`w-1/3 py-2 rounded-lg font-semibold transition-colors ${deliveryMethod === 'pickup' ? 'bg-amber-500 text-white shadow-md' : 'hover:bg-amber-200'} disabled:bg-stone-200 disabled:text-stone-400 disabled:cursor-not-allowed`}>
                         Retirar
                     </button>
-                    <button onClick={() => setDeliveryMethod('schedule')} className={`w-1/3 py-2 rounded-md font-semibold transition-colors ${deliveryMethod === 'schedule' ? 'bg-amber-500 text-white' : 'hover:bg-amber-100'}`}>
+                    <button onClick={() => setDeliveryMethod('schedule')} className={`w-1/3 py-2 rounded-lg font-semibold transition-colors ${deliveryMethod === 'schedule' ? 'bg-amber-500 text-white shadow-md' : 'hover:bg-amber-200'}`}>
                         Encomendar
                     </button>
                 </div>
             </div>
 
-            <div className="bg-stone-100 p-4 rounded-lg mb-4 space-y-2">
+            <div className="bg-stone-100 p-4 rounded-xl mb-4 space-y-2">
                 <div><span className="font-bold text-stone-600">Nome: </span><span>{name || "Não definido"}</span></div>
                 <div><span className="font-bold text-stone-600">Telefone: </span><span>{phone || "Não definido"}</span></div>
                 <p className="text-xs text-stone-500">Para alterar estes dados, vá para <button type="button" onClick={() => setView('accountSettings')} className="font-bold underline">Minha Conta</button>.</p>
@@ -1180,7 +1180,7 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
 
             <form onSubmit={handleSubmit} className="space-y-4">
                  {(deliveryMethod === 'deliver' || (deliveryMethod === 'schedule' && !isAddingNewAddress)) && (
-                     <div className="p-4 bg-stone-50 rounded-lg border">
+                     <div className="p-4 bg-stone-50 rounded-xl border">
                          <h3 className="font-bold mb-2 text-stone-700">Morada para {deliveryMethod === 'deliver' ? 'Entrega' : 'Encomenda'}</h3>
                          {addresses.length > 0 && (
                             <div className="space-y-2 mb-3">
@@ -1209,32 +1209,32 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
                  )}
 
                 {isAddingNewAddress && (
-                    <div className="p-4 bg-red-50 rounded-lg border border-red-200 space-y-3">
+                    <div className="p-4 bg-red-50 rounded-xl border border-red-200 space-y-3">
                         <h3 className="font-bold text-lg text-red-700 flex justify-between items-center">
                             Novo Endereço de Entrega
                             <button type="button" onClick={() => setIsAddingNewAddress(false)} className="text-red-500 hover:text-red-700"><XCircle size={20}/></button>
                         </h3>
                         
                         <div className="flex items-center gap-2">
-                             <input type="text" placeholder="CEP" value={newAddressDetails.cep} onChange={e => setNewAddressDetails(p => ({...p, cep: e.target.value}))} onBlur={handleCepLookup} className="w-1/2 p-2 border border-stone-300 rounded-lg focus:ring-amber-400" />
-                             <button type="button" onClick={handleCurrentLocation} disabled={cepLoading} className="w-1/2 bg-blue-500 text-white font-bold py-2 px-3 rounded-lg hover:bg-blue-600 flex items-center justify-center gap-2 text-sm disabled:opacity-50">
+                             <input type="text" placeholder="CEP" value={newAddressDetails.cep} onChange={e => setNewAddressDetails(p => ({...p, cep: e.target.value}))} onBlur={handleCepLookup} className="w-1/2 p-2 border border-stone-300 rounded-xl focus:ring-amber-400" />
+                             <button type="button" onClick={handleCurrentLocation} disabled={cepLoading} className="w-1/2 bg-blue-500 text-white font-bold py-2 px-3 rounded-xl hover:bg-blue-600 flex items-center justify-center gap-2 text-sm disabled:opacity-50">
                                 {cepLoading ? <Loader2 className="animate-spin" size={18}/> : <><MapPin size={18}/> Localização Atual</>}
                              </button>
                         </div>
-                        <input type="text" name="street" placeholder="Rua / Logradouro" value={newAddressDetails.street} onChange={e => setNewAddressDetails(p => ({...p, street: e.target.value}))} className="w-full p-2 border border-stone-300 rounded-lg focus:ring-amber-400" required />
+                        <input type="text" name="street" placeholder="Rua / Logradouro" value={newAddressDetails.street} onChange={e => setNewAddressDetails(p => ({...p, street: e.target.value}))} className="w-full p-2 border border-stone-300 rounded-xl focus:ring-amber-400" required />
                         <div className="grid grid-cols-2 gap-2">
-                            <input type="text" name="number" placeholder="Número" value={newAddressDetails.number} onChange={e => setNewAddressDetails(p => ({...p, number: e.target.value}))} className="w-full p-2 border border-stone-300 rounded-lg focus:ring-amber-400" required />
-                            <input type="text" name="district" placeholder="Bairro" value={newAddressDetails.district} onChange={e => setNewAddressDetails(p => ({...p, district: e.target.value}))} className="w-full p-2 border border-stone-300 rounded-lg focus:ring-amber-400" required />
+                            <input type="text" name="number" placeholder="Número" value={newAddressDetails.number} onChange={e => setNewAddressDetails(p => ({...p, number: e.target.value}))} className="w-full p-2 border border-stone-300 rounded-xl focus:ring-amber-400" required />
+                            <input type="text" name="district" placeholder="Bairro" value={newAddressDetails.district} onChange={e => setNewAddressDetails(p => ({...p, district: e.target.value}))} className="w-full p-2 border border-stone-300 rounded-xl focus:ring-amber-400" required />
                         </div>
-                        <input type="text" name="city" placeholder="Município/Cidade" value={newAddressDetails.city} onChange={e => setNewAddressDetails(p => ({...p, city: e.target.value}))} className="w-full p-2 border border-stone-300 rounded-lg focus:ring-amber-400" required />
+                        <input type="text" name="city" placeholder="Município/Cidade" value={newAddressDetails.city} onChange={e => setNewAddressDetails(p => ({...p, city: e.target.value}))} className="w-full p-2 border border-stone-300 rounded-xl focus:ring-amber-400" required />
                     </div>
                 )}
                 
                 {deliveryMethod === 'pickup' && (
                     <div>
                         <label htmlFor="pickupTime" className="block text-stone-700 font-bold mb-2">Horário para Retirada</label>
-                        <input type="time" id="pickupTime" value={pickupTime} onChange={e => setPickupTime(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400" required />
-                        <div className="mt-2 bg-stone-100 p-3 rounded-md text-sm">
+                        <input type="time" id="pickupTime" value={pickupTime} onChange={e => setPickupTime(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400" required />
+                        <div className="mt-2 bg-stone-100 p-3 rounded-xl text-sm">
                             <p className="font-bold">Endereço de Retirada:</p>
                             <p className="text-stone-600">{shopSettings.pickupAddress}</p>
                         </div>
@@ -1242,21 +1242,21 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
                 )}
                 
                 {deliveryMethod === 'schedule' && (
-                    <div className="space-y-4 bg-stone-50 p-4 rounded-lg">
+                    <div className="space-y-4 bg-stone-50 p-4 rounded-xl">
                         <h3 className="font-bold text-lg">Agendar Encomenda</h3>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                <label htmlFor="scheduledDate" className="block text-stone-700 font-bold mb-2">Data</label>
-                               <input type="date" id="scheduledDate" min={todayDate} value={scheduledDate} onChange={e => setScheduledDate(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-lg" required />
+                               <input type="date" id="scheduledDate" min={todayDate} value={scheduledDate} onChange={e => setScheduledDate(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-xl" required />
                             </div>
                              <div>
                                <label htmlFor="scheduledTime" className="block text-stone-700 font-bold mb-2">Hora</label>
-                               <input type="time" id="scheduledTime" value={scheduledTime} onChange={e => setScheduledTime(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-lg" required />
+                               <input type="time" id="scheduledTime" value={scheduledTime} onChange={e => setScheduledTime(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-xl" required />
                             </div>
                         </div>
                         {/* FEATURE 2: Mensagem de validação de horário de agendamento */}
                         {scheduledDate && scheduledTime && validateScheduledTime(scheduledDate, scheduledTime) && (
-                            <div className="text-red-600 text-sm font-semibold p-2 bg-red-100 rounded-md">
+                            <div className="text-red-600 text-sm font-semibold p-2 bg-red-100 rounded-xl">
                                 <AlertTriangle size={16} className="inline mr-1"/> {validateScheduledTime(scheduledDate, scheduledTime)}
                             </div>
                         )}
@@ -1278,7 +1278,7 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
                         <p className="text-xl">Total a Pagar: <span className="font-bold text-2xl">{finalTotal.toFixed(2)}€</span></p>
                     </div>
 
-                    <button type="submit" disabled={authLoading || formError || (deliveryMethod === 'schedule' && validateScheduledTime(scheduledDate, scheduledTime))} className="w-full bg-green-500 text-white font-bold py-3 rounded-lg hover:bg-green-600 transition-colors text-lg shadow hover:shadow-lg active:scale-95 flex justify-center items-center disabled:bg-green-300">
+                    <button type="submit" disabled={authLoading || formError || (deliveryMethod === 'schedule' && validateScheduledTime(scheduledDate, scheduledTime))} className="w-full bg-green-500 text-white font-bold py-3 rounded-full hover:bg-green-600 transition-colors text-lg shadow hover:shadow-lg active:scale-95 flex justify-center items-center disabled:bg-green-300">
                         {authLoading ? <Loader2 className="animate-spin" /> : "Confirmar Pedido"}
                     </button>
                     <button type="button" onClick={() => setView('cart')} className="w-full mt-3 text-center text-stone-600 hover:underline">
@@ -1326,7 +1326,7 @@ const ConfirmationView = ({ setView, showToast, user, userData }) => {
 
     if (feedbackSubmitted) {
         return (
-             <div className="text-center py-16 max-w-lg mx-auto bg-white p-8 rounded-lg shadow-lg animate-fade-in">
+             <div className="text-center py-16 max-w-lg mx-auto bg-white p-8 rounded-xl shadow-lg animate-fade-in">
                 <Star size={64} className="mx-auto text-amber-500" />
                 <h2 className="text-3xl font-bold mt-4 text-green-600">Desconto de 5% Liberado!</h2>
                 <p className="text-stone-600 mt-2">Um desconto de 5% será aplicado automaticamente no seu próximo pedido.</p>
@@ -1342,7 +1342,7 @@ const ConfirmationView = ({ setView, showToast, user, userData }) => {
     }
 
     return (
-        <div className="text-center py-16 max-w-lg mx-auto bg-white p-8 rounded-lg shadow-lg animate-fade-in">
+        <div className="text-center py-16 max-w-lg mx-auto bg-white p-8 rounded-xl shadow-lg animate-fade-in">
             <CheckCircle size={64} className="mx-auto text-green-500" />
             <h2 className="text-3xl font-bold mt-4">Pedido Recebido!</h2>
             <p className="text-stone-600 mt-2">Obrigado pela sua preferência! O seu pedido já está a ser preparado com muito carinho.</p>
@@ -1376,7 +1376,7 @@ const FeedbackForm = ({ onSubmit }) => {
     }
 
     return (
-        <div className="max-w-lg mx-auto bg-white p-8 rounded-lg shadow-lg animate-fade-in">
+        <div className="max-w-lg mx-auto bg-white p-8 rounded-xl shadow-lg animate-fade-in">
             <h2 className="text-2xl font-bold text-center mb-6">Sua Opinião é Importante</h2>
             <form onSubmit={handleSubmit} className="space-y-6">
                 <div>
@@ -1394,7 +1394,7 @@ const FeedbackForm = ({ onSubmit }) => {
                 </div>
                  <div>
                     <label htmlFor="howFound" className="block text-stone-700 font-bold mb-2">Como nos conheceu?</label>
-                    <select id="howFound" value={howFound} onChange={e => setHowFound(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400" required>
+                    <select id="howFound" value={howFound} onChange={e => setHowFound(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400" required>
                         <option value="">Selecione uma opção</option>
                         <option>Indicação</option>
                         <option>Pesquisa no Google</option>
@@ -1412,7 +1412,7 @@ const FeedbackForm = ({ onSubmit }) => {
                         <label className="flex items-center gap-2"><input type="radio" name="recommend" value="Não" onChange={e => setWouldRecommend(e.target.value)} required /> Não</label>
                      </div>
                 </div>
-                 <button type="submit" disabled={isSubmitting} className="w-full bg-green-500 text-white font-bold py-2 rounded-lg hover:bg-green-600 transition-colors shadow hover:shadow-lg active:scale-95 flex justify-center items-center disabled:bg-green-300">
+                 <button type="submit" disabled={isSubmitting} className="w-full bg-green-500 text-white font-bold py-2 rounded-full hover:bg-green-600 transition-colors shadow hover:shadow-lg active:scale-95 flex justify-center items-center disabled:bg-green-300">
                     {isSubmitting ? <Loader2 className="animate-spin" /> : "Enviar Feedback e Receber Desconto"}
                 </button>
             </form>
@@ -1427,19 +1427,19 @@ const LoginView = ({ handleLogin, error, setView, isAdminLogin = false, authLoad
     const handleSubmit = (e) => { e.preventDefault(); handleLogin(email, password); };
 
     return (
-        <div className="max-w-sm mx-auto mt-10 bg-white p-8 rounded-lg shadow-xl animate-fade-in">
+        <div className="max-w-sm mx-auto mt-10 bg-white p-8 rounded-xl shadow-xl animate-fade-in">
             <h2 className="text-2xl font-bold text-center mb-6">{isAdminLogin ? 'Acesso Administrador' : 'Entrar na sua Conta'}</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                     <label className="block text-stone-700 font-bold mb-2">Email</label>
-                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400" required />
+                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400" required />
                 </div>
                 <div>
                     <label className="block text-stone-700 font-bold mb-2">Senha</label>
-                    <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400" required />
+                    <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400" required />
                 </div>
                 {error && <p className="text-red-500 text-center">{error}</p>}
-                <button type="submit" disabled={authLoading} className="w-full bg-amber-500 text-white font-bold py-2 rounded-lg hover:bg-amber-600 transition-colors shadow hover:shadow-lg active:scale-95 flex justify-center items-center disabled:bg-amber-300">
+                <button type="submit" disabled={authLoading} className="w-full bg-amber-500 text-white font-bold py-2 rounded-full hover:bg-amber-600 transition-colors shadow hover:shadow-lg active:scale-95 flex justify-center items-center disabled:bg-amber-300">
                      {authLoading ? <Loader2 className="animate-spin" /> : "Entrar"}
                 </button>
                 {!isAdminLogin && (
@@ -1470,28 +1470,28 @@ const SignUpView = ({ handleSignUp, error, setView, authLoading }) => {
     };
 
     return (
-        <div className="max-w-sm mx-auto mt-10 bg-white p-8 rounded-lg shadow-xl animate-fade-in">
+        <div className="max-w-sm mx-auto mt-10 bg-white p-8 rounded-xl shadow-xl animate-fade-in">
             <h2 className="text-2xl font-bold text-center mb-6">Criar Conta</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
                  <div>
                     <label className="block text-stone-700 font-bold mb-2">Nome Completo</label>
-                    <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400" required />
+                    <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400" required />
                 </div>
                  <div>
                     <label className="block text-stone-700 font-bold mb-2">Email</label>
-                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400" required />
+                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400" required />
                 </div>
                 <div>
                     <label className="block text-stone-700 font-bold mb-2">Senha</label>
-                    <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400" required />
+                    <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400" required />
                 </div>
                  <div>
                     <label className="block text-sm font-bold mb-2">Confirmar Senha</label>
-                    <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400" required />
+                    <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400" required />
                 </div>
                 {localError && <p className="text-red-500 text-center">{localError}</p>}
                 {error && <p className="text-red-500 text-center">{error}</p>}
-                <button type="submit" disabled={authLoading} className="w-full bg-amber-500 text-white font-bold py-2 rounded-lg hover:bg-amber-600 transition-colors shadow hover:shadow-lg active:scale-95 flex justify-center items-center disabled:bg-amber-300">
+                <button type="submit" disabled={authLoading} className="w-full bg-amber-500 text-white font-bold py-2 rounded-full hover:bg-amber-600 transition-colors shadow hover:shadow-lg active:scale-95 flex justify-center items-center disabled:bg-amber-300">
                     {authLoading ? <Loader2 className="animate-spin" /> : "Criar Conta"}
                 </button>
                  <p className="text-center text-sm text-stone-600 pt-2">
@@ -1583,27 +1583,27 @@ const AddressForm = ({ address, onSave, onCancel, showToast }) => {
 
     return (
          <div className="fixed inset-0 bg-black/50 z-50 flex justify-center items-center p-4 animate-fade-in">
-            <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-slide-up">
+            <form onSubmit={handleSubmit} className="bg-white p-6 rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-slide-up">
                 <h4 className="text-xl font-bold mb-4">{address ? 'Editar Endereço' : 'Adicionar Novo Endereço'}</h4>
                 
                 <div className="space-y-3">
                      <div className="flex items-center gap-2">
-                         <input type="text" name="cep" placeholder="CEP" value={formData.cep} onChange={handleChange} onBlur={handleCepLookup} className="w-1/2 p-2 border border-stone-300 rounded-lg focus:ring-amber-400" />
-                         <button type="button" onClick={handleCurrentLocation} disabled={cepLoading} className="w-1/2 bg-blue-500 text-white font-bold py-2 px-3 rounded-lg hover:bg-blue-600 flex items-center justify-center gap-2 text-sm disabled:opacity-50">
+                         <input type="text" name="cep" placeholder="CEP" value={formData.cep} onChange={handleChange} onBlur={handleCepLookup} className="w-1/2 p-2 border border-stone-300 rounded-xl focus:ring-amber-400" />
+                         <button type="button" onClick={handleCurrentLocation} disabled={cepLoading} className="w-1/2 bg-blue-500 text-white font-bold py-2 px-3 rounded-xl hover:bg-blue-600 flex items-center justify-center gap-2 text-sm disabled:opacity-50">
                             {cepLoading ? <Loader2 className="animate-spin" size={18}/> : <><MapPin size={18}/> Localização Atual</>}
                          </button>
                     </div>
-                    <input type="text" name="street" placeholder="Rua / Logradouro" value={formData.street} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-lg focus:ring-amber-400" required />
+                    <input type="text" name="street" placeholder="Rua / Logradouro" value={formData.street} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl focus:ring-amber-400" required />
                     <div className="grid grid-cols-2 gap-2">
-                        <input type="text" name="number" placeholder="Número" value={formData.number} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-lg focus:ring-amber-400" required />
-                        <input type="text" name="district" placeholder="Bairro" value={formData.district} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-lg focus:ring-amber-400" required />
+                        <input type="text" name="number" placeholder="Número" value={formData.number} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl focus:ring-amber-400" required />
+                        <input type="text" name="district" placeholder="Bairro" value={formData.district} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl focus:ring-amber-400" required />
                     </div>
-                    <input type="text" name="city" placeholder="Município/Cidade" value={formData.city} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-lg focus:ring-amber-400" required />
+                    <input type="text" name="city" placeholder="Município/Cidade" value={formData.city} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl focus:ring-amber-400" required />
                 </div>
                  {formError && <p className="text-red-500 text-sm mt-3">{formError}</p>}
                  <div className="flex justify-end gap-4 mt-6">
-                    <button type="button" onClick={onCancel} className="bg-stone-300 text-stone-800 font-bold py-2 px-4 rounded-lg hover:bg-stone-400 active:scale-95 transition-colors">Cancelar</button>
-                    <button type="submit" className="bg-amber-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-amber-600 active:scale-95 transition-colors">Salvar Endereço</button>
+                    <button type="button" onClick={onCancel} className="bg-stone-300 text-stone-800 font-bold py-2 px-4 rounded-full hover:bg-stone-400 active:scale-95 transition-colors">Cancelar</button>
+                    <button type="submit" className="bg-amber-500 text-white font-bold py-2 px-4 rounded-full hover:bg-amber-600 active:scale-95 transition-colors">Salvar Endereço</button>
                 </div>
             </form>
         </div>
@@ -1680,29 +1680,29 @@ const AccountSettingsView = ({ user, userData, showToast, setView, db, appId }) 
              {deletingAddressId && <ConfirmDeleteModal title="Remover Endereço" message="Tem certeza que deseja remover este endereço?" onConfirm={handleDeleteAddressConfirm} onCancel={() => setDeletingAddressId(null)} confirmText="Remover" />}
              
              <h2 className="text-3xl font-bold mb-6 text-stone-800">Minha Conta</h2>
-              <div className="bg-white p-6 rounded-lg shadow-lg space-y-4 mb-8">
+              <div className="bg-white p-6 rounded-xl shadow-lg space-y-4 mb-8">
                   <h3 className="font-bold text-xl text-amber-600 border-b pb-2">Dados Pessoais</h3>
                   <div>
                       <label className="block text-sm font-bold mb-1 text-stone-600">Nome Completo</label>
-                      <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full p-2 border border-stone-300 rounded" />
+                      <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full p-2 border border-stone-300 rounded-xl" />
                   </div>
                   <div>
                       <label className="block text-sm font-bold mb-1 text-stone-600">Telefone de Contato</label>
-                      <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full p-2 border border-stone-300 rounded" />
+                      <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full p-2 border border-stone-300 rounded-xl" />
                   </div>
                   <div>
                       <label className="block text-sm font-bold mb-1 text-stone-600">Email</label>
-                      <input type="email" value={user?.email || ''} className="w-full p-2 border bg-stone-100 border-stone-300 rounded" disabled />
+                      <input type="email" value={user?.email || ''} className="w-full p-2 border bg-stone-100 border-stone-300 rounded-xl" disabled />
                   </div>
                   <div className="pt-4 flex justify-between items-center">
-                      <button onClick={handleSaveUserData} disabled={isSaving} className="bg-amber-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-amber-600 transition-colors shadow-sm hover:shadow-md active:scale-95 flex items-center justify-center disabled:bg-amber-300 w-40">
+                      <button onClick={handleSaveUserData} disabled={isSaving} className="bg-amber-500 text-white font-bold py-2 px-6 rounded-full hover:bg-amber-600 transition-colors shadow-sm hover:shadow-md active:scale-95 flex items-center justify-center disabled:bg-amber-300 w-40">
                           {isSaving ? <Loader2 className="animate-spin" /> : "Salvar Dados"}
                       </button>
                       <button onClick={() => setView('myOrders')} className="text-stone-600 font-semibold hover:underline">Ver meus pedidos</button>
                   </div>
               </div>
               
-               <div className="bg-white p-6 rounded-lg shadow-lg space-y-4">
+               <div className="bg-white p-6 rounded-xl shadow-lg space-y-4">
                   <div className="flex justify-between items-center border-b pb-2">
                       <h3 className="font-bold text-xl text-amber-600">Meus Endereços ({addresses.length})</h3>
                        <button onClick={() => setEditingAddress({})} className="text-sm font-semibold text-green-600 hover:underline flex items-center gap-1"><Plus size={16}/> Adicionar</button>
@@ -1712,7 +1712,7 @@ const AccountSettingsView = ({ user, userData, showToast, setView, db, appId }) 
                   ) : (
                       <div className="space-y-3">
                           {addresses.map(addr => (
-                              <div key={addr.id} className="p-3 bg-stone-50 rounded-lg border border-stone-200 flex justify-between items-center">
+                              <div key={addr.id} className="p-3 bg-stone-50 rounded-xl border border-stone-200 flex justify-between items-center">
                                   <p className="text-stone-700 font-semibold">{addr.street}, {addr.number} ({addr.city})</p>
                                   <div className="flex gap-2">
                                       <button onClick={() => setEditingAddress({ data: addr })} className="p-1 text-blue-600 hover:bg-blue-100 rounded-full transition-colors"><Edit size={18} /></button>
@@ -1732,12 +1732,15 @@ const DeliveryTrackerComponent = ({ order }) => {
     
     if (!deliveryTracker || !deliveryTracker.active || order.status !== 'Saiu para Entrega') {
         return (
-            <div className="bg-blue-50 border-l-4 border-blue-400 text-blue-800 p-3 mt-4 rounded-lg flex items-center gap-3">
+            <div className="bg-blue-50 border-l-4 border-blue-400 text-blue-800 p-3 mt-4 rounded-xl flex items-center gap-3">
                 <Satellite size={20} />
                 <p className="text-sm">Rastreamento Inativo. Aguardando o entregador iniciar a rota.</p>
             </div>
         );
     }
+    
+    // Simulação de tempo de entrega (5-15 minutos)
+    const estimatedTime = Math.floor(Math.random() * 11) + 5; 
     
     // Simulação do Google Maps Embed com as coordenadas do entregador (tracker) e do cliente (lat, lng do pedido)
     // Usamos as coordenadas do entregador (deliveryTracker) para o centro do mapa
@@ -1752,11 +1755,14 @@ const DeliveryTrackerComponent = ({ order }) => {
     const lastUpdate = deliveryTracker.lastUpdate ? new Date(deliveryTracker.lastUpdate.seconds * 1000).toLocaleTimeString('pt-PT') : 'N/A';
 
     return (
-        <div className="mt-4 p-4 bg-white border border-green-200 rounded-lg shadow-inner">
+        <div className="mt-4 p-4 bg-white border border-green-200 rounded-xl shadow-inner">
             <h4 className="font-bold text-lg text-green-600 flex items-center gap-2"><MapPin size={20}/> Entrega em Tempo Real</h4>
             <p className="text-sm text-stone-600 mb-2">Última atualização: {lastUpdate}</p>
+            <p className="text-lg font-bold text-purple-700 mb-3 flex items-center gap-2">
+                <Bike size={20}/> Estimativa de Entrega: {estimatedTime} min
+            </p>
             
-            <div className="relative w-full h-64 overflow-hidden rounded-lg border border-stone-300">
+            <div className="relative w-full h-64 overflow-hidden rounded-xl border border-stone-300">
                 <iframe 
                     title="Localização do Entregador" 
                     width="100%" 
@@ -1805,7 +1811,7 @@ const MyOrdersView = ({ orders, setView }) => {
             </div>
             <div className="space-y-6">
                 {orders.map(order => (
-                    <div key={order.id} className="bg-white p-4 sm:p-6 rounded-lg shadow-lg border border-stone-200">
+                    <div key={order.id} className="bg-white p-4 sm:p-6 rounded-xl shadow-lg border border-stone-200">
                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-3 mb-3">
                              <div>
                                 <p className="text-sm text-stone-500">Pedido #{order.id.slice(0, 8).toUpperCase()}</p>
@@ -1849,21 +1855,21 @@ const AdminStats = ({ orders }) => {
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="bg-stone-100 p-4 rounded-lg shadow-sm flex items-center gap-4">
+            <div className="bg-stone-100 p-4 rounded-xl shadow-lg flex items-center gap-4">
                 <div className="bg-blue-200 p-3 rounded-full"><Package className="text-blue-600" size={24}/></div>
                 <div>
                     <p className="text-sm text-stone-500">Total de Pedidos</p>
                     <p className="text-2xl font-bold text-stone-800">{orders.length}</p>
                 </div>
             </div>
-            <div className="bg-stone-100 p-4 rounded-lg shadow-sm flex items-center gap-4">
+            <div className="bg-stone-100 p-4 rounded-xl shadow-lg flex items-center gap-4">
                 <div className="bg-green-200 p-3 rounded-full"><DollarSign className="text-green-600" size={24}/></div>
                 <div>
                     <p className="text-sm text-stone-500">Faturamento (Concluídos)</p>
                     <p className="text-2xl font-bold text-stone-800">{totalRevenue.toFixed(2)}€</p>
                 </div>
             </div>
-            <div className="bg-stone-100 p-4 rounded-lg shadow-sm flex items-center gap-4">
+            <div className="bg-stone-100 p-4 rounded-xl shadow-lg flex items-center gap-4">
                 <div className="bg-yellow-200 p-3 rounded-full"><Clock className="text-yellow-600" size={24}/></div>
                 <div>
                     <p className="text-sm text-stone-500">Pedidos Ativos</p>
@@ -1890,23 +1896,23 @@ const AdminDashboard = ({ menu, orders, feedbacks, handleLogout, showToast, sett
     }
 
     return (
-        <div className="bg-white p-4 md:p-6 rounded-lg shadow-lg animate-fade-in">
+        <div className="bg-white p-4 md:p-6 rounded-xl shadow-lg animate-fade-in">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b pb-4">
                 <h2 className="text-3xl font-bold text-stone-800">Painel de Admin</h2>
                 <div className="flex items-center gap-4 mt-2 sm:mt-0">
-                    <button onClick={() => setView('kitchenView')} className="bg-stone-800 text-white font-semibold py-2 px-4 rounded-lg hover:bg-stone-900 transition-colors text-sm">Visão Cozinha</button>
-                    <button onClick={() => setView('deliveryView')} className="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors text-sm">Visão Entregador</button>
+                    <button onClick={() => setView('kitchenView')} className="bg-stone-800 text-white font-semibold py-2 px-4 rounded-full hover:bg-stone-900 transition-colors text-sm">Visão Cozinha</button>
+                    <button onClick={() => setView('deliveryView')} className="bg-blue-600 text-white font-semibold py-2 px-4 rounded-full hover:bg-blue-700 transition-colors text-sm">Visão Entregador</button>
                     <button onClick={handleLogout} title="Sair" className="p-2 rounded-full text-red-500 hover:bg-red-100 transition-colors"><LogOut /></button>
                 </div>
             </div>
             <div className="flex flex-wrap gap-2 mb-6 border-b">
-                <button onClick={() => setAdminView('dashboard')} className={`px-4 py-2 font-semibold text-sm rounded-t-md flex items-center gap-2 transition-colors ${adminView === 'dashboard' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Package size={16}/> Resumo</button>
-                <button onClick={() => setAdminView('orders')} className={`px-4 py-2 font-semibold text-sm rounded-t-md flex items-center gap-2 transition-colors ${adminView === 'orders' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><ShoppingCart size={16}/> Pedidos</button>
-                <button onClick={() => setAdminView('menu')} className={`px-4 py-2 font-semibold text-sm rounded-t-md flex items-center gap-2 transition-colors ${adminView === 'menu' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><ChefHat size={16}/> Cardápio</button>
-                <button onClick={() => setAdminView('faturamento')} className={`px-4 py-2 font-semibold text-sm rounded-t-md flex items-center gap-2 transition-colors ${adminView === 'faturamento' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><TrendingUp size={16}/> Faturamento</button>
-                <button onClick={() => setAdminView('feedbacks')} className={`px-4 py-2 font-semibold text-sm rounded-t-md flex items-center gap-2 transition-colors ${adminView === 'feedbacks' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Star size={16}/> Feedbacks</button>
-                <button onClick={() => setAdminView('manageAgenda')} className={`px-4 py-2 font-semibold text-sm rounded-t-md flex items-center gap-2 transition-colors ${adminView === 'manageAgenda' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Calendar size={16}/> Agenda</button>
-                <button onClick={() => setAdminView('settings')} className={`px-4 py-2 font-semibold text-sm rounded-t-md flex items-center gap-2 transition-colors ${adminView === 'settings' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Settings size={16}/> Configurações</button>
+                <button onClick={() => setAdminView('dashboard')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'dashboard' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Package size={16}/> Resumo</button>
+                <button onClick={() => setAdminView('orders')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'orders' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><ShoppingCart size={16}/> Pedidos</button>
+                <button onClick={() => setAdminView('menu')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'menu' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><ChefHat size={16}/> Cardápio</button>
+                <button onClick={() => setAdminView('faturamento')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'faturamento' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><TrendingUp size={16}/> Faturamento</button>
+                <button onClick={() => setAdminView('feedbacks')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'feedbacks' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Star size={16}/> Feedbacks</button>
+                <button onClick={() => setAdminView('manageAgenda')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'manageAgenda' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Calendar size={16}/> Agenda</button>
+                <button onClick={() => setAdminView('settings')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'settings' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Settings size={16}/> Configurações</button>
             </div>
             {renderAdminView()}
         </div>
@@ -1970,25 +1976,25 @@ const FaturamentoView = ({ orders }) => {
     return (
         <div>
             <h3 className="text-xl font-bold mb-4 text-stone-700">Análise de Faturamento</h3>
-            <div className="flex flex-wrap gap-2 items-center mb-4 p-2 bg-stone-100 rounded-lg">
-                <button onClick={() => setFilter('30d')} className={`px-3 py-1 text-sm font-semibold rounded-md ${filter === '30d' ? 'bg-amber-500 text-white' : 'bg-white'}`}>Últimos 30 dias</button>
-                <button onClick={() => setFilter('60d')} className={`px-3 py-1 text-sm font-semibold rounded-md ${filter === '60d' ? 'bg-amber-500 text-white' : 'bg-white'}`}>Últimos 60 dias</button>
-                <button onClick={() => setFilter('90d')} className={`px-3 py-1 text-sm font-semibold rounded-md ${filter === '90d' ? 'bg-amber-500 text-white' : 'bg-white'}`}>Últimos 90 dias</button>
+            <div className="flex flex-wrap gap-2 items-center mb-4 p-2 bg-stone-100 rounded-xl">
+                <button onClick={() => setFilter('30d')} className={`px-3 py-1 text-sm font-semibold rounded-full ${filter === '30d' ? 'bg-amber-500 text-white' : 'bg-white'}`}>Últimos 30 dias</button>
+                <button onClick={() => setFilter('60d')} className={`px-3 py-1 text-sm font-semibold rounded-full ${filter === '60d' ? 'bg-amber-500 text-white' : 'bg-white'}`}>Últimos 60 dias</button>
+                <button onClick={() => setFilter('90d')} className={`px-3 py-1 text-sm font-semibold rounded-full ${filter === '90d' ? 'bg-amber-500 text-white' : 'bg-white'}`}>Últimos 90 dias</button>
                 <div className="flex items-center gap-2">
-                    <button onClick={() => setFilter('year')} className={`px-3 py-1 text-sm font-semibold rounded-md ${filter === 'year' ? 'bg-amber-500 text-white' : 'bg-white'}`}>Por Ano:</button>
-                    <select value={yearFilter} onChange={e => {setYearFilter(Number(e.target.value)); setFilter('year');}} className="p-1 border-stone-300 rounded-md text-sm">
+                    <button onClick={() => setFilter('year')} className={`px-3 py-1 text-sm font-semibold rounded-full ${filter === 'year' ? 'bg-amber-500 text-white' : 'bg-white'}`}>Por Ano:</button>
+                    <select value={yearFilter} onChange={e => {setYearFilter(Number(e.target.value)); setFilter('year');}} className="p-1 border-stone-300 rounded-full text-sm">
                         {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
                     </select>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div className="bg-green-100 p-4 rounded-lg"><p className="text-sm text-green-800">Faturamento Total (Período)</p><p className="text-2xl font-bold text-green-900">{filteredData.totalRevenue.toFixed(2)}€</p></div>
-                <div className="bg-blue-100 p-4 rounded-lg"><p className="text-sm text-blue-800">Pedidos Concluídos (Período)</p><p className="text-2xl font-bold text-blue-900">{filteredData.totalOrders}</p></div>
-                <div className="bg-yellow-100 p-4 rounded-lg"><p className="text-sm text-yellow-800">Ticket Médio</p><p className="text-2xl font-bold text-yellow-900">{filteredData.averageTicket.toFixed(2)}€</p></div>
+                <div className="bg-green-100 p-4 rounded-xl"><p className="text-sm text-green-800">Faturamento Total (Período)</p><p className="text-2xl font-bold text-green-900">{filteredData.totalRevenue.toFixed(2)}€</p></div>
+                <div className="bg-blue-100 p-4 rounded-xl"><p className="text-sm text-blue-800">Pedidos Concluídos (Período)</p><p className="text-2xl font-bold text-blue-900">{filteredData.totalOrders}</p></div>
+                <div className="bg-yellow-100 p-4 rounded-xl"><p className="text-sm text-yellow-800">Ticket Médio</p><p className="text-2xl font-bold text-yellow-900">{filteredData.averageTicket.toFixed(2)}€</p></div>
             </div>
             
-            <div className="bg-white p-4 rounded-lg shadow-sm border h-96">
+            <div className="bg-white p-4 rounded-xl shadow-lg border h-96">
                 <h4 className="font-bold mb-4">Faturamento Mensal</h4>
                 <ResponsiveContainer width="100%" height="90%">
                     {filteredData.chartData.length > 0 ? (
@@ -2082,7 +2088,7 @@ const FeedbacksView = ({ feedbacks, showToast }) => {
             }
             <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-bold text-stone-700">Análise de Feedbacks</h3>
-                <button onClick={() => setShowConfirmModal(true)} className="bg-red-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-600 flex items-center gap-2 shadow-sm hover:shadow-md active:scale-95 text-sm">
+                <button onClick={() => setShowConfirmModal(true)} className="bg-red-500 text-white font-bold py-2 px-4 rounded-full hover:bg-red-600 flex items-center gap-2 shadow-sm hover:shadow-md active:scale-95 text-sm">
                     <Trash size={16}/> Limpar Feedbacks
                 </button>
             </div>
@@ -2092,12 +2098,12 @@ const FeedbacksView = ({ feedbacks, showToast }) => {
             ) : (
                 <>
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                     <div className="bg-stone-100 p-4 rounded-lg text-center"><p className="text-sm text-stone-600">Total de Respostas</p><p className="text-3xl font-bold">{feedbackAnalysis.total}</p></div>
-                     <div className="bg-stone-100 p-4 rounded-lg text-center"><p className="text-sm text-stone-600">Avaliação Média</p><div className="flex justify-center items-center gap-1"><p className="text-3xl font-bold">{feedbackAnalysis.averageRating.toFixed(2)}</p><Star className="text-amber-500" size={28}/></div></div>
+                     <div className="bg-stone-100 p-4 rounded-xl text-center"><p className="text-sm text-stone-600">Total de Respostas</p><p className="text-3xl font-bold">{feedbackAnalysis.total}</p></div>
+                     <div className="bg-stone-100 p-4 rounded-xl text-center"><p className="text-sm text-stone-600">Avaliação Média</p><div className="flex justify-center items-center gap-1"><p className="text-3xl font-bold">{feedbackAnalysis.averageRating.toFixed(2)}</p><Star className="text-amber-500" size={28}/></div></div>
                  </div>
 
                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                     <div className="bg-white p-4 rounded-lg shadow-sm border h-96">
+                     <div className="bg-white p-4 rounded-xl shadow-lg border h-96">
                          <h4 className="font-bold mb-4 text-center">Como os clientes nos conheceram?</h4>
                          <ResponsiveContainer width="100%" height="90%">
                              <PieChart>
@@ -2109,7 +2115,7 @@ const FeedbacksView = ({ feedbacks, showToast }) => {
                              </PieChart>
                          </ResponsiveContainer>
                      </div>
-                     <div className="bg-white p-4 rounded-lg shadow-sm border h-96">
+                     <div className="bg-white p-4 rounded-xl shadow-lg border h-96">
                          <h4 className="font-bold mb-4 text-center">Indicaria a um amigo?</h4>
                          <ResponsiveContainer width="100%" height="90%">
                              <PieChart>
@@ -2133,6 +2139,7 @@ const FeedbacksView = ({ feedbacks, showToast }) => {
 const AdminSettings = ({showToast, currentSettings}) => {
     const [settings, setSettings] = useState(currentSettings);
     const [isSaving, setIsSaving] = useState(false);
+    const [cepLoading, setCepLoading] = useState(false);
     
     // Lista de fusos horários comuns em Portugal e Brasil (para demonstração)
     const timezones = [
@@ -2147,6 +2154,56 @@ const AdminSettings = ({showToast, currentSettings}) => {
     useEffect(() => {
         setSettings(currentSettings);
     }, [currentSettings]);
+    
+    // FEATURE 2 - ADMIN: Função para buscar endereço de retirada pelo CEP
+    const handlePickupCepLookup = async () => {
+        const cep = settings.pickupCep;
+        if (!cep || cep.replace(/\D/g, '').length !== 8) return;
+        setCepLoading(true);
+        try {
+            const result = await fetchAddressByCep(cep);
+            if (result) {
+                setSettings(prev => ({
+                    ...prev,
+                    pickupAddress: `${result.street || 'Rua não informada'}, ${result.district || 'Bairro não informado'}, ${result.city || 'Cidade não informada'}`,
+                }));
+            }
+        } catch (e) { console.error("Erro ao buscar CEP de retirada:", e); }
+        finally { setCepLoading(false); }
+    };
+    
+    // FEATURE 2 - ADMIN: Função para obter localização atual para endereço de retirada
+    const handlePickupCurrentLocation = () => {
+        if (!navigator.geolocation) {
+            showToast('Seu navegador não suporta geolocalização.');
+            return;
+        }
+        setCepLoading(true);
+        
+        navigator.geolocation.getCurrentPosition(async (position) => {
+            const { latitude, longitude } = position.coords;
+            try {
+                // Simula geocodificação reversa
+                const addressResult = await fetchAddressByCoords(latitude, longitude);
+                
+                setSettings(prev => ({
+                     ...prev,
+                    pickupAddress: `${addressResult.street || 'Rua não informada'}, ${addressResult.number || 'S/N'}, ${addressResult.district || 'Bairro não informado'}, ${addressResult.city || 'Cidade não informada'}`,
+                    pickupCep: addressResult.cep || '',
+                }));
+                showToast("Localização de retirada preenchida!");
+            } catch (error) {
+                 showToast('Erro ao buscar endereço pela localização.');
+                 console.error(error);
+            } finally {
+                setCepLoading(false);
+            }
+        }, (error) => {
+            showToast(`Erro de localização: ${error.message}`);
+            setCepLoading(false);
+        });
+    }
+
 
     const handleSave = async () => {
         setIsSaving(true);
@@ -2166,34 +2223,55 @@ const AdminSettings = ({showToast, currentSettings}) => {
     return (
          <div>
             <h3 className="text-xl font-bold mb-4 text-stone-700">Configurações da Loja</h3>
-            <div className="bg-stone-50 p-6 rounded-lg border border-stone-200 space-y-4 max-w-2xl">
+            <div className="bg-stone-50 p-6 rounded-xl shadow-lg border border-stone-200 space-y-4 max-w-2xl">
                  <div>
                     <label className="block text-sm font-bold mb-1 text-stone-600">Nome da Loja</label>
-                    <input type="text" value={settings.storeName || ''} onChange={(e) => setSettings({...settings, storeName: e.target.value})} className="w-full p-2 border border-stone-300 rounded" />
+                    <input type="text" value={settings.storeName || ''} onChange={(e) => setSettings({...settings, storeName: e.target.value})} className="w-full p-2 border border-stone-300 rounded-xl" />
                 </div>
                  <div>
                     <label className="block text-sm font-bold mb-1 text-stone-600">URL do Logo</label>
-                    <input type="text" value={settings.logoUrl || ''} onChange={(e) => setSettings({...settings, logoUrl: e.target.value})} className="w-full p-2 border border-stone-300 rounded" />
+                    <input type="text" value={settings.logoUrl || ''} onChange={(e) => setSettings({...settings, logoUrl: e.target.value})} className="w-full p-2 border border-stone-300 rounded-xl" />
                 </div>
                 <div>
                     <label className="block text-sm font-bold mb-1 text-stone-600">Email de Contato</label>
-                    <input type="email" value={settings.email || ''} onChange={(e) => setSettings({...settings, email: e.target.value})} className="w-full p-2 border border-stone-300 rounded" />
+                    <input type="email" value={settings.email || ''} onChange={(e) => setSettings({...settings, email: e.target.value})} className="w-full p-2 border border-stone-300 rounded-xl" />
                 </div>
                  <div>
                     <label className="block text-sm font-bold mb-1 text-stone-600">Telefone</label>
-                    <input type="tel" value={settings.phone || ''} onChange={(e) => setSettings({...settings, phone: e.target.value})} className="w-full p-2 border border-stone-300 rounded" />
+                    <input type="tel" value={settings.phone || ''} onChange={(e) => setSettings({...settings, phone: e.target.value})} className="w-full p-2 border border-stone-300 rounded-xl" />
                 </div>
                  <div>
                     <label className="block text-sm font-bold mb-1 text-stone-600">Número do WhatsApp (com código do país)</label>
-                    <input type="tel" value={settings.whatsappNumber || ''} onChange={(e) => setSettings({...settings, whatsappNumber: e.target.value})} className="w-full p-2 border border-stone-300 rounded" />
+                    <input type="tel" value={settings.whatsappNumber || ''} onChange={(e) => setSettings({...settings, whatsappNumber: e.target.value})} className="w-full p-2 border border-stone-300 rounded-xl" />
                 </div>
                  <div>
                     <label className="block text-sm font-bold mb-1 text-stone-600">Mensagem Padrão do WhatsApp</label>
-                    <textarea value={settings.whatsappMessage || ''} onChange={(e) => setSettings({...settings, whatsappMessage: e.target.value})} className="w-full p-2 border border-stone-300 rounded" rows="3"></textarea>
+                    <textarea value={settings.whatsappMessage || ''} onChange={(e) => setSettings({...settings, whatsappMessage: e.target.value})} className="w-full p-2 border border-stone-300 rounded-xl" rows="3"></textarea>
                 </div>
-                <div>
-                    <label className="block text-sm font-bold mb-1 text-stone-600">Endereço para Retirar</label>
-                    <input type="text" value={settings.pickupAddress || ''} onChange={(e) => setSettings({...settings, pickupAddress: e.target.value})} className="w-full p-2 border border-stone-300 rounded" />
+                
+                {/* FEATURE 2 - Endereço de Retirada com Geolocalização */}
+                <div className="border border-stone-300 p-3 rounded-xl bg-white space-y-3">
+                     <h4 className="font-bold text-sm text-stone-700">Endereço de Retirada/Sede</h4>
+                     <div>
+                        <label className="block text-xs font-bold mb-1 text-stone-600">CEP</label>
+                        <div className="flex gap-2">
+                             <input 
+                                type="text" 
+                                value={settings.pickupCep || ''} 
+                                onChange={(e) => setSettings({...settings, pickupCep: e.target.value})} 
+                                onBlur={handlePickupCepLookup}
+                                className="w-1/3 p-2 border border-stone-300 rounded-xl" 
+                                placeholder="CEP"
+                             />
+                             <button type="button" onClick={handlePickupCurrentLocation} disabled={cepLoading} className="w-2/3 bg-blue-500 text-white font-bold py-2 px-3 rounded-xl hover:bg-blue-600 flex items-center justify-center gap-2 text-sm disabled:opacity-50 shadow-md">
+                                {cepLoading ? <Loader2 className="animate-spin" size={18}/> : <><MapPin size={18}/> Localização Atual</>}
+                             </button>
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold mb-1 text-stone-600">Endereço Completo</label>
+                        <input type="text" value={settings.pickupAddress || ''} onChange={(e) => setSettings({...settings, pickupAddress: e.target.value})} className="w-full p-2 border border-stone-300 rounded-xl" placeholder="Rua, Número, Bairro, Cidade" />
+                    </div>
                 </div>
                  
                  {/* NOVO CAMPO DE FUSO HORÁRIO */}
@@ -2202,7 +2280,7 @@ const AdminSettings = ({showToast, currentSettings}) => {
                     <select 
                         value={settings.storeTimezone || 'Europe/Lisbon'} 
                         onChange={(e) => setSettings({...settings, storeTimezone: e.target.value})} 
-                        className="w-full p-2 border border-stone-300 rounded bg-white"
+                        className="w-full p-2 border border-stone-300 rounded-xl bg-white"
                     >
                         {timezones.map(tz => <option key={tz} value={tz}>{tz}</option>)}
                     </select>
@@ -2212,14 +2290,14 @@ const AdminSettings = ({showToast, currentSettings}) => {
 
                  <div>
                     <label className="block text-sm font-bold mb-1 text-stone-600">Moeda</label>
-                    <select value={settings.currency || 'EUR'} onChange={(e) => setSettings({...settings, currency: e.target.value})} className="w-full p-2 border border-stone-300 rounded bg-white">
+                    <select value={settings.currency || 'EUR'} onChange={(e) => setSettings({...settings, currency: e.target.value})} className="w-full p-2 border border-stone-300 rounded-xl bg-white">
                         <option value="EUR">Euro (€)</option>
                         <option value="BRL">Real (R$)</option>
                         <option value="USD">Dólar ($)</option>
                     </select>
                 </div>
                 <div className="pt-4">
-                    <button onClick={handleSave} disabled={isSaving} className="bg-amber-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-amber-600 transition-colors shadow-sm hover:shadow-md active:scale-95 flex items-center justify-center disabled:bg-amber-300 w-40">
+                    <button onClick={handleSave} disabled={isSaving} className="bg-amber-500 text-white font-bold py-2 px-6 rounded-full hover:bg-amber-600 transition-colors shadow-lg active:scale-95 flex items-center justify-center disabled:bg-amber-300 w-40">
                         {isSaving ? <Loader2 className="animate-spin" /> : "Salvar Alterações"}
                     </button>
                 </div>
@@ -2273,7 +2351,7 @@ const ManageOrders = ({ orders }) => {
             <h3 className="text-xl font-bold mb-4 text-stone-700">Gerenciar Pedidos ({orders.length})</h3>
             <div className="space-y-4">
                 {orders.map(order => (
-                    <div key={order.id} className="bg-stone-50 p-4 rounded-lg border border-stone-200 hover:shadow-md transition-shadow">
+                    <div key={order.id} className="bg-stone-50 p-4 rounded-xl border border-stone-200 hover:shadow-lg transition-shadow">
                          <div className="flex flex-wrap justify-between items-center">
                              <div>
                                  <p className="font-bold text-lg text-stone-800">{order.name}</p>
@@ -2299,10 +2377,10 @@ const ManageOrders = ({ orders }) => {
                          </div>
                          <div className="mt-4 flex flex-wrap gap-2 items-center">
                              {['Pendente', 'Em Preparo', 'Pronto para Entrega', 'Saiu para Entrega', 'Concluído'].map(status => (
-                                 <button key={status} onClick={() => handleUpdateStatus(order.id, status)} className={`px-3 py-1 text-sm rounded-md transition-all ${order.status === status ? 'ring-2 ring-offset-1 ring-amber-500 bg-stone-200 font-bold' : 'bg-white hover:bg-stone-200 border'}`}>{status}</button>
+                                 <button key={status} onClick={() => handleUpdateStatus(order.id, status)} className={`px-3 py-1 text-sm rounded-full transition-all ${order.status === status ? 'ring-2 ring-offset-1 ring-amber-500 bg-stone-200 font-bold' : 'bg-white hover:bg-stone-200 border'}`}>{status}</button>
                              ))}
                              <div className="flex-grow"></div>
-                             <button onClick={() => handleRejectOrder(order.id)} className={'bg-red-100 hover:bg-red-200 border border-red-200 text-red-700 px-3 py-1 text-sm rounded-md transition-all'}>Rejeitar</button>
+                             <button onClick={() => handleRejectOrder(order.id)} className={'bg-red-100 hover:bg-red-200 border border-red-200 text-red-700 px-3 py-1 text-sm rounded-full transition-all'}>Rejeitar</button>
                          </div>
                     </div>
                 ))}
@@ -2313,12 +2391,12 @@ const ManageOrders = ({ orders }) => {
 
 const ConfirmDeleteModal = ({ onConfirm, onCancel, title="Confirmar Exclusão", message="Tem a certeza que quer apagar este item? Esta ação não pode ser desfeita.", confirmText="Apagar" }) => (
     <div className="fixed inset-0 bg-black/50 z-50 flex justify-center items-center p-4 animate-fade-in">
-        <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm animate-slide-up">
+        <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-sm animate-slide-up">
             <h4 className="text-lg font-bold mb-2">{title}</h4>
             <p className="text-stone-600 mb-6">{message}</p>
             <div className="flex justify-end gap-4">
-                <button onClick={onCancel} className="bg-stone-300 text-stone-800 font-bold py-2 px-4 rounded-lg hover:bg-stone-400 transition-colors active:scale-95">Cancelar</button>
-                <button onClick={onConfirm} className="bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 transition-colors active:scale-95">{confirmText}</button>
+                <button onClick={onCancel} className="bg-stone-300 text-stone-800 font-bold py-2 px-4 rounded-full hover:bg-stone-400 transition-colors active:scale-95">Cancelar</button>
+                <button onClick={onConfirm} className="bg-red-600 text-white font-bold py-2 px-4 rounded-full hover:bg-red-700 transition-colors active:scale-95">{confirmText}</button>
             </div>
         </div>
     </div>
@@ -2362,14 +2440,14 @@ const ManageMenu = ({ menu }) => {
             {deletingItemId && <ConfirmDeleteModal onConfirm={handleDeleteConfirm} onCancel={() => setDeletingItemId(null)} />}
             <div className="flex justify-between items-center mb-4">
                  <h3 className="text-xl font-bold text-stone-700">Gerenciar Cardápio</h3>
-                 <button onClick={startCreating} className="bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-600 flex items-center gap-2 shadow-sm hover:shadow-md active:scale-95"><Plus size={18}/> Novo Item</button>
+                 <button onClick={startCreating} className="bg-green-500 text-white font-bold py-2 px-4 rounded-full hover:bg-green-600 flex items-center gap-2 shadow-lg active:scale-95"><Plus size={18}/> Novo Item</button>
             </div>
             {(editingItem || isCreating) && <MenuItemForm item={editingItem} onSave={handleSave} onCancel={() => { setEditingItem(null); setIsCreating(false); }} allCategories={allCategories} />}
             <div className="space-y-2 mt-6">
                 {menu.map(item => (
-                    <div key={item.id} className={`flex items-center justify-between p-3 rounded-lg border ${item.isAvailable !== false ? 'bg-stone-50 border-stone-200' : 'bg-stone-200 border-stone-300 opacity-60'}`}>
+                    <div key={item.id} className={`flex items-center justify-between p-3 rounded-xl border ${item.isAvailable !== false ? 'bg-stone-50 border-stone-200' : 'bg-stone-200 border-stone-300 opacity-60'}`}>
                         <div className="flex items-center gap-4">
-                             <img src={item.image} alt={item.name} className="w-12 h-12 rounded-md object-cover bg-stone-200" onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/100x100/FBBF24/FFFFFF?text=?'; }}/>
+                             <img src={item.image} alt={item.name} className="w-12 h-12 rounded-xl object-cover bg-stone-200" onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/100x100/FBBF24/FFFFFF?text=?'; }}/>
                             <div>
                                 <p className="font-bold text-stone-800">{item.name}</p>
                                 <p className="text-sm text-stone-500">{item.category} - {item.price.toFixed(2)}€</p>
@@ -2416,16 +2494,16 @@ const MenuItemForm = ({ item, onSave, onCancel, allCategories }) => {
 
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex justify-center items-center p-4 animate-fade-in">
-            <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-slide-up">
+            <form onSubmit={handleSubmit} className="bg-white p-6 rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-slide-up">
                 <h4 className="text-lg font-bold mb-4">{item.id ? 'Editar Item' : 'Criar Novo Item'}</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-sm font-bold mb-1">Nome</label>
-                        <input type="text" name="name" value={formData.name} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded" required />
+                        <input type="text" name="name" value={formData.name} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl" required />
                     </div>
                      <div>
                         <label className="block text-sm font-bold mb-1">Categoria</label>
-                        <select name="category" value={formData.category} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded" required>
+                        <select name="category" value={formData.category} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl" required>
                             <option>Salgados Tradicionais</option>
                             <option>Salgados Especiais</option>
                             <option>Boxes</option>
@@ -2434,28 +2512,28 @@ const MenuItemForm = ({ item, onSave, onCancel, allCategories }) => {
                     </div>
                      <div>
                         <label className="block text-sm font-bold mb-1">Preço (€)</label>
-                        <input type="number" name="price" value={formData.price} onChange={handleChange} step="0.01" className="w-full p-2 border border-stone-300 rounded" required />
+                        <input type="number" name="price" value={formData.price} onChange={handleChange} step="0.01" className="w-full p-2 border border-stone-300 rounded-xl" required />
                     </div>
                      <div className="md:col-span-2">
                         <label className="block text-sm font-bold mb-1">URL da Imagem</label>
-                        <input type="text" name="image" value={formData.image} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded" />
+                        <input type="text" name="image" value={formData.image} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl" />
                     </div>
                      <div className="md:col-span-2">
                         <label className="block text-sm font-bold mb-1">Descrição (opcional)</label>
-                        <textarea name="description" value={formData.description || ''} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded"></textarea>
+                        <textarea name="description" value={formData.description || ''} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl"></textarea>
                     </div>
                     <div>
                         <label className="block text-sm font-bold mb-1">Pedido Mínimo (Unidades)</label>
-                        <input type="number" name="minimumOrder" value={formData.minimumOrder || 1} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded" />
+                        <input type="number" name="minimumOrder" value={formData.minimumOrder || 1} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl" />
                     </div>
-                    <div className="flex items-center gap-2 border p-2 rounded-md bg-stone-50">
+                    <div className="flex items-center gap-2 border p-2 rounded-xl bg-stone-50">
                         <input type="checkbox" id="customizable" name="customizable" checked={!!formData.customizable} onChange={handleChange} className="h-5 w-5"/>
                         <label htmlFor="customizable">É um box customizável?</label>
                     </div>
                      {formData.customizable && (
                         <div className="md:col-span-2">
                             <label className="block text-sm font-bold mb-1">Nº mínimo de salgados no box</label>
-                            <input type="number" name="size" value={formData.size} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded" />
+                            <input type="number" name="size" value={formData.size} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl" />
                         </div>
                      )}
                 </div>
@@ -2481,18 +2559,18 @@ const MenuItemForm = ({ item, onSave, onCancel, allCategories }) => {
                 )}
 
                 <div className="grid grid-cols-2 gap-4 mt-4 border-t pt-4">
-                     <div className="flex items-center gap-2 p-2 rounded-md bg-stone-50 border">
+                     <div className="flex items-center gap-2 p-2 rounded-xl bg-stone-50 border">
                         <input type="checkbox" id="isAvailable" name="isAvailable" checked={formData.isAvailable !== false} onChange={handleChange} className="h-5 w-5"/>
                         <label htmlFor="isAvailable">Exibir no catálogo?</label>
                     </div>
-                     <div className="flex items-center gap-2 p-2 rounded-md bg-stone-50 border">
+                     <div className="flex items-center gap-2 p-2 rounded-xl bg-stone-50 border">
                         <input type="checkbox" id="requiresScheduling" name="requiresScheduling" checked={!!formData.requiresScheduling} onChange={handleChange} className="h-5 w-5"/>
                         <label htmlFor="requiresScheduling">Requer encomenda?</label>
                     </div>
                 </div>
                 <div className="flex justify-end gap-4 mt-6">
-                    <button type="button" onClick={onCancel} className="bg-stone-300 text-stone-800 font-bold py-2 px-4 rounded-lg hover:bg-stone-400 active:scale-95 transition-colors">Cancelar</button>
-                    <button type="submit" className="bg-amber-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-amber-600 active:scale-95 transition-colors">Salvar</button>
+                    <button type="button" onClick={onCancel} className="bg-stone-300 text-stone-800 font-bold py-2 px-4 rounded-full hover:bg-stone-400 active:scale-95 transition-colors">Cancelar</button>
+                    <button type="submit" className="bg-amber-500 text-white font-bold py-2 px-4 rounded-full hover:bg-amber-600 active:scale-95 transition-colors">Salvar</button>
                 </div>
             </form>
         </div>
@@ -2510,11 +2588,11 @@ const KitchenView = ({ orders, setView }) => {
         <div className="bg-stone-900 min-h-screen p-4 text-white">
             <div className="flex justify-between items-center mb-4">
                  <h1 className="text-4xl font-bold text-amber-400">Visão da Cozinha</h1>
-                 <button onClick={() => setView('admin')} className="bg-stone-700 text-white font-semibold py-2 px-4 rounded-lg hover:bg-stone-600 flex items-center gap-2"><ChevronsLeft size={16}/> Voltar ao Painel</button>
+                 <button onClick={() => setView('admin')} className="bg-stone-700 text-white font-semibold py-2 px-4 rounded-full hover:bg-stone-600 flex items-center gap-2"><ChevronsLeft size={16}/> Voltar ao Painel</button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {orders.map(order => (
-                    <div key={order.id} className={`p-4 rounded-lg shadow-lg flex flex-col ${order.status === 'Pendente' ? 'bg-red-900 border-red-700' : 'bg-blue-900 border-blue-700'} border-2`}>
+                    <div key={order.id} className={`p-4 rounded-xl shadow-lg flex flex-col ${order.status === 'Pendente' ? 'bg-red-900 border-red-700' : 'bg-blue-900 border-blue-700'} border-2`}>
                         <div className="flex justify-between items-center border-b border-white/20 pb-2 mb-2">
                              <h2 className="text-2xl font-bold">{order.name}</h2>
                              <span className="text-lg font-mono">#{order.id.slice(0, 6).toUpperCase()}</span>
@@ -2536,12 +2614,12 @@ const KitchenView = ({ orders, setView }) => {
                         </div>
                          <div className="mt-auto pt-2">
                              {order.status === 'Pendente' && (
-                                <button onClick={() => updateStatus(order.id, 'Em Preparo')} className="w-full bg-blue-500 text-white font-bold py-3 rounded-lg hover:bg-blue-600 text-lg transition-colors">
+                                <button onClick={() => updateStatus(order.id, 'Em Preparo')} className="w-full bg-blue-500 text-white font-bold py-3 rounded-full hover:bg-blue-600 text-lg transition-colors">
                                     Iniciar Preparo
                                 </button>
                              )}
                               {order.status === 'Em Preparo' && (
-                                <button onClick={() => updateStatus(order.id, 'Pronto para Entrega')} className="w-full bg-green-500 text-white font-bold py-3 rounded-lg hover:bg-green-600 text-lg transition-colors">
+                                <button onClick={() => updateStatus(order.id, 'Pronto para Entrega')} className="w-full bg-green-500 text-white font-bold py-3 rounded-full hover:bg-green-600 text-lg transition-colors">
                                     Pedido Finalizado
                                 </button>
                              )}
@@ -2643,13 +2721,13 @@ const ManageAgenda = ({ currentSettings, showToast, db, appId }) => {
     return (
         <div>
             <h3 className="text-xl font-bold mb-4 text-stone-700">Gerenciamento de Agenda</h3>
-            <div className="bg-white p-6 rounded-lg shadow-lg border border-stone-200 space-y-8">
+            <div className="bg-white p-6 rounded-xl shadow-lg border border-stone-200 space-y-8">
                  {/* Horário de Funcionamento */}
                  <div>
                     <h4 className="font-bold text-lg mb-4 text-amber-600 flex items-center gap-2"><Clock size={20}/> Horário Semanal</h4>
                     <div className="space-y-3">
                         {daysOfWeek.map(day => (
-                            <div key={day} className={`flex items-center p-3 rounded-lg border ${settings.workingHours[day]?.open ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                            <div key={day} className={`flex items-center p-3 rounded-xl border ${settings.workingHours[day]?.open ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
                                 <p className="font-semibold w-32">{dayNameMap[day]}</p>
                                 <div className="flex items-center gap-4 flex-grow">
                                      <button onClick={() => handleToggleOpen(day, !settings.workingHours[day]?.open)} className={`px-3 py-1 text-sm font-bold rounded-full transition-colors ${settings.workingHours[day]?.open ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-green-500 text-white hover:bg-green-600'}`}>
@@ -2657,9 +2735,9 @@ const ManageAgenda = ({ currentSettings, showToast, db, appId }) => {
                                      </button>
                                      {settings.workingHours[day]?.open ? (
                                          <div className="flex items-center gap-2">
-                                              <input type="time" value={settings.workingHours[day]?.start || '00:00'} onChange={(e) => handleHourChange(day, 'start', e.target.value)} className="p-2 border rounded" />
+                                              <input type="time" value={settings.workingHours[day]?.start || '00:00'} onChange={(e) => handleHourChange(day, 'start', e.target.value)} className="p-2 border rounded-xl" />
                                               <span className="font-bold">-</span>
-                                              <input type="time" value={settings.workingHours[day]?.end || '00:00'} onChange={(e) => handleHourChange(day, 'end', e.target.value)} className="p-2 border rounded" />
+                                              <input type="time" value={settings.workingHours[day]?.end || '00:00'} onChange={(e) => handleHourChange(day, 'end', e.target.value)} className="p-2 border rounded-xl" />
                                          </div>
                                      ) : (
                                          <span className="text-sm text-stone-500">Fechado o dia todo</span>
@@ -2674,8 +2752,8 @@ const ManageAgenda = ({ currentSettings, showToast, db, appId }) => {
                  <div>
                      <h4 className="font-bold text-lg mb-4 text-amber-600 flex items-center gap-2"><Calendar size={20}/> Feriados / Datas Especiais</h4>
                      <div className="flex gap-2 mb-4">
-                         <input type="date" value={editingHoliday} onChange={(e) => setEditingHoliday(e.target.value)} className="p-2 border border-stone-300 rounded-lg flex-grow" />
-                         <button onClick={handleAddHoliday} className="bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-600 active:scale-95 transition-colors flex items-center gap-2"><Plus size={18}/> Adicionar</button>
+                         <input type="date" value={editingHoliday} onChange={(e) => setEditingHoliday(e.target.value)} className="p-2 border border-stone-300 rounded-xl flex-grow" />
+                         <button onClick={handleAddHoliday} className="bg-green-500 text-white font-bold py-2 px-4 rounded-full hover:bg-green-600 active:scale-95 transition-colors flex items-center gap-2"><Plus size={18}/> Adicionar</button>
                      </div>
                      <div className="flex flex-wrap gap-3">
                          {settings.holidays.map(date => (
@@ -2688,7 +2766,7 @@ const ManageAgenda = ({ currentSettings, showToast, db, appId }) => {
                  </div>
 
                  <div className="pt-4 border-t">
-                    <button onClick={handleSave} disabled={isSaving} className="bg-amber-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-amber-600 transition-colors shadow-sm hover:shadow-md active:scale-95 flex items-center justify-center disabled:bg-amber-300 w-40">
+                    <button onClick={handleSave} disabled={isSaving} className="bg-amber-500 text-white font-bold py-2 px-6 rounded-full hover:bg-amber-600 transition-colors shadow-lg active:scale-95 flex items-center justify-center disabled:bg-amber-300 w-40">
                         {isSaving ? <Loader2 className="animate-spin" /> : "Salvar Agenda"}
                     </button>
                 </div>
@@ -2803,10 +2881,10 @@ const DeliveryView = ({ orders, setView, db, appId, user }) => {
         <div className="bg-stone-200 min-h-screen p-4">
             <div className="flex justify-between items-center mb-4">
                  <h1 className="text-3xl font-bold text-stone-800">Painel do Entregador</h1>
-                 <button onClick={() => setView('admin')} className="bg-stone-700 text-white font-semibold py-2 px-4 rounded-lg hover:bg-stone-600 flex items-center gap-2"><ChevronsLeft size={16}/> Voltar</button>
+                 <button onClick={() => setView('admin')} className="bg-stone-700 text-white font-semibold py-2 px-4 rounded-full hover:bg-stone-600 flex items-center gap-2"><ChevronsLeft size={16}/> Voltar</button>
             </div>
             {trackingOrderId && (
-                <div className="bg-purple-100 border-l-4 border-purple-500 text-purple-800 p-3 mb-4 rounded-lg">
+                <div className="bg-purple-100 border-l-4 border-purple-500 text-purple-800 p-3 mb-4 rounded-xl">
                     <p className="font-bold">Rastreamento Ativo!</p>
                     <p className="text-sm">Acompanhando Pedido #{trackingOrderId.slice(0, 8).toUpperCase()}.</p>
                     <button onClick={stopTracking} className="text-red-600 font-semibold text-xs mt-1 hover:underline">Parar Rastreamento</button>
@@ -2814,7 +2892,7 @@ const DeliveryView = ({ orders, setView, db, appId, user }) => {
             )}
              <div className="space-y-4">
                 {orders.map(order => (
-                     <div key={order.id} className="bg-white p-4 rounded-lg shadow-md">
+                     <div key={order.id} className="bg-white p-4 rounded-xl shadow-lg">
                          <div className="flex flex-col sm:flex-row justify-between sm:items-center border-b pb-2 mb-2">
                              <div>
                                 <h2 className="text-xl font-bold text-stone-800">{order.name}</h2>
@@ -2827,17 +2905,17 @@ const DeliveryView = ({ orders, setView, db, appId, user }) => {
                              <p className="font-semibold">Endereço: <span className="font-normal text-stone-700">{order.address}</span></p>
                          </div>
                          <div className="flex flex-wrap gap-2 mt-3">
-                              <a href={getGoogleMapsLink(order)} target="_blank" rel="noopener noreferrer" className="flex-1 bg-amber-500 text-white font-bold py-3 rounded-lg hover:bg-amber-600 transition-colors flex items-center justify-center gap-2">
+                              <a href={getGoogleMapsLink(order)} target="_blank" rel="noopener noreferrer" className="flex-1 bg-amber-500 text-white font-bold py-3 rounded-full hover:bg-amber-600 transition-colors flex items-center justify-center gap-2 shadow-lg">
                                   <Map size={18}/> Iniciar Rota no GPS
                               </a>
                               
                               {order.status === 'Pronto para Entrega' && (
-                                <button onClick={() => updateStatus(order.id, 'Saiu para Entrega')} disabled={trackingOrderId && trackingOrderId !== order.id} className="flex-1 bg-purple-500 text-white font-bold py-3 rounded-lg hover:bg-purple-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+                                <button onClick={() => updateStatus(order.id, 'Saiu para Entrega')} disabled={trackingOrderId && trackingOrderId !== order.id} className="flex-1 bg-purple-500 text-white font-bold py-3 rounded-full hover:bg-purple-600 transition-colors flex items-center justify-center gap-2 shadow-lg disabled:opacity-50">
                                     <Bike size={18}/> Saiu para Entrega
                                 </button>
                              )}
                               {order.status === 'Saiu para Entrega' && (
-                                <button onClick={() => updateStatus(order.id, 'Concluído')} className="flex-1 bg-green-500 text-white font-bold py-3 rounded-lg hover:bg-green-600 transition-colors">
+                                <button onClick={() => updateStatus(order.id, 'Concluído')} className="flex-1 bg-green-500 text-white font-bold py-3 rounded-full hover:bg-green-600 transition-colors shadow-lg">
                                     Entrega Concluída
                                 </button>
                              )}
