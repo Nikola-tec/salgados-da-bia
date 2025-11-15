@@ -25,7 +25,7 @@ import {
     setDoc,
     getDoc
 } from 'firebase/firestore';
-import { ChefHat, ShoppingCart, User, LogOut, PlusCircle, MinusCircle, Trash2, Edit, XCircle, CheckCircle, Package, DollarSign, Clock, Settings, Plus, Star, AlertTriangle, UserCheck, KeyRound, Loader2, ChevronsLeft, MapPin, Bike, TrendingUp, Percent, Calendar, Eye, EyeOff, Trash, Satellite, Map, MessageSquare } from 'lucide-react';
+import { ChefHat, ShoppingCart, User, LogOut, PlusCircle, MinusCircle, Trash2, Edit, XCircle, CheckCircle, Package, DollarSign, Clock, Settings, Plus, Star, AlertTriangle, UserCheck, KeyRound, Loader2, ChevronsLeft, MapPin, Bike, TrendingUp, Percent, Calendar, Eye, EyeOff, Trash, Satellite, Map, MessageSquare,Navigation } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 // --- CONFIGURAÇÃO DO FIREBASE ---
@@ -85,139 +85,200 @@ const INITIAL_WORKING_HOURS = {
     sunday: { open: false, start: '00:00', end: '00:00' },
 };
 
+// V3 CORREÇÃO: Ponto de partida padrão de Viseu e novas configurações de entrega
 const INITIAL_SHOP_SETTINGS = {
     storeName: "Salgados da Bia",
     logoUrl: "https://placehold.co/100x100/FBBF24/FFFFFF?text=SB",
     email: "contato@salgadosdabia.pt",
     phone: "+351 912 345 678",
     currency: "EUR",
-    pickupAddress: "Rua das Flores, 123, Lisboa, Portugal",
+    // Endereço e CEP de Viseu
+    pickupAddress: "Rua Pintor Antonio de Almeida, lote 2, Viseu, Portugal",
+    pickupCep: "3500-038",
+    // Coordenadas de Viseu
+    storeLatitude: 40.6558,
+    storeLongitude: -7.9095,
     whatsappNumber: "5511999999999",
     whatsappMessage: "Olá! Quero fazer uma encomenda.",
     workingHours: INITIAL_WORKING_HOURS,
     holidays: [], // array de datas "YYYY-MM-DD"
-    storeTimezone: 'Europe/Lisbon', // Novo campo para fuso horário da loja
+    storeTimezone: 'Europe/Lisbon', // Fuso horário de Viseu/Lisboa
+    // Novas configurações de entrega
+    deliveryPricePerKm: 1.0, // 1 Euro por KM
+    deliveryMaxRadiusKm: 17, // Limite de 17 KM
 };
+
 
 // --- FUNÇÕES DE UTILIDADE ---
 
-// Simulação de API de CEP (ViaCEP ou similar)
-const fetchAddressByCep = async (cep) => {
-    // Simula a remoção de caracteres não numéricos
-    const cleanedCep = cep.replace(/\D/g, '');
-    if (cleanedCep.length !== 8) return null;
-    
-    // Simula resposta da API
-    await new Promise(resolve => setTimeout(resolve, 500)); 
+// V3 NOVAS FUNÇÕES: APIs REAIS DE GEOLOCALIZAÇÃO E ROTAS (OpenStreetMap)
 
-    if (cleanedCep === '44001001') {
-        return {
-            street: 'Rua das Flores',
-            district: 'Jardim Central',
-            city: 'Lisboa',
-            state: 'LX',
-            country: 'Portugal',
-            latitude: 38.7223,
-            longitude: -9.1393
-        };
+/**
+ * Converte um endereço de texto (ou CEP) em coordenadas.
+ * Usa a API pública Nominatim (OpenStreetMap).
+ */
+const getCoordsFromAddress = async (addressString, cep = null) => {
+    let query = cep ? `postalcode=${cep}&country=portugal` : `q=${encodeURIComponent(addressString)}`;
+    if (cep) query += `&postalcode=${cep}&country=portugal`;
+
+    try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?${query}&format=json&limit=1`);
+        if (!response.ok) throw new Error('Falha na rede da API Nominatim');
+        const data = await response.json();
+        
+        if (data && data.length > 0) {
+            const result = data[0];
+            return {
+                lat: parseFloat(result.lat),
+                lng: parseFloat(result.lon),
+                // Tenta preencher o endereço a partir do resultado, se for um CEP
+                address: cep ? {
+                    street: result.address?.road || '',
+                    district: result.address?.suburb || '',
+                    city: result.address?.city || 'Viseu', // Garante Viseu para CEP de Viseu
+                    state: result.address?.state || 'Viseu',
+                    cep: cep,
+                    country: 'Portugal',
+                } : null // Se for busca por texto, não retorna o endereço, apenas lat/lng
+            };
+        }
+        return null;
+    } catch (error) {
+        console.error("Erro ao geocodificar endereço:", error);
+        return null;
     }
-    
-    // Retorna endereço genérico para simular preenchimento parcial
-    return {
-        street: 'Rua Exemplo',
-        district: 'Bairro Teste',
-        city: 'Cidade Exemplo',
-        state: 'XX',
-        country: 'Portugal',
-        latitude: 38.7,
-        longitude: -9.1
-    };
 };
 
-// Simulação de geocodificação reversa
-const fetchAddressByCoords = async (lat, lng) => {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // Simula o endereço baseado na localização
-    return {
-        street: 'Avenida da Liberdade',
-        number: '200',
-        district: 'Santo António',
-        city: 'Lisboa',
-        state: 'LX',
-        country: 'Portugal',
-        cep: '1250-144'
-    };
-}
+/**
+ * Converte coordenadas (lat/lng) em um endereço estruturado.
+ * Usa a API pública Nominatim (OpenStreetMap).
+ */
+const getAddressFromCoords = async (lat, lng) => {
+    try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
+        if (!response.ok) throw new Error('Falha na rede da API Nominatim Reverse');
+        const data = await response.json();
+        
+        if (data && data.address) {
+            const addr = data.address;
+            return {
+                street: addr.road || '',
+                number: addr.house_number || '',
+                district: addr.suburb || addr.quarter || '',
+                city: addr.city || addr.town || addr.village || '',
+                state: addr.state || '',
+                country: addr.country || 'Portugal',
+                cep: addr.postcode || ''
+            };
+        }
+        return null;
+    } catch (error) {
+        console.error("Erro na geocodificação reversa:", error);
+        return null;
+    }
+};
 
-// eslint-disable-next-line no-unused-vars
+/**
+ * Calcula a distância de condução (em metros) entre dois pontos.
+ * Usa a API pública OSRM (Open Source Routing Machine).
+ */
+const getDistanceFromCoords = async (originLat, originLng, destLat, destLng) => {
+    if (!originLat || !originLng || !destLat || !destLng) {
+        console.error("Coordenadas de origem ou destino ausentes.");
+        return null;
+    }
+    
+    const url = `https://router.osrm.project-osrm.org/route/v1/driving/${originLng},${originLat};${destLng},${destLat}?overview=false`;
+
+    try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Falha na rede da API OSRM');
+        const data = await response.json();
+
+        if (data && data.routes && data.routes.length > 0) {
+            return data.routes[0].distance; // Distância em metros
+        }
+        return null;
+    } catch (error) {
+        console.error("Erro ao calcular distância:", error);
+        return null;
+    }
+};
+
+
+// V3 CORREÇÃO: Lógica de verificação de horário refeita para ser robusta
 const isStoreOpenNow = (workingHours, holidays, storeTimezone) => {
-    // CORREÇÃO: Usa Intl.DateTimeFormat para obter a hora atual no fuso horário da loja
-    
-    const now = new Date();
-    
-    // Configurações regionais para obter o dia da semana e hora no fuso horário da loja
-    const storeLocaleOptions = { weekday: 'long', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: storeTimezone };
-    
-    // Obtém o dia e hora no fuso horário da loja
-    const storeTimeFormat = new Intl.DateTimeFormat('en-US', storeLocaleOptions).formatToParts(now);
-    
-    const dayNamesMap = { 
-        'monday': 'monday', 'tuesday': 'tuesday', 'wednesday': 'wednesday', 
-        'thursday': 'thursday', 'friday': 'friday', 'saturday': 'saturday', 'sunday': 'sunday'
-    };
-    
-    // Encontra o dia da semana e a hora/minuto
-    const storeDayPart = storeTimeFormat.find(p => p.type === 'weekday')?.value.toLowerCase();
-    const storeTimeParts = storeTimeFormat.filter(p => p.type === 'hour' || p.type === 'minute');
-    
-    // Garante que a hora está no formato HH:MM (ex: 22:00)
-    const storeHour = storeTimeParts.find(p => p.type === 'hour')?.value.padStart(2, '0') || '00';
-    const storeMinute = storeTimeParts.find(p => p.type === 'minute')?.value.padStart(2, '0') || '00';
-    const currentTime = storeHour + ':' + storeMinute;
+    try {
+        const now = new Date();
+        
+        // 1. Obter a data e hora ATUAIS no fuso horário da loja
+        const storeLocaleOptions = { 
+            weekday: 'long', 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            hourCycle: 'h23', 
+            timeZone: storeTimezone 
+        };
+        const parts = new Intl.DateTimeFormat('en-US', storeLocaleOptions).formatToParts(now);
+        
+        const dayMap = {};
+        parts.forEach(p => { dayMap[p.type] = p.value; });
 
-    const today = dayNamesMap[storeDayPart];
-    const todayConfig = workingHours[today];
-    
-    // Obtém a data no formato YYYY-MM-DD para verificar feriados (usando o timezone da loja)
-    const currentDateString = new Intl.DateTimeFormat('sv-SE', { timeZone: storeTimezone }).format(now); // 'sv-SE' (Suécia) garante YYYY-MM-DD
+        const storeDayName = dayMap.weekday.toLowerCase(); // ex: 'saturday'
+        const storeCurrentTimeStr = `${dayMap.hour.padStart(2, '0')}:${dayMap.minute.padStart(2, '0')}`; // ex: '13:05'
 
-    // 1. Verificar Feriados
-    if (holidays && holidays.includes(currentDateString)) {
-        return false;
-    }
-    
-    // 2. Verificar se está aberto hoje
-    if (!todayConfig || !todayConfig.open) {
-        return false;
-    }
-    
-    // 3. Verificar horário (comparação simples de strings HH:MM)
-    const startTime = todayConfig.start;
-    const endTime = todayConfig.end;
-    
-    if (startTime === endTime) { // Se for 00:00 - 00:00, verifica se não está aberto
-        return todayConfig.open; 
-    }
-    
-    // Trata o caso de horários que passam da meia-noite (ex: 22:00 - 02:00)
-    if (startTime > endTime) {
-        // Horário de funcionamento cruza meia-noite
-        return currentTime >= startTime || currentTime < endTime;
-    } else {
-        // Horário de funcionamento dentro do mesmo dia
-        return currentTime >= startTime && currentTime < endTime;
+        // 2. Verificar Feriados (usando o formato YYYY-MM-DD da loja)
+        const storeDateStr = new Intl.DateTimeFormat('sv-SE', { timeZone: storeTimezone }).format(now); // sv-SE dá YYYY-MM-DD
+        if (holidays && holidays.includes(storeDateStr)) {
+            return false;
+        }
+
+        // 3. Obter a configuração de hoje
+        const todayConfig = workingHours[storeDayName];
+        if (!todayConfig || !todayConfig.open) {
+            return false;
+        }
+
+        // 4. Comparação de horários
+        const { start, end } = todayConfig;
+
+        // Se a loja está aberta 24h (00:00 - 00:00 E open=true)
+        if (start === end && start === '00:00') {
+            return true;
+        }
+
+        // Caso de horário que cruza a meia-noite (ex: 22:00 - 02:00)
+        if (start > end) {
+            // Ou está depois do início (ex: 23:00) OU antes do fim (ex: 01:00)
+            return storeCurrentTimeStr >= start || storeCurrentTimeStr < end;
+        }
+
+        // Caso normal (ex: 10:00 - 23:00)
+        // V3 CORREÇÃO: O fim do dia (ex: 23:00) deve ser < (menor que), não <=
+        // Se o `end` for '00:00', significa que fecha à meia-noite
+        if (end === '00:00') {
+             return storeCurrentTimeStr >= start; // Aberto de 10:00 até 23:59:59
+        }
+        
+        return storeCurrentTimeStr >= start && storeCurrentTimeStr < end;
+
+    } catch (error) {
+        console.error("Erro ao verificar horário da loja:", error);
+        return false; // Assume fechado em caso de erro
     }
 };
 
-// Retorna o intervalo de funcionamento para um dia (para validação)
+// Retorna o intervalo de funcionamento para um dia (para validação de agendamento)
 const getWorkingInterval = (workingHours, dateString) => {
-    // ATENÇÃO: Esta função usa o horário local do navegador para calcular o dia da semana.
-    // Para uso em validação de agendamento (Schedule), ela funciona para garantir que
-    // o agendamento cai em um dia em que a loja declara estar aberta.
+    // Esta função usa o fuso horário local do navegador para determinar o dia da semana
+    // da data de agendamento selecionada, o que é suficiente para esta validação.
     const date = new Date(dateString);
-    const dayIndex = date.getDay();
+    
+    // V3 CORREÇÃO: getDay() é baseado no fuso local, mas o usuário insere a data
+    // em um input type="date". Precisamos do dia da semana UTC para evitar
+    // que o fuso horário do usuário mude o dia.
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const dayIndex = date.getUTCDay(); // Usa getUTCDay() para consistência
     const today = dayNames[dayIndex];
 
     const todayConfig = workingHours[today];
@@ -234,9 +295,10 @@ const getWorkingInterval = (workingHours, dateString) => {
 export default function App() {
     const fallbackMenuWithIds = INITIAL_MENU_DATA.map((item, index) => ({ id: 'fallback-' + index, ...item }));
     const [view, setView] = useState('menu'); 
-    const [menu, setMenu] = useState(fallbackMenuWithIds); // CORREÇÃO: Inicializa com dados de fallback
+    const [menu, setMenu] = useState(fallbackMenuWithIds); 
     const [orders, setOrders] = useState([]);
     const [feedbacks, setFeedbacks] = useState([]);
+    // V3 CORREÇÃO: Usa o estado inicial com as novas configurações de Viseu
     const [shopSettings, setShopSettings] = useState(INITIAL_SHOP_SETTINGS);
     const [cart, setCart] = useState([]);
     const [user, setUser] = useState(null);
@@ -245,12 +307,10 @@ export default function App() {
     const [error, setError] = useState('');
     const [toastMessage, setToastMessage] = useState('');
     const [isAdmin, setIsAdmin] = useState(false);
-    // NOVO ESTADO: Garante que a autenticação inicial foi resolvida.
     const [isAuthReady, setIsAuthReady] = useState(false); 
 
-    // CORREÇÃO: Usa a função isStoreOpenNow robusta com fuso horário
+    // V3 CORREÇÃO: A lógica de `storeOpen` agora deve funcionar corretamente
     const storeOpen = useMemo(() => {
-        // CORREÇÃO: Reintegra a lógica de horário real.
         if (!shopSettings.workingHours || !shopSettings.storeTimezone) return false;
         return isStoreOpenNow(shopSettings.workingHours, shopSettings.holidays, shopSettings.storeTimezone);
     }, [shopSettings.holidays, shopSettings.workingHours, shopSettings.storeTimezone]);
@@ -264,7 +324,8 @@ export default function App() {
 
     // Efeito para exibir o toast de loja fechada na MenuView
     useEffect(() => {
-        // O toast só será exibido se o cálculo de storeOpen for falso (loja fechada)
+        // V3 CORREÇÃO: O toast só será exibido se o cálculo de storeOpen for falso (loja fechada)
+        // e o usuário estiver ativamente na 'menu' view.
         if (!storeOpen && view === 'menu') {
             setShowStoreClosedToast(true);
             const timer = setTimeout(() => setShowStoreClosedToast(false), 10000); // 10 segundos
@@ -272,7 +333,7 @@ export default function App() {
         } else {
             setShowStoreClosedToast(false);
         }
-    }, [storeOpen, view]);
+    }, [storeOpen, view]); // Depende de storeOpen e view
 
 
     // NOVO HOOK: Para definir o título do documento 
@@ -284,7 +345,6 @@ export default function App() {
     // HOOK PRINCIPAL: Autenticação
     useEffect(() => {
         if (!firebaseInitialized) {
-            // Se o firebase não inicializou, define o título, mas marca como pronto para exibir a tela de erro
             setIsAuthReady(true);
             return;
         }
@@ -297,21 +357,16 @@ export default function App() {
                 if (currentUser && !currentUser.isAnonymous) {
                     const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, currentUser.uid);
                     const unsubscribeUser = onSnapshot(userDocRef, (docSnap) => {
-                        // CORREÇÃO: Garante que o userData sempre tenha a estrutura básica, mesmo que o doc não exista
                         if (docSnap.exists()) {
                             setUserData(docSnap.data());
                         } else {
-                            // Inicialização segura com array de endereços vazio
                             setUserData({ name: currentUser.displayName, email: currentUser.email, addresses: [], hasGivenFeedback: false, hasFeedbackDiscount: false });
                         }
                     });
-                    // Otimização: A autenticação foi resolvida.
                     setIsAuthReady(true);
                     return () => unsubscribeUser();
                 } else {
-                    // CORREÇÃO: Inicialização segura para usuário anônimo
                     setUserData({ name: 'Anônimo', email: '', addresses: [], hasGivenFeedback: false, hasFeedbackDiscount: false });
-                    // Otimização: A autenticação foi resolvida.
                     setIsAuthReady(true);
                 }
             } else {
@@ -319,18 +374,16 @@ export default function App() {
                     console.error("Falha no login anônimo:", err);
                     setError("Não foi possível carregar o cardápio. Tente atualizar a página.");
                 }).finally(() => {
-                    // Garante que o estado de autenticação anónima ou falha seja resolvido
                     setIsAuthReady(true);
                 });
             }
         });
         
         return () => unsubscribeAuth();
-    }, []); // Dependência vazia para máxima estabilidade.
+    }, []); 
 
     // HOOK SECUNDÁRIO: Listeners de Dados (dependente da autenticação)
     useEffect(() => {
-        // CORREÇÃO: Só executa listeners e lógica de dados APÓS a autenticação estar pronta
         if (!isAuthReady || !firebaseInitialized) return;
         
         if (isAdmin) setView('admin');
@@ -363,16 +416,12 @@ export default function App() {
                 }
             }
         };
-        // A lógica de população de dados é executada apenas pelo Admin.
         if (isAdmin) {
             populateInitialData();
         }
         
         const unsubscribeMenu = onSnapshot(menuRef, (snapshot) => {
             const remoteMenu = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            
-            // CORREÇÃO: Se o menu remoto tiver itens OU se o usuário for Admin (para ver o estado real do DB), 
-            // use os dados remotos. Caso contrário, mantenha o menu de fallback.
             if (remoteMenu.length > 0 || isAdmin) {
                  setMenu(remoteMenu);
             }
@@ -411,6 +460,7 @@ export default function App() {
                 const docSnap = await getDoc(settingsRef);
                 if (!docSnap.exists()) {
                     if (isAdmin) {
+                        // V3 CORREÇÃO: Popula com os novos dados de Viseu
                         await setDoc(settingsRef, INITIAL_SHOP_SETTINGS);
                     } else {
                          console.warn("Configurações não encontradas, mas o usuário não é Admin. Sem permissão para popular dados iniciais.");
@@ -424,7 +474,6 @@ export default function App() {
                 }
             }
         };
-        // A lógica de população de configurações é executada apenas pelo Admin.
         if (isAdmin) {
              populateInitialSettings();
         }
@@ -432,11 +481,16 @@ export default function App() {
         const unsubscribeSettings = onSnapshot(settingsRef, (docSnap) => {
             if (docSnap.exists()) {
                 setShopSettings(docSnap.data());
+            } else {
+                // V3 CORREÇÃO: Garante que as configurações de Viseu sejam usadas se o DB estiver vazio
+                setShopSettings(INITIAL_SHOP_SETTINGS);
             }
         }, (err) => {
              if (err.code !== 'permission-denied') {
                 console.error("Erro no listener de configurações:", err)
-            }
+             }
+             // Se falhar a leitura (ex: permissão), usa o fallback
+             setShopSettings(INITIAL_SHOP_SETTINGS);
         });
 
 
@@ -451,7 +505,6 @@ export default function App() {
     const addToCart = (item, customization, priceOverride) => {
         const applyMinimumOrder = cart.length === 0;
     
-        // A box is always added as 1 unit. For other items, check minimum order rule if cart is empty.
         const quantityToAdd = item.customizable 
             ? 1 
             : (applyMinimumOrder && item.minimumOrder > 1 ? item.minimumOrder : 1);
@@ -467,7 +520,6 @@ export default function App() {
             return [...prevCart, { ...finalItem, quantity: quantityToAdd, customization }];
         });
     
-        // Adjust toast message for boxes
         const toastText = item.customizable ? `${item.name} adicionado!` : `${quantityToAdd > 1 ? quantityToAdd + 'x ' : ''}${item.name} adicionado!`;
         showToast(toastText);
     };
@@ -515,7 +567,7 @@ export default function App() {
             await setDoc(userDocRef, { 
                 name, 
                 email,
-                addresses: [], // Novo campo para endereços
+                addresses: [], 
                 hasGivenFeedback: false,
                 hasFeedbackDiscount: false
             });
@@ -543,10 +595,11 @@ export default function App() {
             const hasDiscount = userData?.hasFeedbackDiscount;
             const subtotal = cartTotal;
             const discountAmount = hasDiscount ? subtotal * discountPercentage : 0;
-            const finalTotal = subtotal - discountAmount;
+            // V3 CORREÇÃO: O total final agora inclui a taxa de entrega
+            const finalTotal = subtotal - discountAmount + (customerDetails.deliveryFee || 0);
             
-            // Adiciona o deliveryTracker apenas se for entrega ou encomenda com endereço de entrega
-            const deliveryDetails = customerDetails.deliveryMethod === 'deliver' || (customerDetails.deliveryMethod === 'schedule' && customerDetails.address !== shopSettings.pickupAddress) ? {
+            // Adiciona o deliveryTracker apenas se for entrega
+            const deliveryDetails = (customerDetails.deliveryMethod === 'deliver' || (customerDetails.deliveryMethod === 'schedule' && customerDetails.address !== shopSettings.pickupAddress)) ? {
                 deliveryTracker: {
                     lat: customerDetails.lat,
                     lng: customerDetails.lng,
@@ -562,6 +615,9 @@ export default function App() {
                 items: cart,
                 subtotal: subtotal,
                 total: finalTotal,
+                // V3 Adiciona taxa de entrega e distância ao pedido
+                deliveryFee: customerDetails.deliveryFee || 0,
+                distanceKm: customerDetails.distanceKm || 0,
                 status: 'Pendente',
                 createdAt: new Date(),
                 userId: user.uid,
@@ -588,10 +644,7 @@ export default function App() {
             finally { setAuthLoading(false); }
     };
     
-    // CORREÇÃO: Chamada direta ao componente de erro se o Firebase falhou.
     if (!firebaseInitialized && isAuthReady) return <FirebaseErrorScreen />;
-    
-    // CORREÇÃO: Agora, só exibe o spinner se a autenticação não estiver pronta.
     if (!isAuthReady) return <div className="flex justify-center items-center h-screen bg-amber-50"><ChefHat className="animate-spin text-amber-500" size={64} /></div>;
 
     const isCartButtonVisible = (view === 'menu' || view === 'cart') && cart.length > 0;
@@ -622,9 +675,7 @@ export default function App() {
                 {renderView()}
             </main>
             
-            {/* Floating Action Buttons */}
             <div className={`fixed right-4 z-30 flex flex-col items-end gap-4 transition-all duration-300 ${isCartButtonVisible ? 'bottom-24 md:bottom-4' : 'bottom-6'}`}>
-                {/* Cart Button */}
                 {isCartButtonVisible && (
                     <button onClick={() => setView('cart')} className="bg-amber-500 text-white font-bold py-3 px-6 rounded-full hover:bg-amber-600 shadow-lg flex items-center gap-3 transform hover:scale-105 active:scale-100 animate-fade-in-up">
                         <ShoppingCart size={22} />
@@ -633,7 +684,6 @@ export default function App() {
                         <span>{cartTotal.toFixed(2)}€</span>
                     </button>
                 )}
-                {/* WhatsApp Button */}
                 {!isAdmin && <WhatsAppButton settings={shopSettings} />}
             </div>
 
@@ -662,7 +712,6 @@ const WhatsAppButton = ({ settings }) => {
     if (!settings.whatsappNumber) return null;
     const whatsappLink = `https://wa.me/${settings.whatsappNumber.replace(/\D/g, '')}?text=${encodeURIComponent(settings.whatsappMessage || '')}`;
     
-    // CORREÇÃO: Usando ícone Lucide/SVG simples em vez de Base64 complexo para evitar erro de string literal
     return (
         <div className="group relative flex items-center">
              <div className="absolute right-full mr-3 whitespace-nowrap bg-white text-stone-700 text-sm font-semibold py-2 px-4 rounded-lg shadow-lg transform transition-all duration-300 scale-0 group-hover:scale-100 origin-right">
@@ -740,7 +789,6 @@ const MenuView = ({ menu, addToCart, showStoreClosedToast }) => {
     const [customizingBox, setCustomizingBox] = useState(null);
     
     const handleCustomizeClick = (boxItem) => {
-        // Fallback for old boxes without `allowedCategories`
         const allowed = boxItem.allowedCategories || (boxItem.name.toLowerCase().includes('especial') || boxItem.name.toLowerCase().includes('gigante') ? ['Salgados Tradicionais', 'Salgados Especiais'] : ['Salgados Tradicionais']);
         
         const availableSalgados = menu.filter(item => 
@@ -756,7 +804,7 @@ const MenuView = ({ menu, addToCart, showStoreClosedToast }) => {
         <div className="animate-fade-in">
              {showStoreClosedToast && (
                 <Toast 
-                    message="A loja está fechada agora. A entrega do seu pedido será processada no próximo horário de funcionamento. Por favor, use a opção 'Encomendar' no checkout." 
+                    message="A loja está fechada. Pedidos serão processados no próximo horário. Use 'Encomendar'." 
                     isWarning={true}
                 />
             )}
@@ -812,7 +860,6 @@ const CustomizeBoxModal = ({ box, salgados, onClose, addToCart }) => {
         if (totalSelected <= box.size || box.size === 0) {
             setDynamicPrice(box.price);
         } else {
-            // When exceeding the box size, the price becomes the sum of individual items.
             const calculatedPrice = Object.entries(selection).reduce((sum, [salgadoId, quantity]) => {
                 const salgado = salgados.find(s => s.id === salgadoId);
                 return sum + (salgado ? salgado.price * quantity : 0);
@@ -950,13 +997,15 @@ const CartView = ({ cart, updateQuantity, cartTotal, setView, emptyCart, user })
     );
 };
 
+// V3 REVISÃO COMPLETA: CheckoutView
 const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView, initialError, user, userData, authLoading, shopSettings, storeOpen, getWorkingInterval }) => {
     const isLargeOrder = cartTotalQuantity >= 150;
     const hasScheduledItem = cart.some(item => item.requiresScheduling);
+    // V3 CORREÇÃO: Força agendamento se a loja estiver fechada
     const forceScheduling = isLargeOrder || hasScheduledItem || !storeOpen;
 
     const [deliveryMethod, setDeliveryMethod] = useState(forceScheduling ? 'schedule' : 'deliver');
-    const [selectedAddress, setSelectedAddress] = useState(null);
+    const [selectedAddress, setSelectedAddress] = useState(null); // ID do endereço salvo
     const [newAddressDetails, setNewAddressDetails] = useState({
         cep: '', street: '', number: '', district: '', city: '', state: '', lat: null, lng: null
     });
@@ -965,18 +1014,27 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
     const [pickupTime, setPickupTime] = useState('');
     const [scheduledDate, setScheduledDate] = useState('');
     const [scheduledTime, setScheduledTime] = useState('');
+    
+    // V3: Novos estados para cálculo de entrega
     const [formError, setFormError] = useState('');
-    const [cepLoading, setCepLoading] = useState(false);
+    const [deliveryFee, setDeliveryFee] = useState(0);
+    const [deliveryDistance, setDeliveryDistance] = useState(0);
+    const [isCalculatingDistance, setIsCalculatingDistance] = useState(false);
+    const [deliveryError, setDeliveryError] = useState(''); // Erro específico de raio/cálculo
+    
+    const [cepLoading, setCepLoading] = useState(false); // Para CEP e Localização Atual
 
     const addresses = userData?.addresses || [];
     const name = userData?.name || user?.displayName || '';
     const phone = userData?.phone || '';
 
+    // V3: Cálculo de Total
     const discountPercentage = 0.05;
     const hasDiscount = userData?.hasFeedbackDiscount;
     const subtotal = cartTotal;
     const discountAmount = hasDiscount ? subtotal * discountPercentage : 0;
-    const finalTotal = subtotal - discountAmount;
+    // O Total Final agora inclui a taxa de entrega
+    const finalTotal = subtotal - discountAmount + deliveryFee;
     
     // Define o método inicial forçado
     useEffect(() => {
@@ -984,6 +1042,82 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
              setDeliveryMethod('schedule');
         }
     }, [forceScheduling]);
+    
+    // V3: Efeito para calcular taxa de entrega reativamente
+    useEffect(() => {
+        // Só calcula se for 'deliver'
+        if (deliveryMethod !== 'deliver') {
+            setDeliveryFee(0);
+            setDeliveryDistance(0);
+            setDeliveryError('');
+            return;
+        }
+
+        let targetAddress = null;
+        if (isAddingNewAddress && newAddressDetails.lat && newAddressDetails.lng) {
+            targetAddress = newAddressDetails;
+        } else if (selectedAddress) {
+            targetAddress = addresses.find(a => a.id === selectedAddress);
+        }
+
+        if (!targetAddress) {
+            setDeliveryFee(0);
+            setDeliveryDistance(0);
+            setDeliveryError(''); // Limpa o erro se nenhum endereço estiver selecionado
+            return;
+        }
+
+        const calculateFee = async () => {
+            setIsCalculatingDistance(true);
+            setDeliveryError('');
+            
+            const originLat = shopSettings.storeLatitude;
+            const originLng = shopSettings.storeLongitude;
+            const destLat = targetAddress.lat;
+            const destLng = targetAddress.lng;
+
+            if (!originLat || !originLng || !destLat || !destLng) {
+                setDeliveryError("Endereço da loja ou do cliente inválido.");
+                setIsCalculatingDistance(false);
+                return;
+            }
+
+            try {
+                const distanceMeters = await getDistanceFromCoords(originLat, originLng, destLat, destLng);
+                if (distanceMeters === null) {
+                    setDeliveryError("Não foi possível calcular a rota para este endereço.");
+                    setIsCalculatingDistance(false);
+                    return;
+                }
+                
+                const distanceKm = distanceMeters / 1000;
+                setDeliveryDistance(distanceKm);
+
+                // Ponto 4: Validar Raio de Entrega
+                const maxRadius = shopSettings.deliveryMaxRadiusKm || 17;
+                if (distanceKm > maxRadius) {
+                    setDeliveryError(`Lamentamos, este endereço está a ${distanceKm.toFixed(1)} KM. O nosso limite atual é ${maxRadius} KM. Por favor, escolha "Retirar" ou "Encomendar".`);
+                    setDeliveryFee(0);
+                    setIsCalculatingDistance(false);
+                    return;
+                }
+
+                // Ponto 3: Calcular Taxa
+                const pricePerKm = shopSettings.deliveryPricePerKm || 1;
+                const fee = distanceKm * pricePerKm;
+                setDeliveryFee(fee);
+
+            } catch (error) {
+                console.error(error);
+                setDeliveryError("Erro ao calcular a taxa de entrega.");
+            } finally {
+                setIsCalculatingDistance(false);
+            }
+        };
+
+        calculateFee();
+        
+    }, [deliveryMethod, selectedAddress, isAddingNewAddress, newAddressDetails, addresses, shopSettings]);
 
 
     // FEATURE 2: Validação de horário de agendamento
@@ -993,82 +1127,82 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
         const interval = getWorkingInterval(shopSettings.workingHours, date);
         if (!interval) return 'A loja está fechada na data selecionada. Por favor, escolha outro dia.';
         
-        const [startHour, startMinute] = interval.start.split(':').map(Number);
-        const [endHour, endMinute] = interval.end.split(':').map(Number);
-        const [selectedHour, selectedMinute] = time.split(':').map(Number);
-
-        // Cria objetos Date simulados (apenas tempo) para comparação
-        const selectedTime = new Date(0, 0, 0, selectedHour, selectedMinute);
-        const startTime = new Date(0, 0, 0, startHour, startMinute);
-        const endTime = new Date(0, 0, 0, endHour, endMinute);
-
-        // Ajuste para virada do dia (00:00)
-        if (endHour === 0 && endMinute === 0) {
-            endTime.setDate(endTime.getDate() + 1); // Garante que o fim do dia é meia noite do dia seguinte
-        }
-
-        // Se o horário de fim for antes do início (como 22:00-02:00), a lógica fica mais complexa, mas para 10:00-22:00 esta simples funciona
-        if (selectedTime < startTime || selectedTime >= endTime) {
-            return `O horário de funcionamento para ${date} é das ${interval.start} às ${interval.end}.`;
+        // V3 CORREÇÃO: Validação de horário mais robusta
+        const { start, end } = interval;
+        
+        // Caso de horário que cruza a meia-noite (ex: 22:00 - 02:00)
+        if (start > end) {
+            if (time < start && time >= end) {
+                 return `O horário de funcionamento para ${date} é das ${start} até ${end} (do dia seguinte).`;
+            }
+        } else {
+            // Caso normal (ex: 10:00 - 22:00)
+            if (time < start || (end !== '00:00' && time >= end)) {
+                return `O horário de funcionamento para ${date} é das ${start} às ${end}.`;
+            }
         }
         
-        // Verifica se a data é futura
-        const selectedDate = new Date(`${date}T${time}:00`);
-        if (selectedDate < new Date()) {
-             return 'Não é possível agendar para uma data ou hora no passado.';
-        }
+        // Verifica se a data é futura (considerando o fuso da loja)
+        try {
+            const storeNow = new Date(new Date().toLocaleString("en-US", { timeZone: shopSettings.storeTimezone }));
+            // Remove minutos/segundos da data atual para comparar apenas com a hora de agendamento
+            storeNow.setMinutes(0, 0, 0);
+
+            const selectedDate = new Date(`${date}T${time}:00`); // Assume que o input time está no fuso local
+            
+            if (selectedDate < storeNow) {
+                 return 'Não é possível agendar para uma data ou hora no passado.';
+            }
+        } catch(e) { console.error("Erro ao validar data de agendamento:", e); }
 
         return ''; // Sem erro
     };
 
-    // Função para buscar endereço pelo CEP
-    const handleCepLookup = async () => {
-        const cep = newAddressDetails.cep;
-        if (cep.replace(/\D/g, '').length !== 8) return;
+    // V3 CORREÇÃO: Usar API Real
+    const handleCepLookup = async (cep) => {
+        const cleanedCep = cep.replace(/\D/g, '');
+        if (cleanedCep.length < 7) return; // CEP PT pode ter 7 ou 8 dígitos (xxxx-xxx)
+        
         setCepLoading(true);
+        setFormError('');
         try {
-            const result = await fetchAddressByCep(cep);
-            if (result) {
-                setNewAddressDetails(prev => ({
-                    ...prev,
-                    street: result.street || '',
-                    district: result.district || '',
-                    city: result.city || '',
-                    state: result.state || '',
-                    lat: result.latitude || null,
-                    lng: result.longitude || null,
-                }));
+            const result = await getCoordsFromAddress(null, cleanedCep);
+            if (result && result.address) {
+                setNewAddressDetails({
+                    ...result.address,
+                    lat: result.lat,
+                    lng: result.lng,
+                });
+            } else {
+                setFormError("CEP não encontrado ou inválido.");
             }
-        } catch (e) { console.error("Erro ao buscar CEP:", e); }
+        } catch (e) { console.error("Erro ao buscar CEP:", e); setFormError("Erro ao buscar CEP."); }
         finally { setCepLoading(false); }
     };
     
-    // Função para obter localização atual (FEATURE 1)
+    // V3 CORREÇÃO: Usar API Real
     const handleCurrentLocation = () => {
         if (!navigator.geolocation) {
             setFormError('Seu navegador não suporta geolocalização.');
             return;
         }
         setFormError('');
-        setCepLoading(true); // Usando cepLoading como indicador de geolocalização
+        setCepLoading(true);
         
         navigator.geolocation.getCurrentPosition(async (position) => {
             const { latitude, longitude } = position.coords;
             try {
-                // Simula geocodificação reversa
-                const addressResult = await fetchAddressByCoords(latitude, longitude);
-                
-                setNewAddressDetails({
-                    cep: addressResult.cep || '',
-                    street: addressResult.street || '',
-                    number: addressResult.number || '',
-                    district: addressResult.district || '',
-                    city: addressResult.city || '',
-                    state: addressResult.state || '',
-                    lat: latitude,
-                    lng: longitude,
-                });
-                setIsAddingNewAddress(true);
+                const addressResult = await getAddressFromCoords(latitude, longitude);
+                if (addressResult) {
+                     setNewAddressDetails({
+                        ...addressResult,
+                        lat: latitude,
+                        lng: longitude,
+                    });
+                    setIsAddingNewAddress(true);
+                } else {
+                     setFormError('Não foi possível encontrar um endereço para esta localização.');
+                }
             } catch (error) {
                  setFormError('Erro ao buscar endereço pela localização.');
                  console.error(error);
@@ -1084,6 +1218,12 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
     const handleSubmit = (e) => {
         e.preventDefault();
         setFormError('');
+        
+        // V3: Verificações de Entrega (Raio/Cálculo)
+        if (deliveryError) {
+            setFormError(deliveryError);
+            return;
+        }
         
         let finalAddress = null;
 
@@ -1116,7 +1256,14 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
         }
 
 
-        const details = { name, phone, deliveryMethod, total: finalTotal };
+        const details = { 
+            name, 
+            phone, 
+            deliveryMethod, 
+            total: finalTotal, 
+            deliveryFee: deliveryFee, // V3: Adicionado
+            distanceKm: deliveryDistance // V3: Adicionado
+        };
 
         if (deliveryMethod === 'deliver') {
             details.address = `${finalAddress.street}, ${finalAddress.number}, ${finalAddress.district}, ${finalAddress.city}`;
@@ -1160,7 +1307,12 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
 
             <div className="mb-6">
                 <div className="flex border border-stone-300 rounded-xl p-1 bg-stone-100">
-                    <button onClick={() => setDeliveryMethod('deliver')} disabled={forceScheduling} className={`w-1/3 py-2 rounded-lg font-semibold transition-colors ${deliveryMethod === 'deliver' ? 'bg-amber-500 text-white shadow-md' : 'hover:bg-amber-200'} disabled:bg-stone-200 disabled:text-stone-400 disabled:cursor-not-allowed`}>
+                    {/* V3 CORREÇÃO: Desabilita entrega se o raio máximo for excedido (deliveryError) */}
+                    <button 
+                        onClick={() => setDeliveryMethod('deliver')} 
+                        disabled={forceScheduling || (deliveryError && deliveryMethod === 'deliver')} 
+                        className={`w-1/3 py-2 rounded-lg font-semibold transition-colors ${deliveryMethod === 'deliver' ? 'bg-amber-500 text-white shadow-md' : 'hover:bg-amber-200'} disabled:bg-stone-200 disabled:text-stone-400 disabled:cursor-not-allowed`}
+                    >
                         Entregar
                     </button>
                     <button onClick={() => setDeliveryMethod('pickup')} disabled={forceScheduling} className={`w-1/3 py-2 rounded-lg font-semibold transition-colors ${deliveryMethod === 'pickup' ? 'bg-amber-500 text-white shadow-md' : 'hover:bg-amber-200'} disabled:bg-stone-200 disabled:text-stone-400 disabled:cursor-not-allowed`}>
@@ -1187,9 +1339,9 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
                                 <label className="block text-stone-700 font-bold text-sm">Endereços Cadastrados</label>
                                 <select 
                                     value={selectedAddress || ''} 
-                                    onChange={e => setSelectedAddress(e.target.value)}
+                                    onChange={e => { setSelectedAddress(e.target.value); setIsAddingNewAddress(false); }}
                                     className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400" 
-                                    required={deliveryMethod !== 'schedule' || isAddingNewAddress === false}
+                                    required={deliveryMethod === 'deliver' && !isAddingNewAddress}
                                 >
                                     <option value="">Selecione um endereço</option>
                                     {addresses.map(addr => (
@@ -1216,7 +1368,7 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
                         </h3>
                         
                         <div className="flex items-center gap-2">
-                             <input type="text" placeholder="CEP" value={newAddressDetails.cep} onChange={e => setNewAddressDetails(p => ({...p, cep: e.target.value}))} onBlur={handleCepLookup} className="w-1/2 p-2 border border-stone-300 rounded-xl focus:ring-amber-400" />
+                             <input type="text" placeholder="CEP (Ex: 3500-038)" value={newAddressDetails.cep} onChange={e => setNewAddressDetails(p => ({...p, cep: e.target.value}))} onBlur={(e) => handleCepLookup(e.target.value)} className="w-1/2 p-2 border border-stone-300 rounded-xl focus:ring-amber-400" />
                              <button type="button" onClick={handleCurrentLocation} disabled={cepLoading} className="w-1/2 bg-blue-500 text-white font-bold py-2 px-3 rounded-xl hover:bg-blue-600 flex items-center justify-center gap-2 text-sm disabled:opacity-50">
                                 {cepLoading ? <Loader2 className="animate-spin" size={18}/> : <><MapPin size={18}/> Localização Atual</>}
                              </button>
@@ -1254,7 +1406,6 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
                                <input type="time" id="scheduledTime" value={scheduledTime} onChange={e => setScheduledTime(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-xl" required />
                             </div>
                         </div>
-                        {/* FEATURE 2: Mensagem de validação de horário de agendamento */}
                         {scheduledDate && scheduledTime && validateScheduledTime(scheduledDate, scheduledTime) && (
                             <div className="text-red-600 text-sm font-semibold p-2 bg-red-100 rounded-xl">
                                 <AlertTriangle size={16} className="inline mr-1"/> {validateScheduledTime(scheduledDate, scheduledTime)}
@@ -1267,6 +1418,34 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
                 {formError && <p className="text-red-500 text-center">{formError}</p>}
                 {initialError && <p className="text-red-500 text-center">{initialError}</p>}
                 
+                {/* V3: Detalhes da Taxa de Entrega */}
+                {deliveryMethod === 'deliver' && (
+                    <div className="border-t pt-4 mt-4">
+                        <h4 className="font-semibold text-lg mb-2">Detalhes da Entrega</h4>
+                        {isCalculatingDistance ? (
+                             <div className="flex items-center gap-2 text-stone-600">
+                                <Loader2 className="animate-spin" size={16} />
+                                <span>Calculando rota e taxa...</span>
+                             </div>
+                        ) : (
+                            <div>
+                                {deliveryError ? (
+                                    <div className="text-red-600 text-sm font-semibold p-3 bg-red-100 rounded-xl">
+                                        <AlertTriangle size={16} className="inline mr-1"/> {deliveryError}
+                                    </div>
+                                ) : (
+                                    deliveryDistance > 0 && (
+                                        <div className="space-y-1">
+                                            <p>Distância: <span className="font-bold">{deliveryDistance.toFixed(2)} KM</span></p>
+                                            <p>Taxa de Entrega: <span className="font-bold">{deliveryFee.toFixed(2)}€</span></p>
+                                        </div>
+                                    )
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
+                
                 <div className="border-t pt-6 mt-2">
                     <div className="space-y-1 text-right mb-4">
                         <p className="text-md">Subtotal: <span className="font-semibold">{subtotal.toFixed(2)}€</span></p>
@@ -1275,11 +1454,18 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
                                 <Percent size={14}/> Desconto Feedback (5%): <span className="font-semibold">-{discountAmount.toFixed(2)}€</span>
                             </p>
                         )}
+                        {deliveryFee > 0 && (
+                             <p className="text-md">Taxa de Entrega: <span className="font-semibold">+{deliveryFee.toFixed(2)}€</span></p>
+                        )}
                         <p className="text-xl">Total a Pagar: <span className="font-bold text-2xl">{finalTotal.toFixed(2)}€</span></p>
                     </div>
 
-                    <button type="submit" disabled={authLoading || formError || (deliveryMethod === 'schedule' && validateScheduledTime(scheduledDate, scheduledTime))} className="w-full bg-green-500 text-white font-bold py-3 rounded-full hover:bg-green-600 transition-colors text-lg shadow hover:shadow-lg active:scale-95 flex justify-center items-center disabled:bg-green-300">
-                        {authLoading ? <Loader2 className="animate-spin" /> : "Confirmar Pedido"}
+                    <button 
+                        type="submit" 
+                        disabled={authLoading || isCalculatingDistance || !!deliveryError || formError || (deliveryMethod === 'schedule' && validateScheduledTime(scheduledDate, scheduledTime))} 
+                        className="w-full bg-green-500 text-white font-bold py-3 rounded-full hover:bg-green-600 transition-colors text-lg shadow hover:shadow-lg active:scale-95 flex justify-center items-center disabled:bg-stone-400"
+                    >
+                        {authLoading || isCalculatingDistance ? <Loader2 className="animate-spin" /> : "Confirmar Pedido"}
                     </button>
                     <button type="button" onClick={() => setView('cart')} className="w-full mt-3 text-center text-stone-600 hover:underline">
                         Voltar ao Carrinho
@@ -1502,6 +1688,7 @@ const SignUpView = ({ handleSignUp, error, setView, authLoading }) => {
     );
 }
 
+// V3 REVISÃO: AddressForm (Cliente)
 const AddressForm = ({ address, onSave, onCancel, showToast }) => {
     const [formData, setFormData] = useState(address || { cep: '', street: '', number: '', district: '', city: '', state: '', lat: null, lng: null });
     const [cepLoading, setCepLoading] = useState(false);
@@ -1512,53 +1699,52 @@ const AddressForm = ({ address, onSave, onCancel, showToast }) => {
         setFormData(prev => ({...prev, [name]: value}));
     };
 
-    const handleCepLookup = async () => {
-        const cep = formData.cep;
-        if (cep.replace(/\D/g, '').length !== 8) return;
+    // V3 CORREÇÃO: Usar API Real
+    const handleCepLookup = async (cep) => {
+        const cleanedCep = cep.replace(/\D/g, '');
+        if (cleanedCep.length < 7) return;
+        
         setCepLoading(true);
+        setFormError('');
         try {
-            const result = await fetchAddressByCep(cep);
-            if (result) {
+            const result = await getCoordsFromAddress(null, cleanedCep);
+            if (result && result.address) {
                 setFormData(prev => ({
                     ...prev,
-                    street: result.street || '',
-                    district: result.district || '',
-                    city: result.city || '',
-                    state: result.state || '',
-                    lat: result.latitude || null,
-                    lng: result.longitude || null,
+                    ...result.address,
+                    lat: result.lat,
+                    lng: result.lng,
                 }));
+            } else {
+                 setFormError("CEP não encontrado ou inválido.");
             }
-        } catch (e) { console.error("Erro ao buscar CEP:", e); }
+        } catch (e) { console.error("Erro ao buscar CEP:", e); setFormError("Erro ao buscar CEP."); }
         finally { setCepLoading(false); }
     };
     
-    // FEATURE 1: Obter localização atual e preencher
+    // V3 CORREÇÃO: Usar API Real
     const handleCurrentLocation = () => {
          if (!navigator.geolocation) {
             setFormError('Seu navegador não suporta geolocalização.');
             return;
         }
         setFormError('');
-        setCepLoading(true); // Usando cepLoading como indicador de geolocalização
+        setCepLoading(true);
         
         navigator.geolocation.getCurrentPosition(async (position) => {
             const { latitude, longitude } = position.coords;
             try {
-                // Simula geocodificação reversa
-                const addressResult = await fetchAddressByCoords(latitude, longitude);
-                
-                setFormData({
-                    cep: addressResult.cep || '',
-                    street: addressResult.street || '',
-                    number: addressResult.number || '',
-                    district: addressResult.district || '',
-                    city: addressResult.city || '',
-                    state: addressResult.state || '',
-                    lat: latitude,
-                    lng: longitude,
-                });
-                showToast("Localização atual preenchida com sucesso!");
+                const addressResult = await getAddressFromCoords(latitude, longitude);
+                if (addressResult) {
+                     setFormData({
+                        ...addressResult,
+                        lat: latitude,
+                        lng: longitude,
+                    });
+                    showToast("Localização atual preenchida com sucesso!");
+                } else {
+                     setFormError('Não foi possível encontrar um endereço para esta localização.');
+                }
             } catch (error) {
                  setFormError('Erro ao buscar endereço pela localização.');
                  console.error(error);
@@ -1577,6 +1763,11 @@ const AddressForm = ({ address, onSave, onCancel, showToast }) => {
             setFormError('Preencha todos os campos de endereço obrigatórios.');
             return;
         }
+        // V3: Garante que temos lat/lng antes de salvar
+        if (!formData.lat || !formData.lng) {
+             setFormError('Endereço inválido. Tente usar o CEP ou "Localização Atual" para garantir as coordenadas.');
+             return;
+        }
         setFormError('');
         onSave(formData);
     };
@@ -1588,7 +1779,7 @@ const AddressForm = ({ address, onSave, onCancel, showToast }) => {
                 
                 <div className="space-y-3">
                      <div className="flex items-center gap-2">
-                         <input type="text" name="cep" placeholder="CEP" value={formData.cep} onChange={handleChange} onBlur={handleCepLookup} className="w-1/2 p-2 border border-stone-300 rounded-xl focus:ring-amber-400" />
+                         <input type="text" name="cep" placeholder="CEP (Ex: 3500-038)" value={formData.cep} onChange={handleChange} onBlur={(e) => handleCepLookup(e.target.value)} className="w-1/2 p-2 border border-stone-300 rounded-xl focus:ring-amber-400" />
                          <button type="button" onClick={handleCurrentLocation} disabled={cepLoading} className="w-1/2 bg-blue-500 text-white font-bold py-2 px-3 rounded-xl hover:bg-blue-600 flex items-center justify-center gap-2 text-sm disabled:opacity-50">
                             {cepLoading ? <Loader2 className="animate-spin" size={18}/> : <><MapPin size={18}/> Localização Atual</>}
                          </button>
@@ -1610,6 +1801,7 @@ const AddressForm = ({ address, onSave, onCancel, showToast }) => {
     );
 }
 
+// V3 REVISÃO: AccountSettingsView
 const AccountSettingsView = ({ user, userData, showToast, setView, db, appId }) => {
     const [name, setName] = useState(userData?.name || user?.displayName || '');
     const [phone, setPhone] = useState(userData?.phone || '');
@@ -1617,7 +1809,6 @@ const AccountSettingsView = ({ user, userData, showToast, setView, db, appId }) 
     const [editingAddress, setEditingAddress] = useState(null);
     const [deletingAddressId, setDeletingAddressId] = useState(null);
 
-    // FEATURE 1: Gestão de Endereços
     const addresses = userData?.addresses || [];
 
     const handleSaveUserData = async () => {
@@ -1638,6 +1829,7 @@ const AccountSettingsView = ({ user, userData, showToast, setView, db, appId }) 
         }
     };
     
+    // V3: Salva o endereço (novo ou editado)
     const handleSaveAddress = async (newAddressData) => {
         try {
             const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, user.uid);
@@ -1647,7 +1839,11 @@ const AccountSettingsView = ({ user, userData, showToast, setView, db, appId }) 
                 // Edição
                 updatedAddresses = updatedAddresses.map(addr => addr.id === newAddressData.id ? newAddressData : addr);
             } else {
-                // Novo endereço
+                // Novo endereço (garante que tem lat/lng)
+                if (!newAddressData.lat || !newAddressData.lng) {
+                    showToast("Erro: Endereço sem coordenadas. Tente usar 'Localização Atual'.");
+                    return;
+                }
                 const newId = crypto.randomUUID();
                 updatedAddresses.push({ ...newAddressData, id: newId });
             }
@@ -1742,14 +1938,9 @@ const DeliveryTrackerComponent = ({ order }) => {
     // Simulação de tempo de entrega (5-15 minutos)
     const estimatedTime = Math.floor(Math.random() * 11) + 5; 
     
-    // Simulação do Google Maps Embed com as coordenadas do entregador (tracker) e do cliente (lat, lng do pedido)
-    // Usamos as coordenadas do entregador (deliveryTracker) para o centro do mapa
     const mapCenter = `${deliveryTracker.lat},${deliveryTracker.lng}`;
-    
-    // A variável 'clientMarker' foi removida, usando as coordenadas do pedido para o destino.
     const destination = `${order.lat},${order.lng}`;
 
-    // URL simulada para o Google Maps, com marcador para o destino do cliente
     const mapUrl = `https://maps.google.com/maps?q=${mapCenter}&markers=icon:http://maps.google.com/mapfiles/kml/paddle/red-stars.png%7C${destination}&z=14&t=k&output=embed`;
     
     const lastUpdate = deliveryTracker.lastUpdate ? new Date(deliveryTracker.lastUpdate.seconds * 1000).toLocaleTimeString('pt-PT') : 'N/A';
@@ -1773,7 +1964,6 @@ const DeliveryTrackerComponent = ({ order }) => {
                     allowFullScreen 
                     loading="lazy"
                 ></iframe>
-                {/* Ícone sobreposto para simular o entregador no centro do iframe */}
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
                     <Bike size={36} className="text-purple-600 bg-white p-1 rounded-full border-2 border-purple-600 shadow-xl animate-bounce"/>
                 </div>
@@ -1834,9 +2024,12 @@ const MyOrdersView = ({ orders, setView }) => {
                                 ))}
                             </ul>
                             {order.discount && (
-                                <p className="text-sm text-green-600 mt-2 font-semibold">Desconto aplicado: {order.discount.amount.toFixed(2)}€</p>
+                                <p className="text-sm text-green-600 mt-2 font-semibold">Desconto aplicado: -{order.discount.amount.toFixed(2)}€</p>
                             )}
-                            {/* FEATURE 3: Rastreamento do Entregador */}
+                            {/* V3: Mostrar taxa de entrega */}
+                            {order.deliveryFee > 0 && (
+                                <p className="text-sm text-stone-600 mt-2 font-semibold">Taxa de Entrega ({order.distanceKm > 0 ? order.distanceKm.toFixed(1) : '...'} KM): +{order.deliveryFee.toFixed(2)}€</p>
+                            )}
                             {order.deliveryTracker && (order.status === 'Saiu para Entrega' || order.status === 'Pronto para Entrega') && <DeliveryTrackerComponent order={order} />}
                          </div>
                     </div>
@@ -1887,6 +2080,7 @@ const AdminDashboard = ({ menu, orders, feedbacks, handleLogout, showToast, sett
         switch(adminView) {
             case 'orders': return <ManageOrders orders={orders} />;
             case 'menu': return <ManageMenu menu={menu} />;
+            // V3: Passa o showToast para o AdminSettings
             case 'settings': return <AdminSettings showToast={showToast} currentSettings={settings} />;
             case 'faturamento': return <FaturamentoView orders={orders} />;
             case 'feedbacks': return <FeedbacksView feedbacks={feedbacks} showToast={showToast} />;
@@ -2021,7 +2215,6 @@ const FeedbacksView = ({ feedbacks, showToast }) => {
     const handleClearAllFeedbacks = async () => {
         setShowConfirmModal(false);
         try {
-            // Clear feedbacks collection
             const feedbackCollectionPath = `artifacts/${appId}/public/data/feedback`;
             const feedbackQuerySnapshot = await getDocs(collection(db, feedbackCollectionPath));
             const feedbackBatch = writeBatch(db);
@@ -2030,7 +2223,6 @@ const FeedbacksView = ({ feedbacks, showToast }) => {
             });
             await feedbackBatch.commit();
 
-            // Reset user flags
             const usersCollectionPath = `artifacts/${appId}/public/data/users`;
             const usersQuerySnapshot = await getDocs(collection(db, usersCollectionPath));
             const usersBatch = writeBatch(db);
@@ -2055,7 +2247,6 @@ const FeedbacksView = ({ feedbacks, showToast }) => {
         }
 
         const total = feedbacks.length;
-        // CORREÇÃO DE ERRO: A sintaxe da função reduce estava incorreta.
         const averageRating = feedbacks.reduce((sum, f) => sum + (f.rating || 0), 0) / total;
         
         const howFoundCounts = feedbacks.reduce((acc, f) => {
@@ -2136,43 +2327,48 @@ const FeedbacksView = ({ feedbacks, showToast }) => {
 };
 
 
+// V3 REVISÃO: AdminSettings (Geolocalização e Taxas)
 const AdminSettings = ({showToast, currentSettings}) => {
-    const [settings, setSettings] = useState(currentSettings);
-    const [isSaving, setIsSaving] = useState(false);
-    const [cepLoading, setCepLoading] = useState(false);
+    // V3: Garante que o estado inicial tenha as novas propriedades
+    const [settings, setSettings] = useState({
+        ...INITIAL_SHOP_SETTINGS, // Garante que todos os campos existam
+        ...currentSettings // Sobrescreve com os dados do DB
+    });
     
-    // Lista de fusos horários comuns em Portugal e Brasil (para demonstração)
-    const timezones = [
-        'Europe/Lisbon', 
-        'America/Sao_Paulo', 
-        'America/Fortaleza',
-        'America/Noronha', 
-        'UTC'
-    ];
-
+    const [isSaving, setIsSaving] = useState(false);
+    const [cepLoading, setCepLoading] = useState(false); // Para CEP e Localização Atual
+    const [isGeocoding, setIsGeocoding] = useState(false); // Para geocodificação de endereço
+    
+    const timezones = ['Europe/Lisbon', 'America/Sao_Paulo', 'America/Fortaleza', 'America/Noronha', 'UTC'];
 
     useEffect(() => {
-        setSettings(currentSettings);
+        setSettings(prev => ({ ...prev, ...currentSettings }));
     }, [currentSettings]);
     
-    // FEATURE 2 - ADMIN: Função para buscar endereço de retirada pelo CEP
+    // V3 CORREÇÃO: Busca por CEP (PT)
     const handlePickupCepLookup = async () => {
         const cep = settings.pickupCep;
-        if (!cep || cep.replace(/\D/g, '').length !== 8) return;
+        if (!cep || cep.replace(/\D/g, '').length < 7) return;
+        
         setCepLoading(true);
         try {
-            const result = await fetchAddressByCep(cep);
-            if (result) {
+            const result = await getCoordsFromAddress(null, cep);
+            if (result && result.address) {
                 setSettings(prev => ({
                     ...prev,
-                    pickupAddress: `${result.street || 'Rua não informada'}, ${result.district || 'Bairro não informado'}, ${result.city || 'Cidade não informada'}`,
+                    pickupAddress: `${result.address.street || 'Rua não informada'}, ${result.address.district || 'Bairro não informado'}, ${result.address.city || 'Cidade não informada'}`,
+                    storeLatitude: result.lat,
+                    storeLongitude: result.lng,
                 }));
+                 showToast("CEP localizado e coordenadas atualizadas!");
+            } else {
+                showToast("CEP não encontrado.");
             }
-        } catch (e) { console.error("Erro ao buscar CEP de retirada:", e); }
+        } catch (e) { console.error("Erro ao buscar CEP de retirada:", e); showToast("Erro ao buscar CEP."); }
         finally { setCepLoading(false); }
     };
     
-    // FEATURE 2 - ADMIN: Função para obter localização atual para endereço de retirada
+    // V3 CORREÇÃO: "Localização Atual" do Admin
     const handlePickupCurrentLocation = () => {
         if (!navigator.geolocation) {
             showToast('Seu navegador não suporta geolocalização.');
@@ -2183,15 +2379,19 @@ const AdminSettings = ({showToast, currentSettings}) => {
         navigator.geolocation.getCurrentPosition(async (position) => {
             const { latitude, longitude } = position.coords;
             try {
-                // Simula geocodificação reversa
-                const addressResult = await fetchAddressByCoords(latitude, longitude);
-                
-                setSettings(prev => ({
-                     ...prev,
-                    pickupAddress: `${addressResult.street || 'Rua não informada'}, ${addressResult.number || 'S/N'}, ${addressResult.district || 'Bairro não informado'}, ${addressResult.city || 'Cidade não informada'}`,
-                    pickupCep: addressResult.cep || '',
-                }));
-                showToast("Localização de retirada preenchida!");
+                const addressResult = await getAddressFromCoords(latitude, longitude);
+                if (addressResult) {
+                    setSettings(prev => ({
+                         ...prev,
+                        pickupAddress: `${addressResult.street || 'Rua não informada'}, ${addressResult.number || 'S/N'}, ${addressResult.district || 'Bairro não informado'}, ${addressResult.city || 'Cidade não informada'}`,
+                        pickupCep: addressResult.cep || '',
+                        storeLatitude: latitude,
+                        storeLongitude: longitude,
+                    }));
+                    showToast("Localização de retirada preenchida!");
+                } else {
+                     showToast('Erro ao buscar endereço pela localização.');
+                }
             } catch (error) {
                  showToast('Erro ao buscar endereço pela localização.');
                  console.error(error);
@@ -2203,6 +2403,32 @@ const AdminSettings = ({showToast, currentSettings}) => {
             setCepLoading(false);
         });
     }
+    
+    // V3 NOVO: Geocodificar endereço de texto
+    const handleGeocodeAddress = async () => {
+        if (!settings.pickupAddress) {
+             showToast("Por favor, preencha o endereço completo.");
+             return;
+        }
+        setIsGeocoding(true);
+         try {
+            const result = await getCoordsFromAddress(settings.pickupAddress, settings.pickupCep);
+            if (result) {
+                setSettings(prev => ({
+                    ...prev,
+                    storeLatitude: result.lat,
+                    storeLongitude: result.lng,
+                }));
+                showToast(`Coordenadas atualizadas: ${result.lat}, ${result.lng}`);
+            } else {
+                showToast("Não foi possível encontrar coordenadas para este endereço.");
+            }
+         } catch(e) {
+             showToast("Erro ao geocodificar endereço.");
+         } finally {
+            setIsGeocoding(false);
+         }
+    }
 
 
     const handleSave = async () => {
@@ -2210,6 +2436,7 @@ const AdminSettings = ({showToast, currentSettings}) => {
         const settingsDocPath = `artifacts/${appId}/public/data/settings`;
         const settingsRef = doc(db, settingsDocPath, 'shopConfig');
         try {
+            // V3: Salva o objeto de settings completo, incluindo as novas propriedades
             await setDoc(settingsRef, settings, { merge: true });
             showToast("Configurações salvas com sucesso!");
         } catch (error) {
@@ -2219,83 +2446,125 @@ const AdminSettings = ({showToast, currentSettings}) => {
             setIsSaving(false);
         }
     }
+    
+    const handleInputChange = (e) => {
+        const { name, value, type } = e.target;
+        const val = type === 'number' ? parseFloat(value) || 0 : value;
+        setSettings(prev => ({ ...prev, [name]: val }));
+    }
 
     return (
          <div>
             <h3 className="text-xl font-bold mb-4 text-stone-700">Configurações da Loja</h3>
-            <div className="bg-stone-50 p-6 rounded-xl shadow-lg border border-stone-200 space-y-4 max-w-2xl">
-                 <div>
-                    <label className="block text-sm font-bold mb-1 text-stone-600">Nome da Loja</label>
-                    <input type="text" value={settings.storeName || ''} onChange={(e) => setSettings({...settings, storeName: e.target.value})} className="w-full p-2 border border-stone-300 rounded-xl" />
-                </div>
-                 <div>
-                    <label className="block text-sm font-bold mb-1 text-stone-600">URL do Logo</label>
-                    <input type="text" value={settings.logoUrl || ''} onChange={(e) => setSettings({...settings, logoUrl: e.target.value})} className="w-full p-2 border border-stone-300 rounded-xl" />
-                </div>
-                <div>
-                    <label className="block text-sm font-bold mb-1 text-stone-600">Email de Contato</label>
-                    <input type="email" value={settings.email || ''} onChange={(e) => setSettings({...settings, email: e.target.value})} className="w-full p-2 border border-stone-300 rounded-xl" />
-                </div>
-                 <div>
-                    <label className="block text-sm font-bold mb-1 text-stone-600">Telefone</label>
-                    <input type="tel" value={settings.phone || ''} onChange={(e) => setSettings({...settings, phone: e.target.value})} className="w-full p-2 border border-stone-300 rounded-xl" />
-                </div>
-                 <div>
-                    <label className="block text-sm font-bold mb-1 text-stone-600">Número do WhatsApp (com código do país)</label>
-                    <input type="tel" value={settings.whatsappNumber || ''} onChange={(e) => setSettings({...settings, whatsappNumber: e.target.value})} className="w-full p-2 border border-stone-300 rounded-xl" />
-                </div>
-                 <div>
-                    <label className="block text-sm font-bold mb-1 text-stone-600">Mensagem Padrão do WhatsApp</label>
-                    <textarea value={settings.whatsappMessage || ''} onChange={(e) => setSettings({...settings, whatsappMessage: e.target.value})} className="w-full p-2 border border-stone-300 rounded-xl" rows="3"></textarea>
-                </div>
+            <div className="bg-stone-50 p-6 rounded-xl shadow-lg border border-stone-200 space-y-4 max-w-3xl">
                 
-                {/* FEATURE 2 - Endereço de Retirada com Geolocalização */}
-                <div className="border border-stone-300 p-3 rounded-xl bg-white space-y-3">
-                     <h4 className="font-bold text-sm text-stone-700">Endereço de Retirada/Sede</h4>
+                 {/* Seção de Informações Básicas */}
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                      <div>
-                        <label className="block text-xs font-bold mb-1 text-stone-600">CEP</label>
-                        <div className="flex gap-2">
-                             <input 
-                                type="text" 
-                                value={settings.pickupCep || ''} 
-                                onChange={(e) => setSettings({...settings, pickupCep: e.target.value})} 
-                                onBlur={handlePickupCepLookup}
-                                className="w-1/3 p-2 border border-stone-300 rounded-xl" 
-                                placeholder="CEP"
-                             />
-                             <button type="button" onClick={handlePickupCurrentLocation} disabled={cepLoading} className="w-2/3 bg-blue-500 text-white font-bold py-2 px-3 rounded-xl hover:bg-blue-600 flex items-center justify-center gap-2 text-sm disabled:opacity-50 shadow-md">
-                                {cepLoading ? <Loader2 className="animate-spin" size={18}/> : <><MapPin size={18}/> Localização Atual</>}
-                             </button>
-                        </div>
+                        <label className="block text-sm font-bold mb-1 text-stone-600">Nome da Loja</label>
+                        <input type="text" name="storeName" value={settings.storeName || ''} onChange={handleInputChange} className="w-full p-2 border border-stone-300 rounded-xl" />
+                    </div>
+                     <div>
+                        <label className="block text-sm font-bold mb-1 text-stone-600">URL do Logo</label>
+                        <input type="text" name="logoUrl" value={settings.logoUrl || ''} onChange={handleInputChange} className="w-full p-2 border border-stone-300 rounded-xl" />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-bold mb-1 text-stone-600">Email de Contato</label>
+                        <input type="email" name="email" value={settings.email || ''} onChange={handleInputChange} className="w-full p-2 border border-stone-300 rounded-xl" />
+                    </div>
+                     <div>
+                        <label className="block text-sm font-bold mb-1 text-stone-600">Telefone</label>
+                        <input type="tel" name="phone" value={settings.phone || ''} onChange={handleInputChange} className="w-full p-2 border border-stone-300 rounded-xl" />
+                    </div>
+                 </div>
+                 
+                  {/* Seção de WhatsApp */}
+                 <div className="border-t pt-4">
+                     <div>
+                        <label className="block text-sm font-bold mb-1 text-stone-600">Número do WhatsApp (com código do país)</label>
+                        <input type="tel" name="whatsappNumber" value={settings.whatsappNumber || ''} onChange={handleInputChange} className="w-full p-2 border border-stone-300 rounded-xl" />
+                    </div>
+                     <div>
+                        <label className="block text-sm font-bold mb-1 text-stone-600">Mensagem Padrão do WhatsApp</label>
+                        <textarea name="whatsappMessage" value={settings.whatsappMessage || ''} onChange={handleInputChange} className="w-full p-2 border border-stone-300 rounded-xl" rows="3"></textarea>
+                    </div>
+                 </div>
+                
+                {/* V3 REVISÃO: Endereço de Retirada (Ponto 2B) */}
+                <div className="border-t pt-4 space-y-3">
+                    <h4 className="font-bold text-lg text-amber-600">Endereço da Loja (Origem das Entregas)</h4>
+                     <p className="text-xs text-stone-500">Este é o endereço de Viseu. Use os botões para atualizar as coordenadas exatas.</p>
+                     
+                     <div className="flex items-center gap-2">
+                         <input 
+                            type="text" 
+                            name="pickupCep"
+                            value={settings.pickupCep || ''} 
+                            onChange={handleInputChange} 
+                            className="w-1/3 p-2 border border-stone-300 rounded-xl" 
+                            placeholder="CEP (Ex: 3500-038)"
+                         />
+                         <button type="button" onClick={handlePickupCepLookup} disabled={cepLoading} className="w-2/3 bg-blue-500 text-white font-bold py-2 px-3 rounded-xl hover:bg-blue-600 flex items-center justify-center gap-2 text-sm disabled:opacity-50 shadow-md">
+                            {cepLoading ? <Loader2 className="animate-spin" size={18}/> : <><MapPin size={18}/> Usar CEP para localizar</>}
+                         </button>
                     </div>
                     <div>
                         <label className="block text-xs font-bold mb-1 text-stone-600">Endereço Completo</label>
-                        <input type="text" value={settings.pickupAddress || ''} onChange={(e) => setSettings({...settings, pickupAddress: e.target.value})} className="w-full p-2 border border-stone-300 rounded-xl" placeholder="Rua, Número, Bairro, Cidade" />
+                        <input type="text" name="pickupAddress" value={settings.pickupAddress || ''} onChange={handleInputChange} className="w-full p-2 border border-stone-300 rounded-xl" placeholder="Rua, Número, Bairro, Cidade" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button type="button" onClick={handleGeocodeAddress} disabled={isGeocoding || !settings.pickupAddress} className="w-1/2 bg-amber-600 text-white font-bold py-2 px-3 rounded-xl hover:bg-amber-700 flex items-center justify-center gap-2 text-sm disabled:opacity-50 shadow-md">
+                            {isGeocoding ? <Loader2 className="animate-spin" size={18}/> : <><Navigation size={18}/> Geocodificar Endereço</>}
+                        </button>
+                         <button type="button" onClick={handlePickupCurrentLocation} disabled={cepLoading} className="w-1/2 bg-blue-500 text-white font-bold py-2 px-3 rounded-xl hover:bg-blue-600 flex items-center justify-center gap-2 text-sm disabled:opacity-50 shadow-md">
+                            {cepLoading ? <Loader2 className="animate-spin" size={18}/> : <><MapPin size={18}/> Usar Minha Localização</>}
+                         </button>
+                    </div>
+                     <div className="grid grid-cols-2 gap-2">
+                        <div>
+                             <label className="block text-xs font-bold mb-1 text-stone-600">Latitude (Auto-preenchida)</label>
+                             <input type="number" name="storeLatitude" value={settings.storeLatitude || ''} onChange={handleInputChange} className="w-full p-2 border bg-stone-100 border-stone-300 rounded-xl" />
+                        </div>
+                         <div>
+                             <label className="block text-xs font-bold mb-1 text-stone-600">Longitude (Auto-preenchida)</label>
+                             <input type="number" name="storeLongitude" value={settings.storeLongitude || ''} onChange={handleInputChange} className="w-full p-2 border bg-stone-100 border-stone-300 rounded-xl" />
+                        </div>
                     </div>
                 </div>
                  
-                 {/* NOVO CAMPO DE FUSO HORÁRIO */}
-                 <div>
-                    <label className="block text-sm font-bold mb-1 text-stone-600">Fuso Horário da Loja</label>
-                    <select 
-                        value={settings.storeTimezone || 'Europe/Lisbon'} 
-                        onChange={(e) => setSettings({...settings, storeTimezone: e.target.value})} 
-                        className="w-full p-2 border border-stone-300 rounded-xl bg-white"
-                    >
-                        {timezones.map(tz => <option key={tz} value={tz}>{tz}</option>)}
-                    </select>
-                    <p className="text-xs text-stone-500 mt-1">Isso garante que os horários sejam consistentes independentemente de onde o cliente está.</p>
-                </div>
+                 {/* V3 NOVOS CAMPOS: Configurações de Entrega (Ponto 3 e 4) */}
+                 <div className="border-t pt-4 space-y-3">
+                     <h4 className="font-bold text-lg text-amber-600">Configurações de Entrega</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                         <div>
+                            <label className="block text-sm font-bold mb-1 text-stone-600">Preço por KM (€)</label>
+                            <input type="number" name="deliveryPricePerKm" value={settings.deliveryPricePerKm || 0} onChange={handleInputChange} step="0.10" className="w-full p-2 border border-stone-300 rounded-xl" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold mb-1 text-stone-600">Raio Máximo de Entrega (KM)</label>
+                            <input type="number" name="deliveryMaxRadiusKm" value={settings.deliveryMaxRadiusKm || 0} onChange={handleInputChange} step="1" className="w-full p-2 border border-stone-300 rounded-xl" />
+                        </div>
+                    </div>
+                 </div>
 
+                 {/* Seção de Fuso Horário e Moeda */}
+                 <div className="border-t pt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                     <div>
+                        <label className="block text-sm font-bold mb-1 text-stone-600">Fuso Horário da Loja</label>
+                        <select name="storeTimezone" value={settings.storeTimezone || 'Europe/Lisbon'} onChange={handleInputChange} className="w-full p-2 border border-stone-300 rounded-xl bg-white">
+                            {timezones.map(tz => <option key={tz} value={tz}>{tz}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-bold mb-1 text-stone-600">Moeda</label>
+                        <select name="currency" value={settings.currency || 'EUR'} onChange={handleInputChange} className="w-full p-2 border border-stone-300 rounded-xl bg-white">
+                            <option value="EUR">Euro (€)</option>
+                            <option value="BRL">Real (R$)</option>
+                            <option value="USD">Dólar ($)</option>
+                        </select>
+                    </div>
+                 </div>
 
-                 <div>
-                    <label className="block text-sm font-bold mb-1 text-stone-600">Moeda</label>
-                    <select value={settings.currency || 'EUR'} onChange={(e) => setSettings({...settings, currency: e.target.value})} className="w-full p-2 border border-stone-300 rounded-xl bg-white">
-                        <option value="EUR">Euro (€)</option>
-                        <option value="BRL">Real (R$)</option>
-                        <option value="USD">Dólar ($)</option>
-                    </select>
-                </div>
                 <div className="pt-4">
                     <button onClick={handleSave} disabled={isSaving} className="bg-amber-500 text-white font-bold py-2 px-6 rounded-full hover:bg-amber-600 transition-colors shadow-lg active:scale-95 flex items-center justify-center disabled:bg-amber-300 w-40">
                         {isSaving ? <Loader2 className="animate-spin" /> : "Salvar Alterações"}
@@ -2374,6 +2643,13 @@ const ManageOrders = ({ orders }) => {
                                     </li>
                                 ))}
                             </ul>
+                            {/* V3: Mostrar detalhes de taxa e desconto */}
+                             {order.discount && (
+                                <p className="text-sm text-green-600 mt-1">Desconto: -{order.discount.amount.toFixed(2)}€</p>
+                            )}
+                            {order.deliveryFee > 0 && (
+                                <p className="text-sm text-stone-600 mt-1">Taxa de Entrega: +{order.deliveryFee.toFixed(2)}€</p>
+                            )}
                          </div>
                          <div className="mt-4 flex flex-wrap gap-2 items-center">
                              {['Pendente', 'Em Preparo', 'Pronto para Entrega', 'Saiu para Entrega', 'Concluído'].map(status => (
@@ -2632,9 +2908,7 @@ const KitchenView = ({ orders, setView }) => {
 };
 
 
-// FEATURE 2: Gerenciamento de Agenda
 const ManageAgenda = ({ currentSettings, showToast, db, appId }) => {
-    // CORREÇÃO: Inicializa com um objeto settings seguro para evitar quebras de props aninhadas
     const safeSettings = useMemo(() => ({
         ...currentSettings,
         workingHours: currentSettings.workingHours || INITIAL_WORKING_HOURS,
@@ -2689,7 +2963,6 @@ const ManageAgenda = ({ currentSettings, showToast, db, appId }) => {
 
     const handleSave = async () => {
         setIsSaving(true);
-        // CORREÇÃO: Garante que db está definido antes de tentar salvar
         if (!db || !appId) {
              showToast("Erro: Conexão com o Firebase não disponível.");
              setIsSaving(false);
@@ -2702,7 +2975,6 @@ const ManageAgenda = ({ currentSettings, showToast, db, appId }) => {
             await updateDoc(settingsRef, {
                 workingHours: settings.workingHours,
                 holidays: settings.holidays,
-                // O storeTimezone é salvo no AdminSettings, mas deve estar presente aqui para consistência
             });
             showToast("Agenda e horários salvos com sucesso!");
         } catch (error) {
@@ -2722,7 +2994,6 @@ const ManageAgenda = ({ currentSettings, showToast, db, appId }) => {
         <div>
             <h3 className="text-xl font-bold mb-4 text-stone-700">Gerenciamento de Agenda</h3>
             <div className="bg-white p-6 rounded-xl shadow-lg border border-stone-200 space-y-8">
-                 {/* Horário de Funcionamento */}
                  <div>
                     <h4 className="font-bold text-lg mb-4 text-amber-600 flex items-center gap-2"><Clock size={20}/> Horário Semanal</h4>
                     <div className="space-y-3">
@@ -2748,7 +3019,6 @@ const ManageAgenda = ({ currentSettings, showToast, db, appId }) => {
                     </div>
                  </div>
                  
-                 {/* Feriados */}
                  <div>
                      <h4 className="font-bold text-lg mb-4 text-amber-600 flex items-center gap-2"><Calendar size={20}/> Feriados / Datas Especiais</h4>
                      <div className="flex gap-2 mb-4">
@@ -2775,10 +3045,8 @@ const ManageAgenda = ({ currentSettings, showToast, db, appId }) => {
     );
 }
 
-// FEATURE 3: Visão do Entregador com Rastreamento
 const DeliveryView = ({ orders, setView, db, appId, user }) => {
     
-    // Rastreamento simulado para este entregador
     const [trackerIntervalId, setTrackerIntervalId] = useState(null);
     const [trackingOrderId, setTrackingOrderId] = useState(null);
     const [currentLat, setCurrentLat] = useState(38.7223); // Lisboa como base
@@ -2790,48 +3058,41 @@ const DeliveryView = ({ orders, setView, db, appId, user }) => {
         
         const updateData = { status };
         
-        // Se o pedido for concluído, desliga o rastreamento
         if (status === 'Concluído' && trackingOrderId === orderId) {
             stopTracking();
             updateData['deliveryTracker.active'] = false;
             updateData['deliveryTracker.lastUpdate'] = new Date();
         }
         
-        // Se saiu para entrega, inicia o rastreamento
         if (status === 'Saiu para Entrega' && trackingOrderId !== orderId) {
-             // Inicia um novo rastreamento para esta ordem
              const orderToStart = orders.find(o => o.id === orderId);
              if (orderToStart?.deliveryTracker) {
                  startTracking(orderId);
                  updateData['deliveryTracker.active'] = true;
                  updateData['deliveryTracker.lastUpdate'] = new Date();
                  updateData['deliveryTracker.lat'] = orderToStart.lat || currentLat;
-                 updateData['deliveryTracker.lng'] = orderToStart.lng || currentLng; // Inicia na localização do cliente ou na localização base
+                 updateData['deliveryTracker.lng'] = orderToStart.lng || currentLng; 
              }
         }
         
         await updateDoc(orderRef, updateData);
     };
     
-    // Função para parar o rastreamento, envolvida em useCallback
     const stopTracking = useCallback(() => {
         if (trackerIntervalId) {
             clearInterval(trackerIntervalId);
             setTrackerIntervalId(null);
             setTrackingOrderId(null);
         }
-    }, [trackerIntervalId]); // Depende apenas de trackerIntervalId
+    }, [trackerIntervalId]); 
 
     
-    // Função de simulação de rastreamento, envolvida em useCallback
     const startTracking = useCallback((orderId) => {
-        stopTracking(); // dependency of startTracking
+        stopTracking(); 
         setTrackingOrderId(orderId);
         
-        // Simula o movimento do entregador a cada 5 segundos
         const intervalId = setInterval(async () => {
 
-            // Simula o Entregador se movendo em direção ao cliente (apenas para a demo)
             const targetOrder = orders.find(o => o.id === orderId);
             if (!targetOrder || !targetOrder.lat || !targetOrder.lng) return;
             
@@ -2856,23 +3117,20 @@ const DeliveryView = ({ orders, setView, db, appId, user }) => {
             } catch (error) {
                 console.error("Erro ao atualizar rastreamento:", error);
             }
-        }, 5000); // Atualiza a cada 5 segundos
+        }, 5000); 
         
         setTrackerIntervalId(intervalId);
-    }, [stopTracking, orders, currentLat, currentLng, db, appId]); // Depende das variáveis de estado e props que usa
+    }, [stopTracking, orders, currentLat, currentLng, db, appId]);
 
 
-    // Limpar o intervalo ao desmontar
     useEffect(() => {
         return () => stopTracking();
     }, [stopTracking]);
     
-    // Rota para o Google Maps
     const getGoogleMapsLink = (order) => {
-        // Formato: https://www.google.com/maps/dir/?api=1&origin=Current+Location&destination=Address+or+Lat,Lng
-        const clientLat = order.lat || 38.7; // Fallback
-        const clientLng = order.lng || -9.1; // Fallback
-        const origin = `${currentLat},${currentLng}`; // Posição simulada do entregador como origem
+        const clientLat = order.lat || 38.7; 
+        const clientLng = order.lng || -9.1; 
+        const origin = `${currentLat},${currentLng}`; 
         
         return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${clientLat},${clientLng}&travelmode=driving`;
     };
@@ -2903,6 +3161,10 @@ const DeliveryView = ({ orders, setView, db, appId, user }) => {
                          <div className="my-2">
                              <p className="font-semibold">Telefone: <a href={`tel:${order.phone}`} className="text-blue-600 hover:underline">{order.phone}</a></p>
                              <p className="font-semibold">Endereço: <span className="font-normal text-stone-700">{order.address}</span></p>
+                             {/* V3: Mostrar taxa e distância para o entregador */}
+                             {order.deliveryFee > 0 && (
+                                 <p className="font-semibold">Distância: <span className="font-normal text-stone-700">{order.distanceKm.toFixed(1)} KM</span> (Taxa: {order.deliveryFee.toFixed(2)}€)</p>
+                             )}
                          </div>
                          <div className="flex flex-wrap gap-2 mt-3">
                               <a href={getGoogleMapsLink(order)} target="_blank" rel="noopener noreferrer" className="flex-1 bg-amber-500 text-white font-bold py-3 rounded-full hover:bg-amber-600 transition-colors flex items-center justify-center gap-2 shadow-lg">
