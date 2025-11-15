@@ -108,7 +108,7 @@ const INITIAL_SHOP_SETTINGS = {
 // --- FUNÇÕES DE UTILIDADE (GEO) ---
 const getCoordsFromAddress = async (addressString, cep = null) => {
     let query = cep ? `postalcode=${cep}&country=portugal` : `q=${encodeURIComponent(addressString)}`;
-    if (cep) query += `&postalcode=${cep}&country=portugal`;
+    // Linha duplicada que causava o bug foi removida
 
     try {
         const response = await fetch(`https://nominatim.openstreetmap.org/search?${query}&format=json&limit=1`);
@@ -166,6 +166,12 @@ const getDistanceFromCoords = async (originLat, originLng, destLat, destLng) => 
     if (!originLat || !originLng || !destLat || !destLng) {
         console.error("Coordenadas de origem ou destino ausentes.");
         return null;
+    }
+
+    // CORREÇÃO: Se a origem e o destino são (praticamente) idênticos, a distância é 0.
+    // Isso evita falhas no OSRM ao calcular uma rota para o mesmo ponto.
+    if (Math.abs(originLat - destLat) < 0.00001 && Math.abs(originLng - destLng) < 0.00001) {
+        return 0; // Retorna 0 metros
     }
     
     const url = `https://router.osrm.project-osrm.org/route/v1/driving/${originLng},${originLat};${destLng},${destLat}?overview=false`;
@@ -1052,9 +1058,14 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
                     return;
                 }
 
-                const pricePerKm = shopSettings.deliveryPricePerKm || 1;
-                const fee = distanceKm * pricePerKm;
-                setDeliveryFee(fee);
+                // REQUISITO: Se a distância for menor que 1km, a taxa é gratuita.
+                if (distanceKm < 1) {
+                    setDeliveryFee(0);
+                } else {
+                    const pricePerKm = shopSettings.deliveryPricePerKm || 1;
+                    const fee = distanceKm * pricePerKm;
+                    setDeliveryFee(fee);
+                }
 
             } catch (error) {
                 console.error(error);
