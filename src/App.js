@@ -1885,8 +1885,8 @@ const DeliveryTrackerComponent = ({ order }) => {
     const mapCenter = `${deliveryTracker.lat},${deliveryTracker.lng}`;
     const destination = `${order.lat},${order.lng}`;
 
-    const mapUrl = `https://maps.google.com/maps?q=${mapCenter}&markers=icon:http://maps.google.com/mapfiles/kml/paddle/red-stars.png%7C${destination}&z=14&t=k&output=embed`;
-    
+    const mapUrl = `https://maps.google.com/maps?q=${mapCenter}&z=14&t=k&output=embed`;
+
     const lastUpdate = deliveryTracker.lastUpdate ? new Date(deliveryTracker.lastUpdate.seconds * 1000).toLocaleTimeString('pt-PT') : 'N/A';
 
     return (
@@ -3047,8 +3047,9 @@ const DeliveryView = ({ orders, setView, db, appId, user }) => {
     const getGoogleMapsLink = (order) => {
         const clientLat = order.lat || 38.7; 
         const clientLng = order.lng || -9.1; 
-        const origin = `${currentLat},${currentLng}`; 
+        const origin = `${currentLat},${currentLng}`;
         
+        // CORREÇÃO: URL de direções do Google Maps moderna e correta
         return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${clientLat},${clientLng}&travelmode=driving`;
     };
 
