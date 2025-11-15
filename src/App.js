@@ -528,6 +528,7 @@ export default function App() {
         setView('menu');
     };
     
+    // --- INÍCIO DA CORREÇÃO ---
     const placeOrder = async (customerDetails) => {
         if (!user || user.isAnonymous) {
             setError("Por favor, faça login para finalizar o pedido.");
@@ -536,12 +537,9 @@ export default function App() {
         }
         setAuthLoading(true);
         try {
-            // OTIMIZAÇÃO 2: Usando o hook de totais
-            const { subtotal, hasDiscount, discountAmount, finalTotal } = useCartTotals(
-                cartTotal, 
-                userData, 
-                customerDetails.deliveryFee || 0
-            );
+            // OTIMIZAÇÃO 2: O hook foi movido para o CheckoutView.
+            // Os totais (subtotal, hasDiscount, etc.) já estão em `customerDetails`.
+            const { subtotal, hasDiscount, discountAmount, finalTotal } = customerDetails;
             
             const deliveryDetails = (customerDetails.deliveryMethod === 'deliver' || (customerDetails.deliveryMethod === 'schedule' && customerDetails.address !== shopSettings.pickupAddress)) ? {
                 deliveryTracker: {
@@ -557,8 +555,8 @@ export default function App() {
                 ...customerDetails,
                 ...deliveryDetails,
                 items: cart,
-                subtotal: subtotal,
-                total: finalTotal,
+                subtotal: subtotal, // Usando o valor de customerDetails
+                total: finalTotal, // Usando o valor de customerDetails
                 deliveryFee: customerDetails.deliveryFee || 0,
                 distanceKm: customerDetails.distanceKm || 0,
                 status: 'Pendente',
@@ -566,12 +564,13 @@ export default function App() {
                 userId: user.uid,
             };
 
-            if (hasDiscount) {
+            if (hasDiscount) { // Usando o valor de customerDetails
                 orderData.discount = {
                     type: 'feedback',
-                    amount: discountAmount,
+                    amount: discountAmount, // Usando o valor de customerDetails
                 };
             }
+            // --- FIM DA CORREÇÃO ---
 
             const ordersCollectionPath = `artifacts/${appId}/public/data/orders`;
             await addDoc(collection(db, ordersCollectionPath), orderData);
@@ -1194,15 +1193,21 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
              }
         }
 
-
+        // --- INÍCIO DA CORREÇÃO ---
         const details = { 
             name, 
             phone, 
             deliveryMethod, 
+            // Passando todos os valores calculados
+            subtotal: subtotal,
+            hasDiscount: hasDiscount,
+            discountAmount: discountAmount,
             total: finalTotal, 
+            // Fim da adição
             deliveryFee: deliveryFee, 
             distanceKm: deliveryDistance 
         };
+        // --- FIM DA CORREÇÃO ---
 
         if (deliveryMethod === 'deliver') {
             details.address = `${finalAddress.street}, ${finalAddress.number}, ${finalAddress.district}, ${finalAddress.city}`;
