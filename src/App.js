@@ -206,11 +206,10 @@ if (firebaseConfig && firebaseConfig.apiKey) {
 
     // HOOK PRINCIPAL: Autenticação
     useEffect(() => {
-        if (!firebaseInitialized) {
+        if (!firebaseInitialized)
             setIsAuthReady(true);
             return;
-        }
-
+        
         const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
             if (currentUser) {
                 setUser(currentUser);
