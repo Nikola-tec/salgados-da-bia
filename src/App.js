@@ -74,6 +74,8 @@ import {
     PieChart, 
     Pie, 
     Cell } from 'recharts';
+import {
+     Trash2 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DO FIREBASE ---
 let firebaseConfig;
