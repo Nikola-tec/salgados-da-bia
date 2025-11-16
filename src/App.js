@@ -1397,12 +1397,14 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
             name, 
             phone, 
             deliveryMethod, 
-            // Passando todos os valores calculados
+            
+            // Adicionamos os totais calculados (do hook 'useCartTotals')
+            // para que a função 'placeOrder' os receba.
             subtotal: subtotal,
             hasDiscount: hasDiscount,
             discountAmount: discountAmount,
-            total: finalTotal, 
-            // Fim da adição
+            total: finalTotal, // <--- Este era o 'undefined' que causava o erro!
+
             deliveryFee: deliveryFee, 
             distanceKm: deliveryDistance 
         };
