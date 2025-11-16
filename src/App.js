@@ -735,7 +735,8 @@ export default function App() {
             // Os totais (subtotal, hasDiscount, etc.) já estão em `customerDetails`.
             const { subtotal, hasDiscount, discountAmount, finalTotal } = customerDetails;
             
-            const deliveryDetails = (customerDetails.deliveryMethod === 'deliver' || (customerDetails.deliveryMethod === 'schedule' && customerDetails.address !== shopSettings.pickupAddress)) ? {
+            const deliveryDetails = (customerDetails.lat && customerDetails.lng) ? 
+            {
                 deliveryTracker: {
                     lat: customerDetails.lat,
                     lng: customerDetails.lng,
