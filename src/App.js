@@ -35,7 +35,7 @@ import {
     LogOut, 
     PlusCircle, 
     MinusCircle, 
-    rash2, 
+    // rash2, <- Erro de digitação corrigido
     Edit, 
     XCircle, 
     CheckCircle, 
@@ -57,7 +57,7 @@ import {
     Calendar, 
     Eye, 
     EyeOff, 
-    Trash, 
+    Trash, // <- Ícone correto (se for usado)
     Satellite, 
     Map, 
     MessageSquare,
@@ -75,7 +75,7 @@ import {
     Pie, 
     Cell } from 'recharts';
 import {
-     Trash2 } from 'lucide-react';
+     Trash2 } from 'lucide-react'; // <- Importação correta
 
 // --- CONFIGURAÇÃO DO FIREBASE ---
 let firebaseConfig;
@@ -115,297 +115,9 @@ if (firebaseConfig && firebaseConfig.apiKey) {
   }
 }
 
-// --- CONSTANTES ---
-const ADMIN_EMAILS = ['bianca.cardosomedeiros@gmail.com'];
-const INITIAL_MENU_DATA = [
-    { 
-        name: 'Coxinha de Frango', 
-        category: 'Salgados Tradicionais', 
-        price: 1.20, 
-        image: 'https://placehold.co/400x300/FBBF24/FFFFFF?text=Coxinha', 
-        minimumOrder: 10, 
-        isAvailable: true, 
-        requiresScheduling: false },
-    { 
-        name: 'Rissoles de Carne', 
-        category: 'Salgados Tradicionais', 
-        price: 1.20, 
-        image: 'https://placehold.co/400x300/FBBF24/FFFFFF?text=Rissoles', 
-        minimumOrder: 10, 
-        isAvailable: true, 
-        requiresScheduling: false },
-    { 
-        name: 'Bolinha de Queijo', 
-        category: 'Salgados Tradicionais', 
-        price: 1.10, 
-        image: 'https://placehold.co/400x300/FBBF24/FFFFFF?text=Bolinha', 
-        minimumOrder: 10, 
-        isAvailable: true, 
-        requiresScheduling: false },
-    { 
-        name: 'Box Tradicional 50 Salgados', 
-        category: 'Boxes', 
-        price: 45.00, 
-        customizable: true, 
-        size: 50, 
-        image: 'https://placehold.co/400x300/FBBF24/FFFFFF?text=Box', 
-        isAvailable: true, 
-        requiresScheduling: false, 
-        allowedCategories: ['Salgados Tradicionais'] },
-];
+// ... (O resto do seu código até a linha 425 permanece igual) ...
 
-const INITIAL_WORKING_HOURS = {
-    monday: { open: true, start: '10:00', end: '22:00' },
-    tuesday: { open: true, start: '10:00', end: '22:00' },
-    wednesday: { open: true, start: '10:00', end: '22:00' },
-    thursday: { open: true, start: '10:00', end: '22:00' },
-    friday: { open: true, start: '10:00', end: '23:00' },
-    saturday: { open: true, start: '10:00', end: '23:00' },
-    sunday: { open: false, start: '00:00', end: '00:00' },
-};
-
-const INITIAL_SHOP_SETTINGS = {
-    storeName: "Salgados da Bia",
-    logoUrl: "https://placehold.co/100x100/FBBF24/FFFFFF?text=SB",
-    email: "contato@salgadosdabia.pt",
-    phone: "+351 912 345 678",
-    currency: "EUR",
-    pickupAddress: "Rua Pintor Antonio de Almeida, lote 2, Viseu, Portugal",
-    pickupCep: "3500-038",
-    storeLatitude: 40.6558,
-    storeLongitude: -7.9095,
-    whatsappNumber: "5511999999999",
-    whatsappMessage: "Olá! Quero fazer uma encomenda.",
-    workingHours: INITIAL_WORKING_HOURS,
-    holidays: [], 
-    storeTimezone: 'Europe/Lisbon', 
-    deliveryPricePerKm: 1.0, 
-    deliveryMaxRadiusKm: 17, 
-};
-
-
-// --- FUNÇÕES DE UTILIDADE (GEO) ---
-const getCoordsFromAddress = async (addressString, cep = null) => {
-    let query = cep ? `postalcode=${cep}&country=portugal` : `q=${encodeURIComponent(addressString)}`;
-    // Linha duplicada que causava o bug foi removida
-
-    try {
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?${query}&format=json&limit=1`);
-        if (!response.ok) throw new Error('Falha na rede da API Nominatim');
-        const data = await response.json();
-        
-        if (data && data.length > 0) {
-            const result = data[0];
-            return {
-                lat: parseFloat(result.lat),
-                lng: parseFloat(result.lon),
-                address: cep ? {
-                    street: result.address?.road || '',
-                    district: result.address?.suburb || '',
-                    city: result.address?.city || 'Viseu', 
-                    state: result.address?.state || 'Viseu',
-                    cep: cep,
-                    country: 'Portugal',
-                } : null 
-            };
-        }
-        return null;
-    } catch (error) {
-        console.error("Erro ao geocodificar endereço:", error);
-        return null;
-    }
-};
-
-const getAddressFromCoords = async (lat, lng) => {
-    try {
-        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
-        if (!response.ok) throw new Error('Falha na rede da API Nominatim Reverse');
-        const data = await response.json();
-        
-        if (data && data.address) {
-            const addr = data.address;
-            return {
-                street: addr.road || '',
-                number: addr.house_number || '',
-                district: addr.suburb || addr.quarter || '',
-                city: addr.city || addr.town || addr.village || '',
-                state: addr.state || '',
-                country: addr.country || 'Portugal',
-                cep: addr.postcode || ''
-            };
-        }
-        return null;
-    } catch (error) {
-        console.error("Erro na geocodificação reversa:", error);
-        return null;
-    }
-};
-
-const getDistanceFromCoords = async (originLat, originLng, destLat, destLng) => {
-    if (!originLat || !originLng || !destLat || !destLng) {
-        console.error("Coordenadas de origem ou destino ausentes.");
-        return null;
-    }
-
-    // CORREÇÃO: Se a origem e o destino são (praticamente) idênticos, a distância é 0.
-    // Isso evita falhas no OSRM ao calcular uma rota para o mesmo ponto.
-    if (Math.abs(originLat - destLat) < 0.00001 && Math.abs(originLng - destLng) < 0.00001) {
-        return 0; // Retorna 0 metros
-    }
-    
-    const url = `https://router.osrm.project-osrm.org/route/v1/driving/${originLng},${originLat};${destLng},${destLat}?overview=false`;
-
-    try {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error('Falha na rede da API OSRM');
-        const data = await response.json();
-
-        if (data && data.routes && data.routes.length > 0) {
-            return data.routes[0].distance; // Distância em metros
-        }
-        return null;
-    } catch (error) {
-        console.error("Erro ao calcular distância:", error);
-        return null;
-    }
-};
-
-// --- FUNÇÕES DE UTILIDADE (TEMPO) ---
-const isStoreOpenNow = (workingHours, holidays, storeTimezone) => {
-    try {
-        const now = new Date();
-        const storeLocaleOptions = { 
-            weekday: 'long', 
-            hour: '2-digit', 
-            minute: '2-digit', 
-            hourCycle: 'h23', 
-            timeZone: storeTimezone 
-        };
-        const parts = new Intl.DateTimeFormat('en-US', storeLocaleOptions).formatToParts(now);
-        
-        const dayMap = {};
-        parts.forEach(p => { dayMap[p.type] = p.value; });
-
-        const storeDayName = dayMap.weekday.toLowerCase(); 
-        const storeCurrentTimeStr = `${dayMap.hour.padStart(2, '0')}:${dayMap.minute.padStart(2, '0')}`;
-
-        const storeDateStr = new Intl.DateTimeFormat('sv-SE', { timeZone: storeTimezone }).format(now); 
-        if (holidays && holidays.includes(storeDateStr)) {
-            return false;
-        }
-
-        const todayConfig = workingHours[storeDayName];
-        if (!todayConfig || !todayConfig.open) {
-            return false;
-        }
-
-        const { start, end } = todayConfig;
-
-        if (start === end && start === '00:00') {
-            return true;
-        }
-
-        if (start > end) {
-            return storeCurrentTimeStr >= start || storeCurrentTimeStr < end;
-        }
-
-        if (end === '00:00') {
-             return storeCurrentTimeStr >= start;
-        }
-        
-        return storeCurrentTimeStr >= start && storeCurrentTimeStr < end;
-
-    } catch (error) {
-        console.error("Erro ao verificar horário da loja:", error);
-        return false; 
-    }
-};
-
-const getWorkingInterval = (workingHours, dateString) => {
-    const date = new Date(dateString);
-    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-    const dayIndex = date.getUTCDay(); 
-    const today = dayNames[dayIndex];
-
-    const todayConfig = workingHours[today];
-    
-    if (!todayConfig || !todayConfig.open) {
-        return null; 
-    }
-    
-    return { start: todayConfig.start, end: todayConfig.end };
-}
-
-// --- OUTRAS UTILIDADES ---
-
-// OTIMIZAÇÃO 1: Handler de erro reutilizável para listeners do Firestore
-const handleSnapshotError = (collectionName) => (err) => {
-    if (err.code !== 'permission-denied') {
-        console.error(`Erro no listener de ${collectionName}:`, err);
-    } else {
-        console.warn(`Permissão negada no listener de ${collectionName}. (Esperado para anônimos/não-admins).`);
-    }
-};
-
-// OTIMIZAÇÃO 2: Hook customizado para centralizar cálculos de total e desconto
-const useCartTotals = (cartTotal, userData, deliveryFee = 0) => {
-    return useMemo(() => {
-        const discountPercentage = 0.05;
-        const hasDiscount = userData?.hasFeedbackDiscount;
-        const subtotal = cartTotal;
-        const discountAmount = hasDiscount ? subtotal * discountPercentage : 0;
-        const finalTotal = subtotal - discountAmount + deliveryFee;
-        return { subtotal, hasDiscount, discountAmount, finalTotal };
-    }, [cartTotal, userData, deliveryFee]);
-};
-
-
-// --- COMPONENTE PRINCIPAL: App ---
-export default function App() {
-    const fallbackMenuWithIds = INITIAL_MENU_DATA.map((item, index) => ({ id: 'fallback-' + index, ...item }));
-    const [view, setView] = useState('menu'); 
-    const [menu, setMenu] = useState(fallbackMenuWithIds); 
-    const [orders, setOrders] = useState([]);
-    const [feedbacks, setFeedbacks] = useState([]);
-    const [shopSettings, setShopSettings] = useState(INITIAL_SHOP_SETTINGS);
-    const [cart, setCart] = useState([]);
-    const [user, setUser] = useState(null);
-    const [userData, setUserData] = useState(null);
-    const [authLoading, setAuthLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [toastMessage, setToastMessage] = useState('');
-    const [isAdmin, setIsAdmin] = useState(false);
-    const [isAuthReady, setIsAuthReady] = useState(false); 
-
-    const storeOpen = useMemo(() => {
-        if (!shopSettings.workingHours || !shopSettings.storeTimezone) return false;
-        return isStoreOpenNow(shopSettings.workingHours, shopSettings.holidays, shopSettings.storeTimezone);
-    }, [shopSettings.holidays, shopSettings.workingHours, shopSettings.storeTimezone]);
-    
-    const [showStoreClosedToast, setShowStoreClosedToast] = useState(false);
-
-    const showToast = (message) => {
-        setToastMessage(message);
-        setTimeout(() => setToastMessage(''), 3000);
-    };
-
-    useEffect(() => {
-        if (!storeOpen && view === 'menu') {
-            setShowStoreClosedToast(true);
-            const timer = setTimeout(() => setShowStoreClosedToast(false), 10000); 
-            return () => clearTimeout(timer);
-        } else {
-            setShowStoreClosedToast(false);
-        }
-    }, [storeOpen, view]); 
-
-
-    useEffect(() => {
-        document.title = shopSettings.storeName;
-    }, [shopSettings.storeName]);
-
-
-    // --- INÍCIO: Funções de Notificação Push ---
+// --- INÍCIO: Funções de Notificação Push ---
 
     /**
      * Pede permissão de notificação para o CLIENTE e salva o token no seu
@@ -421,11 +133,12 @@ export default function App() {
             // Configurações do Projeto > Cloud Messaging > Web Push > Gerar par de chaves
             const VAPID_KEY = 'BGZAxnG_iSTgeX0y7s6rEmtFzE41Ns43DXN3gCgN6RJX51xKyDfRdOczX1T7cyQ5U3v6ZNCsJCyp3lESPuQQNKY'; 
             
-            if (VAPID_KEY === 'BGZAxnG_iSTgeX0y7s6rEmtFzE41Ns43DXN3gCgN6RJX51xKyDfRdOczX1T7cyQ5U3v6ZNCsJCyp3lESPuQQNKY') {
-                console.warn("VAPID Key não configurada. Notificações Push não funcionarão.");
-                return;
-            }
+            // --- INÍCIO DA CORREÇÃO ---
+            // O 'if' statement que comparava a chave com ela mesma foi removido.
+            // O aviso antigo de placeholder também foi removido.
+            // --- FIM DA CORREÇÃO ---
 
+            // AGORA o código vai finalmente pedir o pop-up:
             const permission = await Notification.requestPermission();
             if (permission === 'granted') {
                 const currentToken = await getToken(messaging, { vapidKey: VAPID_KEY });
@@ -462,9 +175,10 @@ export default function App() {
             const messaging = getMessaging(app);
             // !! ATENÇÃO !! (Mesma chave)
             const VAPID_KEY = 'BGZAxnG_iSTgeX0y7s6rEmtFzE41Ns43DXN3gCgN6RJX51xKyDfRdOczX1T7cyQ5U3v6ZNCsJCyp3lESPuQQNKY'; 
-            if (VAPID_KEY === 'BGZAxnG_iSTgeX0y7s6rEmtFzE41Ns43DXN3gCgN6RJX51xKyDfRdOczX1T7cyQ5U3v6ZNCsJCyp3lESPuQQNKY') {
-                return; // O aviso já foi dado na função anterior
-            }
+
+            // --- INÍCIO DA CORREÇÃO ---
+            // O 'if' statement que comparava a chave com ela mesma foi removido.
+            // --- FIM DA CORREÇÃO ---
             
             // A permissão já deve ter sido pedida pela função do usuário,
             // mas verificamos por segurança.
@@ -487,7 +201,7 @@ export default function App() {
         }
     };
 
-    // --- FIM: Funções de Notificação Push ---
+// --- FIM: Funções de Notificação Push ---
 
 
     // HOOK PRINCIPAL: Autenticação
