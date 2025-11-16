@@ -461,8 +461,8 @@ export default function App() {
         try {
             const messaging = getMessaging(app);
             // !! ATENÇÃO !! (Mesma chave)
-            const VAPID_KEY = 'COLOQUE_SUA_CHAVE_VAPID_DO_FIREBASE_AQUI'; 
-            if (VAPID_KEY === 'COLOQUE_SUA_CHAVE_VAPID_DO_FIREBASE_AQUI') {
+            const VAPID_KEY = 'BGZAxnG_iSTgeX0y7s6rEmtFzE41Ns43DXN3gCgN6RJX51xKyDfRdOczX1T7cyQ5U3v6ZNCsJCyp3lESPuQQNKY'; 
+            if (VAPID_KEY === 'BGZAxnG_iSTgeX0y7s6rEmtFzE41Ns43DXN3gCgN6RJX51xKyDfRdOczX1T7cyQ5U3v6ZNCsJCyp3lESPuQQNKY') {
                 return; // O aviso já foi dado na função anterior
             }
             
