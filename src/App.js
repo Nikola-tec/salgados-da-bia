@@ -12,6 +12,8 @@ import {
     setPersistence,
     browserLocalPersistence
 } from 'firebase/auth';
+// ADICIONADO: Importações de Messaging
+import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 import { 
     getFirestore, 
     collection, 
@@ -23,10 +25,55 @@ import {
     getDocs,
     writeBatch,
     setDoc,
-    getDoc
+    getDoc,
+    arrayUnion // ADICIONADO: arrayUnion para tokens de cliente
 } from 'firebase/firestore';
-import { ChefHat, ShoppingCart, User, LogOut, PlusCircle, MinusCircle, Trash2, Edit, XCircle, CheckCircle, Package, DollarSign, Clock, Settings, Plus, Star, AlertTriangle, UserCheck, KeyRound, Loader2, ChevronsLeft, MapPin, Bike, TrendingUp, Percent, Calendar, Eye, EyeOff, Trash, Satellite, Map, MessageSquare,Navigation } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { 
+    ChefHat, 
+    ShoppingCart, 
+    User, 
+    LogOut, 
+    PlusCircle, 
+    MinusCircle, 
+    rash2, 
+    Edit, 
+    XCircle, 
+    CheckCircle, 
+    Package, 
+    DollarSign, 
+    Clock, 
+    Settings, 
+    Plus, 
+    Star, 
+    AlertTriangle, 
+    UserCheck, 
+    KeyRound, 
+    Loader2, 
+    ChevronsLeft, 
+    MapPin, 
+    Bike, 
+    TrendingUp, 
+    Percent, 
+    Calendar, 
+    Eye, 
+    EyeOff, 
+    Trash, 
+    Satellite, 
+    Map, 
+    MessageSquare,
+    Navigation } from 'lucide-react';
+import { 
+    BarChart, 
+    Bar, 
+    XAxis, 
+    YAxis, 
+    CartesianGrid, 
+    Tooltip, 
+    Legend, 
+    ResponsiveContainer, 
+    PieChart, 
+    Pie, 
+    Cell } from 'recharts';
 
 // --- CONFIGURAÇÃO DO FIREBASE ---
 let firebaseConfig;
@@ -69,10 +116,40 @@ if (firebaseConfig && firebaseConfig.apiKey) {
 // --- CONSTANTES ---
 const ADMIN_EMAILS = ['bianca.cardosomedeiros@gmail.com'];
 const INITIAL_MENU_DATA = [
-    { name: 'Coxinha de Frango', category: 'Salgados Tradicionais', price: 1.20, image: 'https://placehold.co/400x300/FBBF24/FFFFFF?text=Coxinha', minimumOrder: 10, isAvailable: true, requiresScheduling: false },
-    { name: 'Rissoles de Carne', category: 'Salgados Tradicionais', price: 1.20, image: 'https://placehold.co/400x300/FBBF24/FFFFFF?text=Rissoles', minimumOrder: 10, isAvailable: true, requiresScheduling: false },
-    { name: 'Bolinha de Queijo', category: 'Salgados Tradicionais', price: 1.10, image: 'https://placehold.co/400x300/FBBF24/FFFFFF?text=Bolinha', minimumOrder: 10, isAvailable: true, requiresScheduling: false },
-    { name: 'Box Tradicional 50 Salgados', category: 'Boxes', price: 45.00, customizable: true, size: 50, image: 'https://placehold.co/400x300/FBBF24/FFFFFF?text=Box', isAvailable: true, requiresScheduling: false, allowedCategories: ['Salgados Tradicionais'] },
+    { 
+        name: 'Coxinha de Frango', 
+        category: 'Salgados Tradicionais', 
+        price: 1.20, 
+        image: 'https://placehold.co/400x300/FBBF24/FFFFFF?text=Coxinha', 
+        minimumOrder: 10, 
+        isAvailable: true, 
+        requiresScheduling: false },
+    { 
+        name: 'Rissoles de Carne', 
+        category: 'Salgados Tradicionais', 
+        price: 1.20, 
+        image: 'https://placehold.co/400x300/FBBF24/FFFFFF?text=Rissoles', 
+        minimumOrder: 10, 
+        isAvailable: true, 
+        requiresScheduling: false },
+    { 
+        name: 'Bolinha de Queijo', 
+        category: 'Salgados Tradicionais', 
+        price: 1.10, 
+        image: 'https://placehold.co/400x300/FBBF24/FFFFFF?text=Bolinha', 
+        minimumOrder: 10, 
+        isAvailable: true, 
+        requiresScheduling: false },
+    { 
+        name: 'Box Tradicional 50 Salgados', 
+        category: 'Boxes', 
+        price: 45.00, 
+        customizable: true, 
+        size: 50, 
+        image: 'https://placehold.co/400x300/FBBF24/FFFFFF?text=Box', 
+        isAvailable: true, 
+        requiresScheduling: false, 
+        allowedCategories: ['Salgados Tradicionais'] },
 ];
 
 const INITIAL_WORKING_HOURS = {
@@ -326,6 +403,91 @@ export default function App() {
     }, [shopSettings.storeName]);
 
 
+    // --- INÍCIO: Funções de Notificação Push ---
+
+    /**
+     * Pede permissão de notificação para o CLIENTE e salva o token no seu
+     * documento de usuário para receber atualizações de pedidos.
+     */
+    const requestUserNotificationPermission = async (currentUser, currentAppId) => {
+        if (!firebaseInitialized || !db || !currentUser || currentUser.isAnonymous) return;
+
+        try {
+            const messaging = getMessaging(app);
+            // !! ATENÇÃO !!
+            // Obtenha esta chave no seu Console do Firebase
+            // Configurações do Projeto > Cloud Messaging > Web Push > Gerar par de chaves
+            const VAPID_KEY = 'BGZAxnG_iSTgeX0y7s6rEmtFzE41Ns43DXN3gCgN6RJX51xKyDfRdOczX1T7cyQ5U3v6ZNCsJCyp3lESPuQQNKY'; 
+            
+            if (VAPID_KEY === 'BGZAxnG_iSTgeX0y7s6rEmtFzE41Ns43DXN3gCgN6RJX51xKyDfRdOczX1T7cyQ5U3v6ZNCsJCyp3lESPuQQNKY') {
+                console.warn("VAPID Key não configurada. Notificações Push não funcionarão.");
+                return;
+            }
+
+            const permission = await Notification.requestPermission();
+            if (permission === 'granted') {
+                const currentToken = await getToken(messaging, { vapidKey: VAPID_KEY });
+
+                if (currentToken) {
+                    const userDocRef = doc(db, `artifacts/${currentAppId}/public/data/users`, currentUser.uid);
+                    // Usa arrayUnion para adicionar o token (permite múltiplos dispositivos)
+                    await updateDoc(userDocRef, {
+                        notificationTokens: arrayUnion(currentToken)
+                    }, { merge: true }); // Adiciona {merge: true} para não sobrescrever outros dados
+
+                    // Ouve mensagens enquanto o app está aberto
+                    onMessage(messaging, (payload) => {
+                        console.log('Mensagem recebida com app aberto: ', payload);
+                        showToast(`🔔 Pedido: ${payload.notification.body}`);
+                    });
+                }
+            } else {
+                console.log('Permissão de notificação do cliente negada.');
+            }
+        } catch (err) {
+            console.error('Erro ao obter token do cliente:', err);
+        }
+    };
+
+    /**
+     * Pede permissão de notificação para o ADMIN e salva o token
+     * na coleção 'adminTokens' para receber avisos de *novos* pedidos.
+     */
+    const requestAdminNotificationPermission = async (currentUser, currentAppId) => {
+        if (!firebaseInitialized || !db || !currentUser) return;
+
+        try {
+            const messaging = getMessaging(app);
+            // !! ATENÇÃO !! (Mesma chave)
+            const VAPID_KEY = 'COLOQUE_SUA_CHAVE_VAPID_DO_FIREBASE_AQUI'; 
+            if (VAPID_KEY === 'COLOQUE_SUA_CHAVE_VAPID_DO_FIREBASE_AQUI') {
+                return; // O aviso já foi dado na função anterior
+            }
+            
+            // A permissão já deve ter sido pedida pela função do usuário,
+            // mas verificamos por segurança.
+            if (Notification.permission !== 'granted') {
+                await Notification.requestPermission();
+            }
+
+            if (Notification.permission === 'granted') {
+                const currentToken = await getToken(messaging, { vapidKey: VAPID_KEY });
+
+                if (currentToken) {
+                    // Salva em uma coleção separada para admins
+                    const tokenRef = doc(db, `artifacts/${currentAppId}/public/data/adminTokens`, currentUser.uid);
+                    await setDoc(tokenRef, { token: currentToken, uid: currentUser.uid });
+                    console.log('Token do ADMIN salvo no Firestore.');
+                }
+            }
+        } catch (err) {
+            console.error('Erro ao obter token do ADMIN:', err);
+        }
+    };
+
+    // --- FIM: Funções de Notificação Push ---
+
+
     // HOOK PRINCIPAL: Autenticação
     useEffect(() => {
         if (!firebaseInitialized) {
@@ -336,15 +498,38 @@ export default function App() {
         const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
             if (currentUser) {
                 setUser(currentUser);
-                setIsAdmin(ADMIN_EMAILS.includes(currentUser.email));
+                const adminStatus = ADMIN_EMAILS.includes(currentUser.email);
+                setIsAdmin(adminStatus);
 
                 if (currentUser && !currentUser.isAnonymous) {
+                    
+                    // --- INÍCIO: Lógica de Notificação ---
+                    // 1. Pede permissão para o usuário (seja cliente ou admin)
+                    //    para receber notificações sobre SEUS pedidos.
+                    requestUserNotificationPermission(currentUser, appId);
+
+                    // 2. Se for admin, pede permissão para receber notificações
+                    //    de NOVOS pedidos de outros clientes.
+                    if (adminStatus) {
+                        requestAdminNotificationPermission(currentUser, appId);
+                    }
+                    // --- FIM: Lógica de Notificação ---
+
                     const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, currentUser.uid);
                     const unsubscribeUser = onSnapshot(userDocRef, (docSnap) => {
                         if (docSnap.exists()) {
                             setUserData(docSnap.data());
                         } else {
-                            setUserData({ name: currentUser.displayName, email: currentUser.email, addresses: [], hasGivenFeedback: false, hasFeedbackDiscount: false });
+                            const initialData = { 
+                                name: currentUser.displayName, 
+                                email: currentUser.email, 
+                                addresses: [], 
+                                hasGivenFeedback: false, 
+                                hasFeedbackDiscount: false,
+                                notificationTokens: [] // ADICIONADO: Inicializa o array de tokens
+                            };
+                            setUserData(initialData);
+                            setDoc(userDocRef, initialData);
                         }
                     });
                     setIsAuthReady(true);
@@ -364,7 +549,7 @@ export default function App() {
         });
         
         return () => unsubscribeAuth();
-    }, []); 
+    }, []); // A dependência vazia [] está correta aqui
 
     // HOOK SECUNDÁRIO: Listeners de Dados (dependente da autenticação)
     useEffect(() => {
@@ -520,7 +705,8 @@ export default function App() {
                 email,
                 addresses: [], 
                 hasGivenFeedback: false,
-                hasFeedbackDiscount: false
+                hasFeedbackDiscount: false,
+                notificationTokens: [] // ADICIONADO: Inicializa o array de tokens
             });
             
             setView('cart');
@@ -567,7 +753,7 @@ export default function App() {
                 distanceKm: customerDetails.distanceKm || 0,
                 status: 'Pendente',
                 createdAt: new Date(),
-                userId: user.uid,
+                userId: user.uid, // <-- IMPORTANTE: O ID do usuário é salvo aqui
             };
 
             if (hasDiscount) { // Usando o valor de customerDetails
@@ -720,7 +906,7 @@ const Header = ({ cartCount, setView, user, isAdmin, settings }) => (
 
 const Footer = ({ user, setView, handleLogout, isAdmin }) => (
     <footer className="bg-white mt-10 py-5 text-center text-stone-500 text-sm border-t">
-        <p>&copy; {new Date().getFullYear()} Salgados da Bia. Todos os direitos reservados.</p>
+        <p>© {new Date().getFullYear()} Salgados da Bia. Todos os direitos reservados.</p>
         <div className="flex justify-center items-center gap-2 mt-2 cursor-pointer" onClick={() => setView('adminLogin')}>
             <img src="https://images.builderservices.io/s/cdn/v1.0/i/m?url=https%3A%2F%2Fstorage.googleapis.com%2Fproduction-hostgator-brasil-v1-0-0%2F090%2F1710090%2FqxDm1tGU%2F8cfd07d10a204d089d52eac3e4f3bc2f&methods=resize%2C500%2C5000" alt="Nikola TEC Logo" className="h-5" />
             <p>Desenvolvido por Nikola TEC</p>
