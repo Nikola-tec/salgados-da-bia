@@ -12,7 +12,6 @@ import {
     setPersistence,
     browserLocalPersistence
 } from 'firebase/auth';
-// ADICIONADO: Importações de Messaging
 import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 import { 
     getFirestore, 
@@ -26,7 +25,7 @@ import {
     writeBatch,
     setDoc,
     getDoc,
-    arrayUnion // ADICIONADO: arrayUnion para tokens de cliente
+    arrayUnion
 } from 'firebase/firestore';
 import { 
     ChefHat, 
@@ -35,7 +34,6 @@ import {
     LogOut, 
     PlusCircle, 
     MinusCircle, 
-    // rash2, <- Erro de digitação corrigido
     Edit, 
     XCircle, 
     CheckCircle, 
@@ -57,7 +55,7 @@ import {
     Calendar, 
     Eye, 
     EyeOff, 
-    Trash, // <- Ícone correto (se for usado)
+    Trash,
     Satellite, 
     Map, 
     MessageSquare,
@@ -75,9 +73,8 @@ import {
     Pie, 
     Cell } from 'recharts';
 import {
-     Trash2 } from 'lucide-react'; // <- Importação correta
+     Trash2 } from 'lucide-react';
 
-// --- CONFIGURAÇÃO DO FIREBASE ---
 let firebaseConfig;
 try {
   if (typeof __firebase_config !== 'undefined' && __firebase_config) {
@@ -99,7 +96,6 @@ try {
 
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'salgados-da-bia';
 
-// --- INICIALIZAÇÃO SEGURA DO FIREBASE ---
 let app, auth, db;
 let firebaseInitialized = false;
 
@@ -115,120 +111,262 @@ if (firebaseConfig && firebaseConfig.apiKey) {
   }
 }
 
-// ... (O resto do seu código até a linha 425 permanece igual) ...
+const INITIAL_MENU_DATA = []; 
+const INITIAL_SHOP_SETTINGS = {
+    storeName: "Salgados da Bia",
+    logoUrl: "https://placehold.co/100x100/FBBF24/FFFFFF?text=SB",
+    email: "contato@salgadosdabia.com",
+    phone: "+351 000 000 000",
+    whatsappNumber: "351000000000",
+    whatsappMessage: "Olá! Gostaria de fazer um pedido.",
+    pickupAddress: "Av. Emídio Navarro, Viseu, Portugal",
+    pickupCep: "3500-038",
+    storeLatitude: 40.6589,
+    storeLongitude: -7.9138,
+    deliveryPricePerKm: 1.0,
+    deliveryMaxRadiusKm: 17,
+    storeTimezone: "Europe/Lisbon",
+    currency: "EUR",
+    workingHours: {
+        monday: { open: true, start: '10:00', end: '22:00' },
+        tuesday: { open: true, start: '10:00', end: '22:00' },
+        wednesday: { open: true, start: '10:00', end: '22:00' },
+        thursday: { open: true, start: '10:00', end: '22:00' },
+        friday: { open: true, start: '10:00', end: '23:00' },
+        saturday: { open: true, start: '10:00', end: '23:00' },
+        sunday: { open: false, start: '10:00', end: '22:00' },
+    },
+    holidays: []
+};
+const INITIAL_WORKING_HOURS = INITIAL_SHOP_SETTINGS.workingHours;
 
-// --- INÍCIO: Funções de Notificação Push ---
+const ADMIN_EMAILS = [
+    'nikola@nikola.tec.br', 
+    'bia@salgadosdabia.com',
+];
 
-    /**
-     * Pede permissão de notificação para o CLIENTE e salva o token no seu
-     * documento de usuário para receber atualizações de pedidos.
-     */
-    const requestUserNotificationPermission = async (currentUser, currentAppId) => {
-        if (!firebaseInitialized || !db || !currentUser || currentUser.isAnonymous) return;
+const requestUserNotificationPermission = async (currentUser, currentAppId) => {
+    if (!firebaseInitialized || !db || !currentUser || currentUser.isAnonymous) return;
 
+    try {
+        const messaging = getMessaging(app);
+        const VAPID_KEY = 'BGZAxnG_iSTgeX0y7s6rEmtFzE41Ns43DXN3gCgN6RJX51xKyDfRdOczX1T7cyQ5U3v6ZNCsJCyp3lESPuQQNKY'; 
+
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+            const currentToken = await getToken(messaging, { vapidKey: VAPID_KEY });
+
+            if (currentToken) {
+                const userDocRef = doc(db, `artifacts/${currentAppId}/public/data/users`, currentUser.uid);
+                await updateDoc(userDocRef, {
+                    notificationTokens: arrayUnion(currentToken)
+                }, { merge: true }); 
+
+                onMessage(messaging, (payload) => {
+                    console.log('Mensagem recebida com app aberto: ', payload);
+                    showToast(`🔔 Pedido: ${payload.notification.body}`);
+                });
+            }
+        } else {
+            console.log('Permissão de notificação do cliente negada.');
+        }
+    } catch (err) {
+        console.error('Erro ao obter token do cliente:', err);
+    }
+};
+
+const requestAdminNotificationPermission = async (currentUser, currentAppId) => {
+    if (!firebaseInitialized || !db || !currentUser) return;
+
+    try {
+        const messaging = getMessaging(app);
+        const VAPID_KEY = 'BGZAxnG_iSTgeX0y7s6rEmtFzE41Ns43DXN3gCgN6RJX51xKyDfRdOczX1T7cyQ5U3v6ZNCsJCyp3lESPuQQNKY'; 
+
+        if (Notification.permission !== 'granted') {
+            await Notification.requestPermission();
+        }
+
+        if (Notification.permission === 'granted') {
+            const currentToken = await getToken(messaging, { vapidKey: VAPID_KEY });
+
+            if (currentToken) {
+                const tokenRef = doc(db, `artifacts/${currentAppId}/public/data/adminTokens`, currentUser.uid);
+                await setDoc(tokenRef, { token: currentToken, uid: currentUser.uid });
+                console.log('Token do ADMIN salvo no Firestore.');
+            }
+        }
+    } catch (err) {
+        console.error('Erro ao obter token do ADMIN:', err);
+    }
+};
+
+const getCoordsFromAddress = async (address, cep) => {
+    console.log("Buscando coordenadas para:", address, cep);
+    return {
+        lat: 40.6589,
+        lng: -7.9138,
+        address: {
+            street: "Av. Emídio Navarro",
+            number: "123",
+            district: "Centro",
+            city: "Viseu",
+            state: "Viseu",
+            cep: "3500-038"
+        }
+    };
+};
+
+const getAddressFromCoords = async (lat, lng) => {
+    console.log("Buscando endereço para:", lat, lng);
+    return {
+        street: "Rua Fictícia (Geolocalização)",
+        number: "S/N",
+        district: "Bairro Exemplo",
+        city: "Viseu",
+        state: "Viseu",
+        cep: "3500-100"
+    };
+};
+
+const getDistanceFromCoords = async (lat1, lng1, lat2, lng2) => {
+    console.log("Calculando distância entre:", {lat1, lng1}, {lat2, lng2});
+    
+    function haversine(lat1, lon1, lat2, lon2) {
+      const R = 6371e3; 
+      const φ1 = lat1 * Math.PI/180;
+      const φ2 = lat2 * Math.PI/180;
+      const Δφ = (lat2-lat1) * Math.PI/180;
+      const Δλ = (lon2-lon1) * Math.PI/180;
+      const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                Math.cos(φ1) * Math.cos(φ2) *
+                Math.sin(Δλ/2) * Math.sin(Δλ/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c; 
+    }
+    
+    const distance = haversine(lat1, lng1, lat2, lng2);
+    return distance + (Math.random() * 1000);
+};
+
+const useCartTotals = (cartTotal, userData, deliveryFee) => {
+    return useMemo(() => {
+        const subtotal = cartTotal;
+        const hasDiscount = userData?.hasFeedbackDiscount || false;
+        
+        let discountAmount = 0;
+        if (hasDiscount) {
+            discountAmount = subtotal * 0.05;
+        }
+        
+        const totalAfterDiscount = subtotal - discountAmount;
+        const finalTotal = totalAfterDiscount + (deliveryFee || 0);
+
+        return {
+            subtotal,
+            hasDiscount,
+            discountAmount,
+            finalTotal: Math.max(0, finalTotal) 
+        };
+    }, [cartTotal, userData, deliveryFee]);
+};
+
+function App() {
+    const [view, setView] = useState('menu');
+    const [cart, setCart] = useState([]);
+    const [menu, setMenu] = useState([]);
+    const [orders, setOrders] = useState([]);
+    const [feedbacks, setFeedbacks] = useState([]);
+    const [shopSettings, setShopSettings] = useState(INITIAL_SHOP_SETTINGS);
+    const [user, setUser] = useState(null);
+    const [userData, setUserData] = useState(null);
+    const [isAdmin, setIsAdmin] = useState(false);
+    const [error, setError] = useState('');
+    const [authLoading, setAuthLoading] = useState(false);
+    const [isAuthReady, setIsAuthReady] = useState(false);
+    const [toastMessage, setToastMessage] = useState('');
+
+    const showToast = (message) => {
+        setToastMessage(message);
+        setTimeout(() => setToastMessage(''), 3000);
+    };
+
+    const handleSnapshotError = useCallback((listenerName) => (err) => {
+        console.error(`Erro no listener [${listenerName}]:`, err);
+        setError(`Não foi possível carregar ${listenerName}. Verifique a sua conexão.`);
+    }, []);
+
+    const getWorkingInterval = useCallback((workingHours, dateStr) => {
         try {
-            const messaging = getMessaging(app);
-            // !! ATENÇÃO !!
-            // Obtenha esta chave no seu Console do Firebase
-            // Configurações do Projeto > Cloud Messaging > Web Push > Gerar par de chaves
-            const VAPID_KEY = 'BGZAxnG_iSTgeX0y7s6rEmtFzE41Ns43DXN3gCgN6RJX51xKyDfRdOczX1T7cyQ5U3v6ZNCsJCyp3lESPuQQNKY'; 
+            const date = new Date(dateStr + "T12:00:00");
+            const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][date.getDay()];
             
-            // --- INÍCIO DA CORREÇÃO ---
-            // O 'if' statement que comparava a chave com ela mesma foi removido.
-            // O aviso antigo de placeholder também foi removido.
-            // --- FIM DA CORREÇÃO ---
+            const hours = workingHours[dayOfWeek];
+            if (hours && hours.open) {
+                return { start: hours.start, end: hours.end };
+            }
+            return null;
+        } catch(e) {
+            return null;
+        }
+    }, []);
 
-            // AGORA o código vai finalmente pedir o pop-up:
-            const permission = await Notification.requestPermission();
-            if (permission === 'granted') {
-                const currentToken = await getToken(messaging, { vapidKey: VAPID_KEY });
+    const storeOpen = useMemo(() => {
+        if (!shopSettings.workingHours || !shopSettings.storeTimezone) {
+            return false;
+        }
+        try {
+            const now = new Date(new Date().toLocaleString("en-US", { timeZone: shopSettings.storeTimezone }));
+            const todayDate = now.toISOString().split('T')[0];
+            
+            if (shopSettings.holidays && shopSettings.holidays.includes(todayDate)) {
+                return false;
+            }
 
-                if (currentToken) {
-                    const userDocRef = doc(db, `artifacts/${currentAppId}/public/data/users`, currentUser.uid);
-                    // Usa arrayUnion para adicionar o token (permite múltiplos dispositivos)
-                    await updateDoc(userDocRef, {
-                        notificationTokens: arrayUnion(currentToken)
-                    }, { merge: true }); // Adiciona {merge: true} para não sobrescrever outros dados
+            const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][now.getDay()];
+            const hours = shopSettings.workingHours[dayOfWeek];
 
-                    // Ouve mensagens enquanto o app está aberto
-                    onMessage(messaging, (payload) => {
-                        console.log('Mensagem recebida com app aberto: ', payload);
-                        showToast(`🔔 Pedido: ${payload.notification.body}`);
-                    });
-                }
+            if (!hours || !hours.open) {
+                return false;
+            }
+
+            const currentTime = now.toTimeString().slice(0, 5); 
+            
+            if (hours.start > hours.end) {
+                return currentTime >= hours.start || currentTime < hours.end;
             } else {
-                console.log('Permissão de notificação do cliente negada.');
+                return currentTime >= hours.start && currentTime < hours.end;
             }
-        } catch (err) {
-            console.error('Erro ao obter token do cliente:', err);
+        } catch (e) {
+            console.error("Erro ao verificar horário da loja:", e);
+            return false; 
         }
-    };
-
-    /**
-     * Pede permissão de notificação para o ADMIN e salva o token
-     * na coleção 'adminTokens' para receber avisos de *novos* pedidos.
-     */
-    const requestAdminNotificationPermission = async (currentUser, currentAppId) => {
-        if (!firebaseInitialized || !db || !currentUser) return;
-
-        try {
-            const messaging = getMessaging(app);
-            // !! ATENÇÃO !! (Mesma chave)
-            const VAPID_KEY = 'BGZAxnG_iSTgeX0y7s6rEmtFzE41Ns43DXN3gCgN6RJX51xKyDfRdOczX1T7cyQ5U3v6ZNCsJCyp3lESPuQQNKY'; 
-
-            // --- INÍCIO DA CORREÇÃO ---
-            // O 'if' statement que comparava a chave com ela mesma foi removido.
-            // --- FIM DA CORREÇÃO ---
-            
-            // A permissão já deve ter sido pedida pela função do usuário,
-            // mas verificamos por segurança.
-            if (Notification.permission !== 'granted') {
-                await Notification.requestPermission();
-            }
-
-            if (Notification.permission === 'granted') {
-                const currentToken = await getToken(messaging, { vapidKey: VAPID_KEY });
-
-                if (currentToken) {
-                    // Salva em uma coleção separada para admins
-                    const tokenRef = doc(db, `artifacts/${currentAppId}/public/data/adminTokens`, currentUser.uid);
-                    await setDoc(tokenRef, { token: currentToken, uid: currentUser.uid });
-                    console.log('Token do ADMIN salvo no Firestore.');
-                }
-            }
-        } catch (err) {
-            console.error('Erro ao obter token do ADMIN:', err);
-        }
-    };
-
-// --- FIM: Funções de Notificação Push ---
+    }, [shopSettings]);
+    
+    const showStoreClosedToast = useMemo(() => {
+        return cart.length > 0 && !storeOpen && view === 'menu';
+    }, [cart.length, storeOpen, view]);
 
 
-    // HOOK PRINCIPAL: Autenticação
     useEffect(() => {
-        if (!firebaseInitialized)
+        if (!firebaseInitialized) {
             setIsAuthReady(true);
             return;
+        }
         
         const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
-            if (currentUser) {
+            if (currentUser) 
+            {
                 setUser(currentUser);
                 const adminStatus = ADMIN_EMAILS.includes(currentUser.email);
                 setIsAdmin(adminStatus);
 
                 if (currentUser && !currentUser.isAnonymous) {
                     
-                    // --- INÍCIO: Lógica de Notificação ---
-                    // 1. Pede permissão para o usuário (seja cliente ou admin)
-                    //    para receber notificações sobre SEUS pedidos.
                     requestUserNotificationPermission(currentUser, appId);
 
-                    // 2. Se for admin, pede permissão para receber notificações
-                    //    de NOVOS pedidos de outros clientes.
                     if (adminStatus) {
                         requestAdminNotificationPermission(currentUser, appId);
                     }
-                    // --- FIM: Lógica de Notificação ---
 
                     const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, currentUser.uid);
                     const unsubscribeUser = onSnapshot(userDocRef, (docSnap) => {
@@ -241,7 +379,7 @@ if (firebaseConfig && firebaseConfig.apiKey) {
                                 addresses: [], 
                                 hasGivenFeedback: false, 
                                 hasFeedbackDiscount: false,
-                                notificationTokens: [] // ADICIONADO: Inicializa o array de tokens
+                                notificationTokens: []
                             };
                             setUserData(initialData);
                             setDoc(userDocRef, initialData);
@@ -253,7 +391,8 @@ if (firebaseConfig && firebaseConfig.apiKey) {
                     setUserData({ name: 'Anônimo', email: '', addresses: [], hasGivenFeedback: false, hasFeedbackDiscount: false });
                     setIsAuthReady(true);
                 }
-            } else {
+            } else 
+            {
                 signInAnonymously(auth).catch(err => {
                     console.error("Falha no login anônimo:", err);
                     setError("Não foi possível carregar o cardápio. Tente atualizar a página.");
@@ -264,15 +403,13 @@ if (firebaseConfig && firebaseConfig.apiKey) {
         });
         
         return () => unsubscribeAuth();
-    }, []); // A dependência vazia [] está correta aqui
+    }, []);
 
-    // HOOK SECUNDÁRIO: Listeners de Dados (dependente da autenticação)
     useEffect(() => {
         if (!isAuthReady || !firebaseInitialized) return;
         
         if (isAdmin) setView('admin');
 
-        // Funções auxiliares para popular dados (só rodam se admin)
         const populateInitialData = async (ref, data) => {
              if (!isAdmin) return;
              try {
@@ -301,37 +438,35 @@ if (firebaseConfig && firebaseConfig.apiKey) {
                 handleSnapshotError(`popular ${ref.path}`)(e);
              }
         };
-
-        // --- Listeners ---
         
         const menuCollectionPath = `artifacts/${appId}/public/data/menu`;
         const menuRef = collection(db, menuCollectionPath);
-        populateInitialData(menuRef, INITIAL_MENU_DATA); // Tenta popular se admin
+        populateInitialData(menuRef, INITIAL_MENU_DATA); 
         
         const unsubscribeMenu = onSnapshot(menuRef, (snapshot) => {
             const remoteMenu = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             if (remoteMenu.length > 0 || isAdmin) {
                  setMenu(remoteMenu);
             }
-        }, handleSnapshotError('cardápio')); // OTIMIZAÇÃO 1: Handler usado
+        }, handleSnapshotError('cardápio')); 
 
         const ordersCollectionPath = `artifacts/${appId}/public/data/orders`;
         const ordersRef = collection(db, ordersCollectionPath);
         const unsubscribeOrders = onSnapshot(ordersRef, (snapshot) => {
             const ordersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setOrders(ordersData.sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis()));
-        }, handleSnapshotError('pedidos')); // OTIMIZAÇÃO 1: Handler usado
+        }, handleSnapshotError('pedidos')); 
         
         const feedbackCollectionPath = `artifacts/${appId}/public/data/feedback`;
         const feedbackRef = collection(db, feedbackCollectionPath);
         const unsubscribeFeedbacks = onSnapshot(feedbackRef, (snapshot) => {
             const feedbackData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data()}));
             setFeedbacks(feedbackData);
-        }, handleSnapshotError('feedbacks')); // OTIMIZAÇÃO 1: Handler usado
+        }, handleSnapshotError('feedbacks')); 
 
         const settingsDocPath = `artifacts/${appId}/public/data/settings`;
         const settingsRef = doc(db, settingsDocPath, 'shopConfig');
-        populateInitialSettings(settingsRef, INITIAL_SHOP_SETTINGS); // Tenta popular se admin
+        populateInitialSettings(settingsRef, INITIAL_SHOP_SETTINGS); 
        
         const unsubscribeSettings = onSnapshot(settingsRef, (docSnap) => {
             if (docSnap.exists()) {
@@ -340,10 +475,9 @@ if (firebaseConfig && firebaseConfig.apiKey) {
                 setShopSettings(INITIAL_SHOP_SETTINGS);
             }
         }, (err) => {
-            handleSnapshotError('configurações')(err); // OTIMIZAÇÃO 1: Handler usado
-            setShopSettings(INITIAL_SHOP_SETTINGS); // Fallback em caso de erro
+            handleSnapshotError('configurações')(err); 
+            setShopSettings(INITIAL_SHOP_SETTINGS); 
         });
-
 
         return () => {
             unsubscribeMenu();
@@ -351,7 +485,7 @@ if (firebaseConfig && firebaseConfig.apiKey) {
             unsubscribeSettings();
             unsubscribeFeedbacks();
         };
-    }, [isAuthReady, isAdmin]); 
+    }, [isAuthReady, isAdmin, handleSnapshotError]); 
 
     const addToCart = (item, customization, priceOverride) => {
         const applyMinimumOrder = cart.length === 0;
@@ -421,7 +555,7 @@ if (firebaseConfig && firebaseConfig.apiKey) {
                 addresses: [], 
                 hasGivenFeedback: false,
                 hasFeedbackDiscount: false,
-                notificationTokens: [] // ADICIONADO: Inicializa o array de tokens
+                notificationTokens: []
             });
             
             setView('cart');
@@ -435,7 +569,6 @@ if (firebaseConfig && firebaseConfig.apiKey) {
         setView('menu');
     };
     
-    // --- INÍCIO DA CORREÇÃO ---
     const placeOrder = async (customerDetails) => {
         if (!user || user.isAnonymous) {
             setError("Por favor, faça login para finalizar o pedido.");
@@ -444,8 +577,6 @@ if (firebaseConfig && firebaseConfig.apiKey) {
         }
         setAuthLoading(true);
         try {
-            // OTIMIZAÇÃO 2: O hook foi movido para o CheckoutView.
-            // Os totais (subtotal, hasDiscount, etc.) já estão em `customerDetails`.
             const { subtotal, hasDiscount, discountAmount, finalTotal } = customerDetails;
             
             const deliveryDetails = (customerDetails.lat && customerDetails.lng) ? 
@@ -458,27 +589,25 @@ if (firebaseConfig && firebaseConfig.apiKey) {
                 }
             } : {};
 
-
             const orderData = {
                 ...customerDetails,
                 ...deliveryDetails,
                 items: cart,
-                subtotal: subtotal, // Usando o valor de customerDetails
-                total: finalTotal, // Usando o valor de customerDetails
+                subtotal: subtotal, 
+                total: finalTotal, 
                 deliveryFee: customerDetails.deliveryFee || 0,
                 distanceKm: customerDetails.distanceKm || 0,
                 status: 'Pendente',
                 createdAt: new Date(),
-                userId: user.uid, // <-- IMPORTANTE: O ID do usuário é salvo aqui
+                userId: user.uid,
             };
 
-            if (hasDiscount) { // Usando o valor de customerDetails
+            if (hasDiscount) { 
                 orderData.discount = {
                     type: 'feedback',
-                    amount: discountAmount, // Usando o valor de customerDetails
+                    amount: discountAmount, 
                 };
             }
-            // --- FIM DA CORREÇÃO ---
 
             const ordersCollectionPath = `artifacts/${appId}/public/data/orders`;
             await addDoc(collection(db, ordersCollectionPath), orderData);
@@ -541,8 +670,6 @@ if (firebaseConfig && firebaseConfig.apiKey) {
         </div>
     );
 }
-
-// --- COMPONENTES DE VIEW (UTILITÁRIOS) ---
 
 const Toast = ({ message, isWarning = false }) => (
      <div className={`fixed bottom-5 left-1/2 -translate-x-1/2 ${isWarning ? 'bg-red-600' : 'bg-stone-800'} text-white py-2 px-6 rounded-full shadow-lg z-50 transition-opacity duration-300 animate-fade-in-up`}>
@@ -647,9 +774,6 @@ const ConfirmDeleteModal = ({ onConfirm, onCancel, title="Confirmar Exclusão", 
         </div>
     </div>
 );
-
-
-// --- COMPONENTES DE VIEW (CLIENTE) ---
 
 const MenuView = ({ menu, addToCart, showStoreClosedToast }) => {
     const [customizingBox, setCustomizingBox] = useState(null);
@@ -891,7 +1015,6 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
     const name = userData?.name || user?.displayName || '';
     const phone = userData?.phone || '';
 
-    // OTIMIZAÇÃO 2: Usando o hook de totais
     const { subtotal, hasDiscount, discountAmount, finalTotal } = useCartTotals(
         cartTotal, 
         userData, 
@@ -960,7 +1083,6 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
                     return;
                 }
 
-                // REQUISITO: Se a distância for menor que 1km, a taxa é gratuita.
                 if (distanceKm < 1) {
                     setDeliveryFee(0);
                 } else {
@@ -980,7 +1102,6 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
         calculateFee();
         
     }, [deliveryMethod, selectedAddress, isAddingNewAddress, newAddressDetails, addresses, shopSettings]);
-
 
     const validateScheduledTime = (date, time) => {
         if (!date || !time) return '';
@@ -1106,7 +1227,6 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
              }
         }
 
-        // --- INÍCIO DA CORREÇÃO ---
         const details = { 
             name, 
             phone, 
@@ -1115,12 +1235,11 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
             subtotal: subtotal,
             hasDiscount: hasDiscount,
             discountAmount: discountAmount,
-            finalTotal: finalTotal, // <--- ESTA É A CORREÇÃO (mudámos "total" para "finalTotal")
+            finalTotal: finalTotal, 
 
             deliveryFee: deliveryFee, 
             distanceKm: deliveryDistance 
         };
-        // --- FIM DA CORREÇÃO ---
 
         if (deliveryMethod === 'deliver') {
             details.address = `${finalAddress.street}, ${finalAddress.number}, ${finalAddress.district}, ${finalAddress.city}`;
@@ -1131,7 +1250,7 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
             details.pickupTime = pickupTime;
             details.address = `Retirada em: ${shopSettings.pickupAddress}`;
             details.isScheduled = false;
-        } else { // schedule
+        } else { 
             if (!scheduledDate || !scheduledTime) { setFormError('Por favor, selecione data e hora para a encomenda.'); return; }
             details.scheduledDate = scheduledDate;
             details.scheduledTime = scheduledTime;
@@ -1330,7 +1449,6 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
         </div>
     );
 };
-
 
 const ConfirmationView = ({ setView, showToast, user, userData }) => {
     const [feedbackView, setFeedbackView] = useState(false);
@@ -1787,7 +1905,7 @@ const DeliveryTrackerComponent = ({ order }) => {
     const mapCenter = `${deliveryTracker.lat},${deliveryTracker.lng}`;
     const destination = `${order.lat},${order.lng}`;
 
-    const mapUrl = `https://maps.google.com/maps?q=${mapCenter}&z=14&t=k&output=embed`;
+    const mapUrl = `https://maps.google.com/maps?q=$${mapCenter}&z=14&t=k&output=embed`;
 
     const lastUpdate = deliveryTracker.lastUpdate ? new Date(deliveryTracker.lastUpdate.seconds * 1000).toLocaleTimeString('pt-PT') : 'N/A';
 
@@ -1884,9 +2002,6 @@ const MyOrdersView = ({ orders, setView }) => {
     );
 };
 
-
-// --- COMPONENTES DE VIEW (ADMIN) ---
-
 const AdminStats = ({ orders }) => {
     const totalRevenue = useMemo(() => orders.filter(o => o.status === 'Concluído').reduce((acc, order) => acc + order.total, 0), [orders]);
     const pendingOrders = useMemo(() => orders.filter(o => ['Pendente', 'Em Preparo', 'Pronto para Entrega', 'Saiu para Entrega'].includes(o.status)).length, [orders]);
@@ -1900,12 +2015,10 @@ const AdminStats = ({ orders }) => {
                     <p className="text-2xl font-bold text-stone-800">{orders.length}</p>
                 </div>
             </div>
-            <div className="bg-stone-100 p-4 rounded-xl shadow-lg flex items-center gap-4">
-                <div className="bg-green-200 p-3 rounded-full"><DollarSign className="text-green-600" size={24}/></div>
-                <div>
-                    <p className="text-sm text-stone-500">Faturamento (Concluídos)</p>
-                    <p className="text-2xl font-bold text-stone-800">{totalRevenue.toFixed(2)}€</p>
-                </div>
+            <div className="bg-green-200 p-3 rounded-full"><DollarSign className="text-green-600" size={24}/></div>
+            <div>
+                <p className="text-sm text-stone-500">Faturamento (Concluídos)</p>
+                <p className="text-2xl font-bold text-stone-800">{totalRevenue.toFixed(2)}€</p>
             </div>
             <div className="bg-stone-100 p-4 rounded-xl shadow-lg flex items-center gap-4">
                 <div className="bg-yellow-200 p-3 rounded-full"><Clock className="text-yellow-600" size={24}/></div>
@@ -2170,7 +2283,6 @@ const FeedbacksView = ({ feedbacks, showToast }) => {
     );
 };
 
-
 const AdminSettings = ({showToast, currentSettings}) => {
     const [settings, setSettings] = useState({
         ...INITIAL_SHOP_SETTINGS, 
@@ -2268,7 +2380,6 @@ const AdminSettings = ({showToast, currentSettings}) => {
             setIsGeocoding(false);
          }
     }
-
 
     const handleSave = async () => {
         setIsSaving(true);
@@ -2408,7 +2519,6 @@ const AdminSettings = ({showToast, currentSettings}) => {
     );
 };
 
-
 const ManageOrders = ({ orders }) => {
     const [deletingOrderId, setDeletingOrderId] = useState(null);
 
@@ -2429,7 +2539,6 @@ const ManageOrders = ({ orders }) => {
             setDeletingOrderId(null);
         }
     }
-
 
     const statusStyles = {
         'Pendente': 'bg-yellow-100 text-yellow-800',
@@ -2726,7 +2835,6 @@ const KitchenView = ({ orders, setView }) => {
     );
 };
 
-
 const ManageAgenda = ({ currentSettings, showToast, db, appId }) => {
     const safeSettings = useMemo(() => ({
         ...currentSettings,
@@ -2868,7 +2976,7 @@ const DeliveryView = ({ orders, setView, db, appId, user }) => {
     
     const [trackerIntervalId, setTrackerIntervalId] = useState(null);
     const [trackingOrderId, setTrackingOrderId] = useState(null);
-    const [currentLat, setCurrentLat] = useState(38.7223); // Lisboa como base
+    const [currentLat, setCurrentLat] = useState(38.7223); 
     const [currentLng, setCurrentLng] = useState(-9.1393);
 
     const updateStatus = async (orderId, status) => {
@@ -2951,10 +3059,9 @@ const DeliveryView = ({ orders, setView, db, appId, user }) => {
         const clientLng = order.lng || -9.1; 
         const origin = `${currentLat},${currentLng}`;
         
-        // CORREÇÃO: URL de direções do Google Maps moderna e correta
-        return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${clientLat},${clientLng}&travelmode=driving`;
+        return `https://www.google.com/maps/dir/${origin}&destination=${clientLat},${clientLng}&travelmode=driving`;
     };
-
+    
     return (
         <div className="bg-stone-200 min-h-screen p-4">
             <div className="flex justify-between items-center mb-4">
@@ -3005,5 +3112,5 @@ const DeliveryView = ({ orders, setView, db, appId, user }) => {
                 ))}
              </div>
         </div>
-    );
-};
+    ); 
+}
