@@ -3114,3 +3114,4 @@ const DeliveryView = ({ orders, setView, db, appId, user }) => {
         </div>
     ); 
 }
+export default App;
