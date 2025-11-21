@@ -25,7 +25,9 @@ import {
     writeBatch,
     setDoc,
     getDoc,
-    arrayUnion
+    arrayUnion,
+    query,
+    orderBy
 } from 'firebase/firestore';
 import { 
     ChefHat, 
@@ -59,7 +61,9 @@ import {
     Satellite, 
     Map, 
     MessageSquare,
-    Navigation } from 'lucide-react';
+    Navigation,
+    Users
+} from 'lucide-react';
 import { 
     BarChart, 
     Bar, 
@@ -139,11 +143,6 @@ const INITIAL_SHOP_SETTINGS = {
     holidays: []
 };
 const INITIAL_WORKING_HOURS = INITIAL_SHOP_SETTINGS.workingHours;
-
-const ADMIN_EMAILS = [
-    'nikola@nikola.tec.br', 
-    'bia@salgadosdabia.com',
-];
 
 const requestUserNotificationPermission = async (currentUser, currentAppId) => {
     if (!firebaseInitialized || !db || !currentUser || currentUser.isAnonymous) return;
@@ -270,6 +269,66 @@ const useCartTotals = (cartTotal, userData, deliveryFee) => {
     }, [cartTotal, userData, deliveryFee]);
 };
 
+const ManageUsers = ({ userRole, currentUserEmail, updateUserRole }) => {
+    const [allUsers, setAllUsers] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (userRole !== 'admin' || !db) return;
+
+        setLoading(true);
+        const usersRef = collection(db, `artifacts/${appId}/public/data/users`);
+        const usersQuery = query(usersRef, orderBy('name', 'asc')); 
+
+        const unsubscribe = onSnapshot(usersQuery, (snapshot) => {
+            const usersList = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+            setAllUsers(usersList);
+            setLoading(false);
+        }, (error) => {
+            console.error("Erro ao buscar usuários:", error);
+            setLoading(false);
+        });
+        
+        return () => unsubscribe();
+    }, [userRole]); 
+
+    const roles = ['customer', 'admin', 'kitchen', 'delivery'];
+
+    if (loading) return <div className="flex justify-center items-center h-40"><Loader2 className="animate-spin text-4xl text-stone-500" /></div>;
+
+    return (
+        <div className="p-4">
+            <h2 className="text-2xl font-bold mb-6 text-red-600 border-b pb-2 flex items-center"><UserCheck className="inline mr-2" /> Gerenciamento de Perfis de Acesso</h2>
+            <div className="space-y-4">
+                {allUsers.map((user) => (
+                    <div key={user.id} className={`p-4 border rounded-xl shadow-sm transition-all ${user.role === 'admin' ? 'border-red-500 bg-red-50' : 'border-stone-200 bg-white hover:shadow-md'}`}>
+                        <p className="font-semibold text-stone-800">{user.name || 'Sem Nome'}</p>
+                        <p className="text-sm text-stone-600 mb-2">{user.email}</p>
+                        <div className="flex items-center mt-2">
+                            <label htmlFor={`role-${user.id}`} className="mr-3 font-medium text-sm">Perfil:</label>
+                            <select
+                                id={`role-${user.id}`}
+                                value={user.role || 'customer'}
+                                disabled={user.email === currentUserEmail}
+                                onChange={(e) => updateUserRole(user.id, e.target.value)}
+                                className="border border-stone-300 rounded-xl p-1.5 text-sm focus:border-red-500 focus:ring focus:ring-red-200"
+                            >
+                                {roles.map(role => (
+                                    <option key={role} value={role}>{role.charAt(0).toUpperCase() + role.slice(1)}</option>
+                                ))}
+                            </select>
+                            {user.email === currentUserEmail && <span className="ml-3 text-red-500 text-xs font-bold">(Seu Perfil)</span>}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
 function App() {
     const [view, setView] = useState('menu');
     const [cart, setCart] = useState([]);
@@ -280,10 +339,15 @@ function App() {
     const [user, setUser] = useState(null);
     const [userData, setUserData] = useState(null);
     const [isAdmin, setIsAdmin] = useState(false);
+    const [userRole, setUserRole] = useState('customer'); 
     const [error, setError] = useState('');
     const [authLoading, setAuthLoading] = useState(false);
     const [isAuthReady, setIsAuthReady] = useState(false);
     const [toastMessage, setToastMessage] = useState('');
+    const [trackerIntervalId, setTrackerIntervalId] = useState(null);
+    const [trackingOrderId, setTrackingOrderId] = useState(null);
+    const [currentLat, setCurrentLat] = useState(40.6589); 
+    const [currentLng, setCurrentLng] = useState(-7.9138);
 
     const showToast = (message) => {
         setToastMessage(message);
@@ -347,57 +411,147 @@ function App() {
     }, [cart.length, storeOpen, view]);
 
 
+    const stopTracking = useCallback(() => {
+        if (trackerIntervalId) {
+            clearInterval(trackerIntervalId);
+            setTrackerIntervalId(null);
+            setTrackingOrderId(null);
+        }
+    }, [trackerIntervalId]); 
+
+    
+    const startTracking = useCallback((orderId, initialLat, initialLng) => {
+        stopTracking(); 
+        setTrackingOrderId(orderId);
+        
+        const intervalId = setInterval(async () => {
+
+            const targetOrder = orders.find(o => o.id === orderId);
+            if (!targetOrder || !targetOrder.lat || !targetOrder.lng) {
+                 stopTracking();
+                 return;
+            }
+            
+            const latDiff = targetOrder.lat - currentLat;
+            const lngDiff = targetOrder.lng - currentLng;
+            
+            const newLat = currentLat + (latDiff * 0.005) + (Math.random() * 0.0001);
+            const newLng = currentLng + (lngDiff * 0.005) + (Math.random() * 0.0001);
+            
+            setCurrentLat(newLat);
+            setCurrentLng(newLng);
+
+            const orderRef = doc(db, `artifacts/${appId}/public/data/orders/${orderId}`);
+            
+            try {
+                 await updateDoc(orderRef, {
+                    'deliveryTracker.lat': newLat,
+                    'deliveryTracker.lng': newLng,
+                    'deliveryTracker.lastUpdate': new Date(),
+                    'deliveryTracker.active': true,
+                });
+            } catch (error) {
+                console.error("Erro ao atualizar rastreamento:", error);
+            }
+            
+            if (Math.abs(latDiff) < 0.001 && Math.abs(lngDiff) < 0.001) {
+                //stopTracking();
+            }
+
+        }, 5000); 
+        
+        setTrackerIntervalId(intervalId);
+    }, [stopTracking, orders, currentLat, currentLng]);
+
+    const updateUserRole = useCallback(async (uid, newRole) => {
+        if (userRole !== 'admin') {
+            showToast("Acesso negado. Apenas administradores podem mudar o perfil de acesso.");
+            return;
+        }
+        if (!['customer', 'admin', 'kitchen', 'delivery'].includes(newRole)) {
+            showToast("Perfil inválido.");
+            return;
+        }
+        
+        try {
+            await updateDoc(doc(db, `artifacts/${appId}/public/data/users`, uid), {
+                role: newRole
+            });
+            showToast(`Perfil do usuário ${uid.slice(0,4)}... atualizado para: ${newRole}`);
+        } catch (error) {
+            console.error("Erro ao atualizar perfil do usuário:", error);
+            showToast("Falha ao atualizar o perfil. Verifique o console.");
+        }
+    }, [userRole]);
+
     useEffect(() => {
         if (!firebaseInitialized) {
             setIsAuthReady(true);
             return;
         }
         
-        const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+        const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
             if (currentUser) 
             {
                 setUser(currentUser);
-                const adminStatus = ADMIN_EMAILS.includes(currentUser.email);
-                setIsAdmin(adminStatus);
 
-                if (currentUser && !currentUser.isAnonymous) {
-                    
-                    requestUserNotificationPermission(currentUser, appId);
+                const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, currentUser.uid);
+                const docSnap = await getDoc(userDocRef);
 
-                    if (adminStatus) {
+                let userRoleStatus = 'customer';
+
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    userRoleStatus = data.role || 'customer'; 
+
+                    setUserData(data);
+
+                    if (userRoleStatus === 'admin') {
                         requestAdminNotificationPermission(currentUser, appId);
+                    } else if (!currentUser.isAnonymous) {
+                        requestUserNotificationPermission(currentUser, appId);
                     }
-
-                    const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, currentUser.uid);
-                    const unsubscribeUser = onSnapshot(userDocRef, (docSnap) => {
-                        if (docSnap.exists()) {
-                            setUserData(docSnap.data());
-                        } else {
-                            const initialData = { 
-                                name: currentUser.displayName, 
-                                email: currentUser.email, 
-                                addresses: [], 
-                                hasGivenFeedback: false, 
-                                hasFeedbackDiscount: false,
-                                notificationTokens: []
-                            };
-                            setUserData(initialData);
-                            setDoc(userDocRef, initialData);
-                        }
-                    });
-                    setIsAuthReady(true);
-                    return () => unsubscribeUser();
                 } else {
-                    setUserData({ name: 'Anônimo', email: '', addresses: [], hasGivenFeedback: false, hasFeedbackDiscount: false });
-                    setIsAuthReady(true);
+                    const initialData = { 
+                        name: currentUser.displayName, 
+                        email: currentUser.email, 
+                        addresses: [], 
+                        hasGivenFeedback: false, 
+                        hasFeedbackDiscount: false,
+                        notificationTokens: [],
+                        role: 'customer'
+                    };
+                    setUserData(initialData);
+                    
+                    if (!currentUser.isAnonymous) {
+                       await setDoc(userDocRef, initialData);
+                    }
                 }
+
+                setUserRole(userRoleStatus); 
+                setIsAdmin(userRoleStatus === 'admin'); 
+
+                if (userRoleStatus === 'admin') {
+                    setView('admin');
+                } else if (userRoleStatus === 'kitchen') {
+                    setView('kitchenView');
+                } else if (userRoleStatus === 'delivery') {
+                    setView('deliveryView');
+                } else {
+                    setView('menu');
+                }
+
+                setIsAuthReady(true);
             } else 
             {
                 signInAnonymously(auth).catch(err => {
                     console.error("Falha no login anônimo:", err);
                     setError("Não foi possível carregar o cardápio. Tente atualizar a página.");
                 }).finally(() => {
+                    setUserData({ name: 'Anônimo', email: '', addresses: [], hasGivenFeedback: false, hasFeedbackDiscount: false, role: 'customer' });
+                    setUserRole('customer');
                     setIsAuthReady(true);
+                    setView('menu');
                 });
             }
         });
@@ -406,12 +560,15 @@ function App() {
     }, []);
 
     useEffect(() => {
+        if (userRole !== 'delivery') return;
+        return () => stopTracking();
+    }, [stopTracking, userRole]);
+    
+    useEffect(() => {
         if (!isAuthReady || !firebaseInitialized) return;
         
-        if (isAdmin) setView('admin');
-
         const populateInitialData = async (ref, data) => {
-             if (!isAdmin) return;
+             if (userRole !== 'admin') return;
              try {
                 const snapshot = await getDocs(ref);
                 if (snapshot.empty) {
@@ -428,7 +585,7 @@ function App() {
         };
         
         const populateInitialSettings = async (ref, data) => {
-             if (!isAdmin) return;
+             if (userRole !== 'admin') return;
              try {
                 const docSnap = await getDoc(ref);
                 if (!docSnap.exists()) {
@@ -445,7 +602,7 @@ function App() {
         
         const unsubscribeMenu = onSnapshot(menuRef, (snapshot) => {
             const remoteMenu = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            if (remoteMenu.length > 0 || isAdmin) {
+            if (remoteMenu.length > 0 || userRole === 'admin') {
                  setMenu(remoteMenu);
             }
         }, handleSnapshotError('cardápio')); 
@@ -485,7 +642,7 @@ function App() {
             unsubscribeSettings();
             unsubscribeFeedbacks();
         };
-    }, [isAuthReady, isAdmin, handleSnapshotError]); 
+    }, [isAuthReady, userRole, handleSnapshotError]); 
 
     const addToCart = (item, customization, priceOverride) => {
         const applyMinimumOrder = cart.length === 0;
@@ -531,9 +688,24 @@ function App() {
         setAuthLoading(true);
         setError('');
         try {
-            await signInWithEmailAndPassword(auth, email, password);
-            if(ADMIN_EMAILS.includes(email)) {
+            const userCredential = await signInWithEmailAndPassword(auth, email, password);
+            
+            const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, userCredential.user.uid);
+            const docSnap = await getDoc(userDocRef);
+            
+            let userRoleStatus = 'customer';
+            if (docSnap.exists()) {
+                userRoleStatus = docSnap.data().role || 'customer';
+            }
+
+            setUserRole(userRoleStatus);
+
+            if(userRoleStatus === 'admin') {
                 setView('admin');
+            } else if (userRoleStatus === 'kitchen') {
+                setView('kitchenView');
+            } else if (userRoleStatus === 'delivery') {
+                setView('deliveryView');
             } else {
                 setView('cart');
             }
@@ -555,9 +727,11 @@ function App() {
                 addresses: [], 
                 hasGivenFeedback: false,
                 hasFeedbackDiscount: false,
-                notificationTokens: []
+                notificationTokens: [],
+                role: 'customer'
             });
             
+            setUserRole('customer');
             setView('cart');
         } catch(err) { setError('Não foi possível criar a conta. O email pode já estar em uso.'); }
         finally { setAuthLoading(false); }
@@ -566,6 +740,8 @@ function App() {
     const handleLogout = async () => {
         await signOut(auth);
         setCart([]);
+        setUserRole('customer');
+        setIsAdmin(false);
         setView('menu');
     };
     
@@ -582,8 +758,8 @@ function App() {
             const deliveryDetails = (customerDetails.lat && customerDetails.lng) ? 
             {
                 deliveryTracker: {
-                    lat: customerDetails.lat,
-                    lng: customerDetails.lng,
+                    lat: currentLat,
+                    lng: currentLng,
                     lastUpdate: null,
                     active: false,
                 }
@@ -623,12 +799,91 @@ function App() {
             finally { setAuthLoading(false); }
     };
     
+    const updateOrderStatus = async (orderId, status) => {
+        const orderDocPath = `artifacts/${appId}/public/data/orders/${orderId}`;
+        const orderRef = doc(db, orderDocPath);
+        
+        const updateData = { status };
+        
+        const orderToUpdate = orders.find(o => o.id === orderId);
+
+        if (status === 'Concluído') {
+            if (trackingOrderId === orderId) {
+                stopTracking();
+                updateData['deliveryTracker.active'] = false;
+            }
+        }
+        
+        if (status === 'Saiu para Entrega') {
+            if (orderToUpdate.deliveryMethod === 'deliver') {
+                if (trackingOrderId !== orderId) {
+                     startTracking(orderId, orderToUpdate.deliveryTracker?.lat || currentLat, orderToUpdate.deliveryTracker?.lng || currentLng);
+                     updateData['deliveryTracker.active'] = true;
+                     updateData['deliveryTracker.lastUpdate'] = new Date();
+                     updateData['deliveryTracker.lat'] = orderToUpdate.lat || currentLat;
+                     updateData['deliveryTracker.lng'] = orderToUpdate.lng || currentLng; 
+                }
+            }
+        } else if (orderToUpdate?.deliveryTracker?.active) {
+             updateData['deliveryTracker.active'] = false;
+        }
+
+        if (status === 'Rejeitado') {
+             await deleteDoc(orderRef);
+             showToast(`Pedido #${orderId.slice(0, 8)} rejeitado e removido.`);
+             return;
+        }
+
+        await updateDoc(orderRef, updateData);
+    };
+
+    const getGoogleMapsLink = (order) => {
+        const clientLat = order.lat || 40.66; 
+        const clientLng = order.lng || -7.92; 
+        const origin = `${currentLat},${currentLng}`;
+        
+        return `https://www.google.com/maps/dir/${origin}&destination=${clientLat},${clientLng}&travelmode=driving`;
+    };
+    
     if (!firebaseInitialized && isAuthReady) return <FirebaseErrorScreen />;
     if (!isAuthReady) return <div className="flex justify-center items-center h-screen bg-amber-50"><ChefHat className="animate-spin text-amber-500" size={64} /></div>;
 
     const isCartButtonVisible = (view === 'menu' || view === 'cart') && cart.length > 0;
     
     const renderView = () => {
+        if (userRole === 'admin') {
+             switch (view) {
+                case 'admin':
+                case 'dashboard': 
+                case 'orders':
+                case 'menu':
+                case 'faturamento':
+                case 'feedbacks':
+                case 'manageAgenda':
+                case 'settings':
+                case 'manageUsers':
+                    return <AdminDashboard 
+                        menu={menu} orders={orders} feedbacks={feedbacks} handleLogout={handleLogout} 
+                        showToast={showToast} settings={shopSettings} setView={setView} 
+                        updateOrderStatus={updateOrderStatus} updateUserRole={updateUserRole}
+                        currentUserEmail={user.email}
+                        userRole={userRole}
+                    />;
+                case 'kitchenView': return <KitchenView orders={orders.filter(o => ['Pendente', 'Em Preparo'].includes(o.status))} setView={setView} updateOrderStatus={updateOrderStatus} />;
+                case 'deliveryView': return <DeliveryView orders={orders.filter(o => o.status === 'Pronto para Entrega' || o.status === 'Saiu para Entrega')} setView={setView} updateOrderStatus={updateOrderStatus} trackingOrderId={trackingOrderId} stopTracking={stopTracking} startTracking={startTracking} getGoogleMapsLink={getGoogleMapsLink} currentLat={currentLat} currentLng={currentLng} />;
+                default: return <AdminDashboard menu={menu} orders={orders} feedbacks={feedbacks} handleLogout={handleLogout} showToast={showToast} settings={shopSettings} setView={setView} updateOrderStatus={updateOrderStatus} updateUserRole={updateUserRole} currentUserEmail={user.email} userRole={userRole} />;
+            }
+        }
+        
+        if (userRole === 'kitchen') {
+            return <KitchenView orders={orders.filter(o => ['Pendente', 'Em Preparo'].includes(o.status))} setView={setView} updateOrderStatus={updateOrderStatus} />;
+        }
+
+        if (userRole === 'delivery') {
+            return <DeliveryView orders={orders.filter(o => o.status === 'Pronto para Entrega' || o.status === 'Saiu para Entrega')} setView={setView} updateOrderStatus={updateOrderStatus} trackingOrderId={trackingOrderId} stopTracking={stopTracking} startTracking={startTracking} getGoogleMapsLink={getGoogleMapsLink} currentLat={currentLat} currentLng={currentLng} />;
+        }
+        
+        // Customer View
         switch (view) {
             case 'cart': return <CartView cart={cart} updateQuantity={updateQuantity} cartTotal={cartTotal.toFixed(2)} setView={setView} emptyCart={() => setCart([])} user={user} />;
             case 'checkout': return <CheckoutView placeOrder={placeOrder} cartTotal={cartTotal} cartTotalQuantity={cartTotalQuantity} cart={cart} setView={setView} initialError={error} user={user} userData={userData} authLoading={authLoading} shopSettings={shopSettings} storeOpen={storeOpen} getWorkingInterval={getWorkingInterval}/>;
@@ -638,10 +893,6 @@ function App() {
             case 'signUp': return <SignUpView handleSignUp={handleSignUp} error={error} setView={setView} authLoading={authLoading} />;
             case 'myOrders': return <MyOrdersView orders={orders.filter(o => o.userId === user?.uid)} setView={setView} />;
             case 'accountSettings': return <AccountSettingsView user={user} userData={userData} showToast={showToast} setView={setView} db={db} appId={appId} />;
-            case 'admin': return isAdmin ? <AdminDashboard menu={menu} orders={orders} feedbacks={feedbacks} handleLogout={handleLogout} showToast={showToast} settings={shopSettings} setView={setView} /> : <MenuView menu={menu} addToCart={addToCart} showStoreClosedToast={showStoreClosedToast} />;
-            case 'kitchenView': return <KitchenView orders={orders.filter(o => ['Pendente', 'Em Preparo'].includes(o.status))} setView={setView} />;
-            case 'deliveryView': return <DeliveryView orders={orders.filter(o => o.status === 'Pronto para Entrega' || o.status === 'Saiu para Entrega')} setView={setView} db={db} appId={appId} user={user} isAdmin={isAdmin} />;
-            case 'manageAgenda': return <ManageAgenda currentSettings={shopSettings} showToast={showToast} db={db} appId={appId} />;
             default: return <MenuView menu={menu} addToCart={addToCart} showStoreClosedToast={showStoreClosedToast} />;
         }
     };
@@ -663,7 +914,7 @@ function App() {
                         <span>{cartTotal.toFixed(2)}€</span>
                     </button>
                 )}
-                {!isAdmin && <WhatsAppButton settings={shopSettings} />}
+                {userRole === 'customer' && <WhatsAppButton settings={shopSettings} />}
             </div>
 
             {view !== 'kitchenView' && view !== 'deliveryView' && <Footer user={user} setView={setView} handleLogout={handleLogout} isAdmin={isAdmin} />}
@@ -1587,7 +1838,7 @@ const LoginView = ({ handleLogin, error, setView, isAdminLogin = false, authLoad
 
     return (
         <div className="max-w-sm mx-auto mt-10 bg-white p-8 rounded-xl shadow-xl animate-fade-in">
-            <h2 className="text-2xl font-bold text-center mb-6">{isAdminLogin ? 'Acesso Administrador' : 'Entrar na sua Conta'}</h2>
+            <h2 className="text-2xl font-bold text-center mb-6">{isAdminLogin ? 'Acesso Gestão' : 'Entrar na sua Conta'}</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                     <label className="block text-stone-700 font-bold mb-2">Email</label>
@@ -1667,8 +1918,9 @@ const AddressForm = ({ address, onSave, onCancel, showToast }) => {
     const [formError, setFormError] = useState('');
 
     const handleChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({...prev, [name]: value}));
+        const { name, value, type } = e.target;
+        const val = type === 'number' ? parseFloat(value) || 0 : value;
+        setFormData(prev => ({...prev, [name]: val}));
     };
 
     const handleCepLookup = async (cep) => {
@@ -1903,9 +2155,8 @@ const DeliveryTrackerComponent = ({ order }) => {
     const estimatedTime = Math.floor(Math.random() * 11) + 5; 
     
     const mapCenter = `${deliveryTracker.lat},${deliveryTracker.lng}`;
-    const destination = `${order.lat},${order.lng}`;
 
-    const mapUrl = `https://maps.google.com/maps?q=$${mapCenter}&z=14&t=k&output=embed`;
+    const mapUrl = `https://maps.google.com/maps?q=${mapCenter}&z=14&t=k&output=embed`;
 
     const lastUpdate = deliveryTracker.lastUpdate ? new Date(deliveryTracker.lastUpdate.seconds * 1000).toLocaleTimeString('pt-PT') : 'N/A';
 
@@ -2015,10 +2266,12 @@ const AdminStats = ({ orders }) => {
                     <p className="text-2xl font-bold text-stone-800">{orders.length}</p>
                 </div>
             </div>
-            <div className="bg-green-200 p-3 rounded-full"><DollarSign className="text-green-600" size={24}/></div>
-            <div>
-                <p className="text-sm text-stone-500">Faturamento (Concluídos)</p>
-                <p className="text-2xl font-bold text-stone-800">{totalRevenue.toFixed(2)}€</p>
+            <div className="bg-stone-100 p-4 rounded-xl shadow-lg flex items-center gap-4">
+                <div className="bg-green-200 p-3 rounded-full"><DollarSign className="text-green-600" size={24}/></div>
+                <div>
+                    <p className="text-sm text-stone-500">Faturamento (Concluídos)</p>
+                    <p className="text-2xl font-bold text-stone-800">{totalRevenue.toFixed(2)}€</p>
+                </div>
             </div>
             <div className="bg-stone-100 p-4 rounded-xl shadow-lg flex items-center gap-4">
                 <div className="bg-yellow-200 p-3 rounded-full"><Clock className="text-yellow-600" size={24}/></div>
@@ -2031,17 +2284,18 @@ const AdminStats = ({ orders }) => {
     );
 }
 
-const AdminDashboard = ({ menu, orders, feedbacks, handleLogout, showToast, settings, setView }) => {
+const AdminDashboard = ({ menu, orders, feedbacks, handleLogout, showToast, settings, setView, updateOrderStatus, updateUserRole, currentUserEmail }) => {
     const [adminView, setAdminView] = useState('dashboard'); 
     
     const renderAdminView = () => {
         switch(adminView) {
-            case 'orders': return <ManageOrders orders={orders} />;
+            case 'orders': return <ManageOrders orders={orders} updateOrderStatus={updateOrderStatus} />;
             case 'menu': return <ManageMenu menu={menu} />;
             case 'settings': return <AdminSettings showToast={showToast} currentSettings={settings} />;
             case 'faturamento': return <FaturamentoView orders={orders} />;
             case 'feedbacks': return <FeedbacksView feedbacks={feedbacks} showToast={showToast} />;
             case 'manageAgenda': return <ManageAgenda currentSettings={settings} showToast={showToast} db={db} appId={appId}/>;
+            case 'manageUsers': return <ManageUsers userRole={'admin'} currentUserEmail={currentUserEmail} updateUserRole={updateUserRole} />;
             default: return <AdminStats orders={orders} />;
         }
     }
@@ -2064,6 +2318,7 @@ const AdminDashboard = ({ menu, orders, feedbacks, handleLogout, showToast, sett
                 <button onClick={() => setAdminView('feedbacks')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'feedbacks' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Star size={16}/> Feedbacks</button>
                 <button onClick={() => setAdminView('manageAgenda')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'manageAgenda' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Calendar size={16}/> Agenda</button>
                 <button onClick={() => setAdminView('settings')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'settings' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Settings size={16}/> Configurações</button>
+                <button onClick={() => setAdminView('manageUsers')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'manageUsers' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Users size={16}/> Perfis</button>
             </div>
             {renderAdminView()}
         </div>
@@ -2519,14 +2774,8 @@ const AdminSettings = ({showToast, currentSettings}) => {
     );
 };
 
-const ManageOrders = ({ orders }) => {
+const ManageOrders = ({ orders, updateOrderStatus }) => {
     const [deletingOrderId, setDeletingOrderId] = useState(null);
-
-    const handleUpdateStatus = async (orderId, status) => {
-        const orderDocPath = `artifacts/${appId}/public/data/orders/${orderId}`;
-        const orderRef = doc(db, orderDocPath);
-        await updateDoc(orderRef, { status });
-    };
 
     const handleRejectOrder = (orderId) => {
         setDeletingOrderId(orderId);
@@ -2534,8 +2783,7 @@ const ManageOrders = ({ orders }) => {
     
     const handleDeleteConfirm = async () => {
          if (deletingOrderId) {
-            const orderDocPath = `artifacts/${appId}/public/data/orders/${deletingOrderId}`;
-            await deleteDoc(doc(db, orderDocPath));
+            await updateOrderStatus(deletingOrderId, 'Rejeitado');
             setDeletingOrderId(null);
         }
     }
@@ -2594,7 +2842,7 @@ const ManageOrders = ({ orders }) => {
                          </div>
                          <div className="mt-4 flex flex-wrap gap-2 items-center">
                              {['Pendente', 'Em Preparo', 'Pronto para Entrega', 'Saiu para Entrega', 'Concluído'].map(status => (
-                                 <button key={status} onClick={() => handleUpdateStatus(order.id, status)} className={`px-3 py-1 text-sm rounded-full transition-all ${order.status === status ? 'ring-2 ring-offset-1 ring-amber-500 bg-stone-200 font-bold' : 'bg-white hover:bg-stone-200 border'}`}>{status}</button>
+                                 <button key={status} onClick={() => updateOrderStatus(order.id, status)} className={`px-3 py-1 text-sm rounded-full transition-all ${order.status === status ? 'ring-2 ring-offset-1 ring-amber-500 bg-stone-200 font-bold' : 'bg-white hover:bg-stone-200 border'}`}>{status}</button>
                              ))}
                              <div className="flex-grow"></div>
                              <button onClick={() => handleRejectOrder(order.id)} className={'bg-red-100 hover:bg-red-200 border border-red-200 text-red-700 px-3 py-1 text-sm rounded-full transition-all'}>Rejeitar</button>
@@ -2781,21 +3029,17 @@ const MenuItemForm = ({ item, onSave, onCancel, allCategories }) => {
     );
 };
 
-const KitchenView = ({ orders, setView }) => {
-    const updateStatus = async (orderId, status) => {
-        const orderDocPath = `artifacts/${appId}/public/data/orders/${orderId}`;
-        const orderRef = doc(db, orderDocPath);
-        await updateDoc(orderRef, { status });
-    };
+const KitchenView = ({ orders, setView, updateOrderStatus }) => {
+    const ordersToProcess = orders.filter(o => ['Pendente', 'Em Preparo'].includes(o.status));
 
     return (
         <div className="bg-stone-900 min-h-screen p-4 text-white">
             <div className="flex justify-between items-center mb-4">
-                 <h1 className="text-4xl font-bold text-amber-400">Visão da Cozinha</h1>
+                 <h1 className="text-4xl font-bold text-amber-400 flex items-center"><ChefHat className='mr-3'/> Visão da Cozinha</h1>
                  <button onClick={() => setView('admin')} className="bg-stone-700 text-white font-semibold py-2 px-4 rounded-full hover:bg-stone-600 flex items-center gap-2"><ChevronsLeft size={16}/> Voltar ao Painel</button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {orders.map(order => (
+                {ordersToProcess.map(order => (
                     <div key={order.id} className={`p-4 rounded-xl shadow-lg flex flex-col ${order.status === 'Pendente' ? 'bg-red-900 border-red-700' : 'bg-blue-900 border-blue-700'} border-2`}>
                         <div className="flex justify-between items-center border-b border-white/20 pb-2 mb-2">
                              <h2 className="text-2xl font-bold">{order.name}</h2>
@@ -2818,12 +3062,12 @@ const KitchenView = ({ orders, setView }) => {
                         </div>
                          <div className="mt-auto pt-2">
                              {order.status === 'Pendente' && (
-                                <button onClick={() => updateStatus(order.id, 'Em Preparo')} className="w-full bg-blue-500 text-white font-bold py-3 rounded-full hover:bg-blue-600 text-lg transition-colors">
+                                <button onClick={() => updateOrderStatus(order.id, 'Em Preparo')} className="w-full bg-blue-500 text-white font-bold py-3 rounded-full hover:bg-blue-600 text-lg transition-colors">
                                     Iniciar Preparo
                                 </button>
                              )}
                               {order.status === 'Em Preparo' && (
-                                <button onClick={() => updateStatus(order.id, 'Pronto para Entrega')} className="w-full bg-green-500 text-white font-bold py-3 rounded-full hover:bg-green-600 text-lg transition-colors">
+                                <button onClick={() => updateOrderStatus(order.id, 'Pronto para Entrega')} className="w-full bg-green-500 text-white font-bold py-3 rounded-full hover:bg-green-600 text-lg transition-colors">
                                     Pedido Finalizado
                                 </button>
                              )}
@@ -2835,7 +3079,7 @@ const KitchenView = ({ orders, setView }) => {
     );
 };
 
-const ManageAgenda = ({ currentSettings, showToast, db, appId }) => {
+const ManageAgenda = ({ currentSettings, showToast }) => {
     const safeSettings = useMemo(() => ({
         ...currentSettings,
         workingHours: currentSettings.workingHours || INITIAL_WORKING_HOURS,
@@ -2972,100 +3216,14 @@ const ManageAgenda = ({ currentSettings, showToast, db, appId }) => {
     );
 }
 
-const DeliveryView = ({ orders, setView, db, appId, user }) => {
+const DeliveryView = ({ orders, setView, updateOrderStatus, trackingOrderId, stopTracking, startTracking, getGoogleMapsLink, currentLat, currentLng }) => {
     
-    const [trackerIntervalId, setTrackerIntervalId] = useState(null);
-    const [trackingOrderId, setTrackingOrderId] = useState(null);
-    const [currentLat, setCurrentLat] = useState(38.7223); 
-    const [currentLng, setCurrentLng] = useState(-9.1393);
-
-    const updateStatus = async (orderId, status) => {
-        const orderDocPath = `artifacts/${appId}/public/data/orders/${orderId}`;
-        const orderRef = doc(db, orderDocPath);
-        
-        const updateData = { status };
-        
-        if (status === 'Concluído' && trackingOrderId === orderId) {
-            stopTracking();
-            updateData['deliveryTracker.active'] = false;
-            updateData['deliveryTracker.lastUpdate'] = new Date();
-        }
-        
-        if (status === 'Saiu para Entrega' && trackingOrderId !== orderId) {
-             const orderToStart = orders.find(o => o.id === orderId);
-             if (orderToStart?.deliveryTracker) {
-                 startTracking(orderId);
-                 updateData['deliveryTracker.active'] = true;
-                 updateData['deliveryTracker.lastUpdate'] = new Date();
-                 updateData['deliveryTracker.lat'] = orderToStart.lat || currentLat;
-                 updateData['deliveryTracker.lng'] = orderToStart.lng || currentLng; 
-             }
-        }
-        
-        await updateDoc(orderRef, updateData);
-    };
-    
-    const stopTracking = useCallback(() => {
-        if (trackerIntervalId) {
-            clearInterval(trackerIntervalId);
-            setTrackerIntervalId(null);
-            setTrackingOrderId(null);
-        }
-    }, [trackerIntervalId]); 
-
-    
-    const startTracking = useCallback((orderId) => {
-        stopTracking(); 
-        setTrackingOrderId(orderId);
-        
-        const intervalId = setInterval(async () => {
-
-            const targetOrder = orders.find(o => o.id === orderId);
-            if (!targetOrder || !targetOrder.lat || !targetOrder.lng) return;
-            
-            const latDiff = targetOrder.lat - currentLat;
-            const lngDiff = targetOrder.lng - currentLng;
-            
-            const newLat = currentLat + (latDiff * 0.05) + (Math.random() * 0.0001);
-            const newLng = currentLng + (lngDiff * 0.05) + (Math.random() * 0.0001);
-            
-            setCurrentLat(newLat);
-            setCurrentLng(newLng);
-
-            const orderRef = doc(db, `artifacts/${appId}/public/data/orders/${orderId}`);
-            
-            try {
-                 await updateDoc(orderRef, {
-                    'deliveryTracker.lat': newLat,
-                    'deliveryTracker.lng': newLng,
-                    'deliveryTracker.lastUpdate': new Date(),
-                    'deliveryTracker.active': true,
-                });
-            } catch (error) {
-                console.error("Erro ao atualizar rastreamento:", error);
-            }
-        }, 5000); 
-        
-        setTrackerIntervalId(intervalId);
-    }, [stopTracking, orders, currentLat, currentLng, db, appId]);
-
-
-    useEffect(() => {
-        return () => stopTracking();
-    }, [stopTracking]);
-    
-    const getGoogleMapsLink = (order) => {
-        const clientLat = order.lat || 38.7; 
-        const clientLng = order.lng || -9.1; 
-        const origin = `${currentLat},${currentLng}`;
-        
-        return `https://www.google.com/maps/dir/${origin}&destination=${clientLat},${clientLng}&travelmode=driving`;
-    };
+    const ordersToDeliver = orders.filter(o => o.status === 'Pronto para Entrega' || o.status === 'Saiu para Entrega');
     
     return (
         <div className="bg-stone-200 min-h-screen p-4">
             <div className="flex justify-between items-center mb-4">
-                 <h1 className="text-3xl font-bold text-stone-800">Painel do Entregador</h1>
+                 <h1 className="text-3xl font-bold text-stone-800 flex items-center"><Bike className='mr-3'/> Painel do Entregador</h1>
                  <button onClick={() => setView('admin')} className="bg-stone-700 text-white font-semibold py-2 px-4 rounded-full hover:bg-stone-600 flex items-center gap-2"><ChevronsLeft size={16}/> Voltar</button>
             </div>
             {trackingOrderId && (
@@ -3076,7 +3234,7 @@ const DeliveryView = ({ orders, setView, db, appId, user }) => {
                 </div>
             )}
              <div className="space-y-4">
-                {orders.map(order => (
+                {ordersToDeliver.map(order => (
                      <div key={order.id} className="bg-white p-4 rounded-xl shadow-lg">
                          <div className="flex flex-col sm:flex-row justify-between sm:items-center border-b pb-2 mb-2">
                              <div>
@@ -3091,6 +3249,7 @@ const DeliveryView = ({ orders, setView, db, appId, user }) => {
                              {order.deliveryFee > 0 && (
                                  <p className="font-semibold">Distância: <span className="font-normal text-stone-700">{order.distanceKm.toFixed(1)} KM</span> (Taxa: {order.deliveryFee.toFixed(2)}€)</p>
                              )}
+                              <p className="text-xs text-stone-400 mt-2">Localização atual do entregador: {currentLat.toFixed(5)}, {currentLng.toFixed(5)}</p>
                          </div>
                          <div className="flex flex-wrap gap-2 mt-3">
                               <a href={getGoogleMapsLink(order)} target="_blank" rel="noopener noreferrer" className="flex-1 bg-amber-500 text-white font-bold py-3 rounded-full hover:bg-amber-600 transition-colors flex items-center justify-center gap-2 shadow-lg">
@@ -3098,12 +3257,12 @@ const DeliveryView = ({ orders, setView, db, appId, user }) => {
                               </a>
                               
                               {order.status === 'Pronto para Entrega' && (
-                                <button onClick={() => updateStatus(order.id, 'Saiu para Entrega')} disabled={trackingOrderId && trackingOrderId !== order.id} className="flex-1 bg-purple-500 text-white font-bold py-3 rounded-full hover:bg-purple-600 transition-colors flex items-center justify-center gap-2 shadow-lg disabled:opacity-50">
+                                <button onClick={() => updateOrderStatus(order.id, 'Saiu para Entrega')} disabled={trackingOrderId && trackingOrderId !== order.id} className="flex-1 bg-purple-500 text-white font-bold py-3 rounded-full hover:bg-purple-600 transition-colors flex items-center justify-center gap-2 shadow-lg disabled:opacity-50">
                                     <Bike size={18}/> Saiu para Entrega
                                 </button>
                              )}
                               {order.status === 'Saiu para Entrega' && (
-                                <button onClick={() => updateStatus(order.id, 'Concluído')} className="flex-1 bg-green-500 text-white font-bold py-3 rounded-full hover:bg-green-600 transition-colors shadow-lg">
+                                <button onClick={() => updateOrderStatus(order.id, 'Concluído')} className="flex-1 bg-green-500 text-white font-bold py-3 rounded-full hover:bg-green-600 transition-colors shadow-lg">
                                     Entrega Concluída
                                 </button>
                              )}
