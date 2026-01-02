@@ -64,6 +64,7 @@ import {
     Navigation,
     Users
 } from 'lucide-react';
+import NotificationSetup from './NotificationSetup';
 import { 
     BarChart, 
     Bar, 
@@ -899,6 +900,7 @@ function App() {
 
     return (
         <div className="bg-stone-50 min-h-screen font-sans text-stone-800" style={{fontFamily: "'Inter', sans-serif"}}>
+            <NotificationSetup />
             {toastMessage && <Toast message={toastMessage} />}
             {view !== 'kitchenView' && view !== 'deliveryView' && <Header cartCount={cartTotalQuantity} setView={setView} user={user} isAdmin={isAdmin} settings={shopSettings}/>}
             <main className={!['kitchenView', 'deliveryView'].includes(view) ? "p-4 md:p-6 max-w-7xl mx-auto" : ""}>
