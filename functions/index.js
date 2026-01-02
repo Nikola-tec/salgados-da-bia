@@ -3,7 +3,7 @@ const admin = require("firebase-admin");
 
 admin.initializeApp();
 
-// --- FUNÇÃO 1: Notifica Admin quando chega pedido novo (JÁ EXISTE) ---
+// --- FUNÇÃO 1: Notifica Admin sobre Novos Pedidos ---
 exports.notificarNovoPedido = functions.firestore
     .document("artifacts/{appId}/public/data/orders/{pedidoId}")
     .onCreate(async (snap, context) => {
@@ -17,12 +17,20 @@ exports.notificarNovoPedido = functions.firestore
 
       const message = {
         notification: {
-          title: "Novo Pedido Recebido! 🍔",
-          body: `Cliente: ${nome} - Total: ${valor}€`,
+          title: "Novo Pedido! 🍔",
+          body: `${nome} fez um pedido de R$ ${valor}.`,
         },
-        data: {
-          click_action: "https://salgadosdabia.com",
-          icon: "/logo192.png",
+        // Configuração específica para Navegadores (Chrome, Edge, Firefox)
+        webpush: {
+          notification: {
+            title: "Novo Pedido! 🍔",
+            body: `${nome} fez um pedido de R$ ${valor}.`,
+            icon: "/logo192.png",
+            click_action: "https://salgadosdabia.com/admin",
+          },
+          fcmOptions: {
+            link: "https://salgadosdabia.com/admin",
+          },
         },
         tokens: [],
       };
@@ -37,11 +45,11 @@ exports.notificarNovoPedido = functions.firestore
       message.tokens = tokens;
 
       const response = await admin.messaging().sendMulticast(message);
-      console.log("Admin notificado. Sucessos:", response.successCount);
+      console.log("Notificações enviadas:", response.successCount);
       return null;
     });
 
-// --- FUNÇÃO 2: CRM - Envia notificações em massa para clientes (NOVA) ---
+// --- FUNÇÃO 2: CRM - Envia campanhas para Clientes ---
 exports.enviarCampanhaMarketing = functions.firestore
     .document("artifacts/{appId}/public/data/marketing_campaigns/{campaignId}")
     .onCreate(async (snap, context) => {
@@ -54,11 +62,9 @@ exports.enviarCampanhaMarketing = functions.firestore
 
       console.log(`Iniciando campanha: ${campanha.title}`);
 
-      // 1. Buscar tokens dos usuários alvo
       const tokensParaEnviar = [];
       const usersRef = admin.firestore().collection(`artifacts/${appId}/public/data/users`);
 
-      // Se o alvo for "todos", buscamos todos os usuários com token
       if (campanha.targetUids === "all") {
         const snapshot = await usersRef.get();
         snapshot.forEach((doc) => {
@@ -68,10 +74,6 @@ exports.enviarCampanhaMarketing = functions.firestore
           }
         });
       } else {
-        // Se for uma lista específica de IDs (selecionados no CRM)
-        // Nota: Firestore 'in' query suporta até 10 itens.
-        // Para listas grandes, iteramos ou fazemos múltiplas queries.
-        // Aqui faremos uma iteração simples para garantir robustez no MVP.
         for (const uid of campanha.targetUids) {
           const userDoc = await usersRef.doc(uid).get();
           if (userDoc.exists && userDoc.data().notificationToken) {
@@ -81,27 +83,33 @@ exports.enviarCampanhaMarketing = functions.firestore
       }
 
       if (tokensParaEnviar.length === 0) {
-        await snap.ref.update({status: "Sem tokens válidos", finishedAt: new Date()});
+        await snap.ref.update({status: "Sem tokens", finishedAt: new Date()});
         return null;
       }
 
-      // 2. Montar a mensagem
       const message = {
         notification: {
           title: campanha.title,
           body: campanha.body,
         },
-        data: {
-          click_action: "https://salgadosdabia.com", // Pode ser um link para promoção
-          icon: "/logo192.png",
+        // Configuração específica para Web Push
+        webpush: {
+          notification: {
+            title: campanha.title,
+            body: campanha.body,
+            icon: "/logo192.png",
+            badge: "/favicon.ico",
+            click_action: "https://salgadosdabia.com",
+          },
+          fcmOptions: {
+            link: "https://salgadosdabia.com",
+          },
         },
         tokens: tokensParaEnviar,
       };
 
-      // 3. Enviar
       const response = await admin.messaging().sendMulticast(message);
 
-      // 4. Atualizar o relatório da campanha
       await snap.ref.update({
         status: "Enviado",
         sentCount: response.successCount,
@@ -109,6 +117,6 @@ exports.enviarCampanhaMarketing = functions.firestore
         finishedAt: new Date(),
       });
 
-      console.log(`Campanha finalizada. Enviados: ${response.successCount}`);
+      console.log(`Campanha enviada. Sucesso: ${response.successCount}`);
       return null;
     });
