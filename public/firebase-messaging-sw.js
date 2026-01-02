@@ -9,7 +9,7 @@ const firebaseConfig = {
   storageBucket: "salgados-da-bia-31dc0.firebasestorage.app",
   messagingSenderId: "2844533583",
   appId: "1:2844533583:web:0c569024e23ecfbd579b3a",
-  measurementId: "G-V9X4CFKKGM"
+  measurementId: "G-V9X4CFKKGM",
 };
 
 firebase.initializeApp(firebaseConfig);

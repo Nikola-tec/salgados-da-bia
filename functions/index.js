@@ -15,36 +15,55 @@ exports.notificarNovoPedido = functions.firestore
       const nome = pedido.userName || pedido.nomeCliente || "Cliente";
       const valor = pedido.total ? pedido.total.toFixed(2) : "0.00";
 
+      // Busca tokens de admin
+      const tokensSnapshot = await admin.firestore()
+          .collection("admin_tokens")
+          .get();
+
+      if (tokensSnapshot.empty) {
+        console.log("Sem tokens de admin.");
+        return null;
+      }
+
+      const tokens = tokensSnapshot.docs.map((doc) => doc.id);
+
+      // Estrutura Robustas para Notificação
       const message = {
         notification: {
           title: "Novo Pedido! 🍔",
           body: `${nome} fez um pedido de R$ ${valor}.`,
         },
         webpush: {
+          headers: {
+            Urgency: "high",
+          },
           notification: {
             title: "Novo Pedido! 🍔",
             body: `${nome} fez um pedido de R$ ${valor}.`,
             icon: "/logo192.png",
+            badge: "/favicon.ico",
             click_action: "https://salgadosdabia.com/admin",
+            requireInteraction: true, // Mantém a notificação na tela
           },
           fcmOptions: {
             link: "https://salgadosdabia.com/admin",
           },
         },
-        tokens: [],
+        tokens: tokens,
       };
 
-      const tokensSnapshot = await admin.firestore()
-          .collection("admin_tokens")
-          .get();
-
-      if (tokensSnapshot.empty) return null;
-
-      const tokens = tokensSnapshot.docs.map((doc) => doc.id);
-      message.tokens = tokens;
-
       const response = await admin.messaging().sendMulticast(message);
-      console.log("Notificações enviadas:", response.successCount);
+      console.log("Admin notificado. Sucesso:", response.successCount);
+      
+      // Log de falhas para debug
+      if (response.failureCount > 0) {
+        response.responses.forEach((resp, idx) => {
+          if (!resp.success) {
+            console.error(`Falha no token ${tokens[idx]}:`, resp.error);
+          }
+        });
+      }
+      
       return null;
     });
 
@@ -66,28 +85,26 @@ exports.enviarCampanhaMarketing = functions.firestore
       const usersRef = admin.firestore()
           .collection(`artifacts/${appId}/public/data/users`);
 
+      // Lógica para buscar tokens (Simples ou Todos)
       if (campanha.targetUids === "all") {
         const snapshot = await usersRef.get();
         snapshot.forEach((doc) => {
-          const userData = doc.data();
-          if (userData.notificationToken) {
-            tokensParaEnviar.push(userData.notificationToken);
-          }
+          const d = doc.data();
+          if (d.notificationToken) tokensParaEnviar.push(d.notificationToken);
         });
       } else {
+        // Busca individual (limitado a arrays pequenos por performance)
         for (const uid of campanha.targetUids) {
           const userDoc = await usersRef.doc(uid).get();
-          if (userDoc.exists && userDoc.data().notificationToken) {
-            tokensParaEnviar.push(userDoc.data().notificationToken);
+          if (userDoc.exists) {
+            const d = userDoc.data();
+            if (d.notificationToken) tokensParaEnviar.push(d.notificationToken);
           }
         }
       }
 
       if (tokensParaEnviar.length === 0) {
-        await snap.ref.update({
-          status: "Sem tokens",
-          finishedAt: new Date(),
-        });
+        await snap.ref.update({status: "Sem tokens", finishedAt: new Date()});
         return null;
       }
 
@@ -97,6 +114,9 @@ exports.enviarCampanhaMarketing = functions.firestore
           body: campanha.body,
         },
         webpush: {
+          headers: {
+            Urgency: "high",
+          },
           notification: {
             title: campanha.title,
             body: campanha.body,
@@ -121,17 +141,5 @@ exports.enviarCampanhaMarketing = functions.firestore
       });
 
       console.log(`Campanha enviada. Sucesso: ${response.successCount}`);
-
-      if (response.failureCount > 0) {
-        const failedTokens = [];
-        response.responses.forEach((resp, idx) => {
-          if (!resp.success) {
-            // FIX: Usar tokensParaEnviar em vez de tokens
-            failedTokens.push(tokensParaEnviar[idx]);
-          }
-        });
-        console.log("Tokens que falharam:", failedTokens);
-      }
-
       return null;
     });
