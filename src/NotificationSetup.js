@@ -17,7 +17,7 @@ const firebaseConfig = {
 };
 
 // 2. Pegue esta chave em: Console do Firebase > Cloud Messaging > Web Push Certificates (Gerar par de chaves)
-const VAPID_KEY = "SUA_CHAVE_VAPID_MUITO_LONGA_AQUI";
+const VAPID_KEY = "BGZAxnG_iSTgeX0y7s6rEmtFzE41Ns43DXN3gCgN6RJX51xKyDfRdOczX1T7cyQ5U3v6ZNCsJCyp3lESPuQQNKY";
 
 // --- FIM DA ÁREA DE CONFIGURAÇÃO ---
 
