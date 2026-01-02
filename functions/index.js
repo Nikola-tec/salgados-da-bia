@@ -3,38 +3,58 @@ const admin = require("firebase-admin");
 
 admin.initializeApp();
 
-// MUDANÇA AQUI: Trocamos "pedidos" por "orders"
 exports.notificarNovoPedido = functions.firestore
-  .document("orders/{pedidoId}")
-  .onCreate(async (snap, context) => {
-    const pedido = snap.data();
+    .document("artifacts/{appId}/public/data/orders/{pedidoId}")
+    .onCreate(async (snap, context) => {
+      const pedido = snap.data();
 
-    // Monta a mensagem
-    const payload = {
-      notification: {
-        title: "Novo Pedido Realizado!",
-        body: `Cliente: ${pedido.nomeCliente || "Anônimo"} - ` +
-              `Total: R$ ${pedido.total || "0,00"}`,
-        // O link para abrir o admin continua o mesmo (ajuste se sua rota mudar)
-        clickAction: "https://seu-site-salgados.web.app/admin/pedidos",
-      },
-    };
+      if (!pedido) {
+        return null;
+      }
 
-    // Busca todos os tokens de administradores salvos
-    const tokensSnapshot = await admin.firestore()
-      .collection("admin_tokens")
-      .get();
+      console.log("Novo pedido recebido:", context.params.pedidoId);
 
-    if (tokensSnapshot.empty) {
-      console.log("Nenhum token de admin encontrado para notificar.");
+      const nome = pedido.userName || pedido.nomeCliente || "Cliente";
+      const valor = pedido.total ? pedido.total.toFixed(2) : "0.00";
+
+      const message = {
+        notification: {
+          title: "Novo Pedido Recebido! 🍔",
+          body: `Cliente: ${nome} - Total: ${valor}€`,
+        },
+        data: {
+          click_action: "https://salgadosdabia.com",
+          icon: "/logo192.png",
+        },
+        tokens: [],
+      };
+
+      const tokensSnapshot = await admin.firestore()
+          .collection("admin_tokens")
+          .get();
+
+      if (tokensSnapshot.empty) {
+        console.log("Nenhum token de admin encontrado para notificar.");
+        return null;
+      }
+
+      const tokens = tokensSnapshot.docs.map((doc) => doc.id);
+      message.tokens = tokens;
+
+      const response = await admin.messaging().sendMulticast(message);
+
+      console.log("Notificações enviadas:", response.successCount);
+      console.log("Falhas:", response.failureCount);
+
+      if (response.failureCount > 0) {
+        const failedTokens = [];
+        response.responses.forEach((resp, idx) => {
+          if (!resp.success) {
+            failedTokens.push(tokens[idx]);
+          }
+        });
+        console.log("Tokens que falharam:", failedTokens);
+      }
+
       return null;
-    }
-
-    const tokens = tokensSnapshot.docs.map((doc) => doc.id);
-
-    // Envia a notificação para todos os admins
-    const response = await admin.messaging().sendToDevice(tokens, payload);
-
-    console.log("Notificações enviadas:", response.successCount);
-    return null;
-  });
+    });
