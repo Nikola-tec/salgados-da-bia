@@ -20,7 +20,6 @@ exports.notificarNovoPedido = functions.firestore
           title: "Novo Pedido! 🍔",
           body: `${nome} fez um pedido de R$ ${valor}.`,
         },
-        // Configuração específica para Navegadores (Chrome, Edge, Firefox)
         webpush: {
           notification: {
             title: "Novo Pedido! 🍔",
@@ -56,14 +55,16 @@ exports.enviarCampanhaMarketing = functions.firestore
       const campanha = snap.data();
       const appId = context.params.appId;
 
-      if (!campanha || !campanha.targetUids || campanha.targetUids.length === 0) {
+      if (!campanha || !campanha.targetUids ||
+          campanha.targetUids.length === 0) {
         return null;
       }
 
       console.log(`Iniciando campanha: ${campanha.title}`);
 
       const tokensParaEnviar = [];
-      const usersRef = admin.firestore().collection(`artifacts/${appId}/public/data/users`);
+      const usersRef = admin.firestore()
+          .collection(`artifacts/${appId}/public/data/users`);
 
       if (campanha.targetUids === "all") {
         const snapshot = await usersRef.get();
@@ -83,7 +84,10 @@ exports.enviarCampanhaMarketing = functions.firestore
       }
 
       if (tokensParaEnviar.length === 0) {
-        await snap.ref.update({status: "Sem tokens", finishedAt: new Date()});
+        await snap.ref.update({
+          status: "Sem tokens",
+          finishedAt: new Date(),
+        });
         return null;
       }
 
@@ -92,7 +96,6 @@ exports.enviarCampanhaMarketing = functions.firestore
           title: campanha.title,
           body: campanha.body,
         },
-        // Configuração específica para Web Push
         webpush: {
           notification: {
             title: campanha.title,
@@ -118,5 +121,17 @@ exports.enviarCampanhaMarketing = functions.firestore
       });
 
       console.log(`Campanha enviada. Sucesso: ${response.successCount}`);
+
+      if (response.failureCount > 0) {
+        const failedTokens = [];
+        response.responses.forEach((resp, idx) => {
+          if (!resp.success) {
+            // FIX: Usar tokensParaEnviar em vez de tokens
+            failedTokens.push(tokensParaEnviar[idx]);
+          }
+        });
+        console.log("Tokens que falharam:", failedTokens);
+      }
+
       return null;
     });
