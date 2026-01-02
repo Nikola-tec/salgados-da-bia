@@ -1,12 +1,7 @@
-// public/firebase-messaging-sw.js
+importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js');
 
-// Importar scripts do Firebase (versão 8, compatível com service workers)
-importScripts("https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js");
-importScripts("https://www.gstatic.com/firebasejs/8.10.1/firebase-messaging.js");
-
-// !! ATENÇÃO !!
-// Cole sua configuração do Firebase (a mesma do App.js)
-// Não use "process.env" aqui, deve ser o valor real.
+// 1. Cole aqui as configurações do seu projeto (pegue no Console do Firebase > Configurações do Projeto)
 const firebaseConfig = {
   apiKey: "AIzaSyBipqWOIlEimNaba7WEYrlhw2VHf4EcgzQ",
   authDomain: "salgados-da-bia-31dc0.firebaseapp.com",
@@ -21,22 +16,16 @@ firebase.initializeApp(firebaseConfig);
 
 const messaging = firebase.messaging();
 
-// Manipulador de mensagens em background
-messaging.onBackgroundMessage((payload) => {
-  console.log(
-    "[firebase-messaging-sw.js] Recebida mensagem em background: ",
-    payload
-  );
-
+// Configura o comportamento quando recebe notificação em background
+messaging.onBackgroundMessage(function(payload) {
+  console.log('[firebase-messaging-sw.js] Notificação recebida em background ', payload);
+  
   const notificationTitle = payload.notification.title;
   const notificationOptions = {
     body: payload.notification.body,
-    icon: payload.notification.icon,
+    icon: '/logo192.png', // Caminho para seu logo
+    badge: '/favicon.ico'
   };
 
-  // Exibe a notificação
-  return self.registration.showNotification(
-    notificationTitle,
-    notificationOptions
-  );
+  self.registration.showNotification(notificationTitle, notificationOptions);
 });
