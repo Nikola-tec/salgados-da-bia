@@ -84,8 +84,6 @@ import {
     PieChart, 
     Pie, 
     Cell } from 'recharts';
-import {
-     Trash2 } from 'lucide-react';
 
 let firebaseConfig;
 try {
