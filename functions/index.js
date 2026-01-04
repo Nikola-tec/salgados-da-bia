@@ -10,82 +10,62 @@ exports.notificarNovoPedido = functions.firestore
       const pedido = snap.data();
       if (!pedido) return null;
 
-      console.log("Novo pedido recebido:", context.params.pedidoId);
-
       const nome = pedido.userName || pedido.nomeCliente || "Cliente";
       const valor = pedido.total ? pedido.total.toFixed(2) : "0.00";
 
-      // Busca tokens de admin
-      const tokensSnapshot = await admin.firestore()
-          .collection("admin_tokens")
-          .get();
-
-      if (tokensSnapshot.empty) {
-        console.log("Sem tokens de admin.");
-        return null;
-      }
-
-      const tokens = tokensSnapshot.docs.map((doc) => doc.id);
-
-      // Estrutura Robustas para Notificação
       const message = {
         notification: {
           title: "Novo Pedido! 🍔",
           body: `${nome} fez um pedido de R$ ${valor}.`,
         },
         webpush: {
-          headers: {
-            Urgency: "high",
-          },
+          headers: {Urgency: "high"},
           notification: {
             title: "Novo Pedido! 🍔",
             body: `${nome} fez um pedido de R$ ${valor}.`,
             icon: "/logo192.png",
             badge: "/favicon.ico",
             click_action: "https://salgadosdabia.com/admin",
-            requireInteraction: true, // Mantém a notificação na tela
+            requireInteraction: true,
           },
-          fcmOptions: {
-            link: "https://salgadosdabia.com/admin",
-          },
+          fcmOptions: {link: "https://salgadosdabia.com/admin"},
         },
-        tokens: tokens,
+        tokens: [],
       };
 
-      const response = await admin.messaging().sendMulticast(message);
-      console.log("Admin notificado. Sucesso:", response.successCount);
-      
-      // Log de falhas para debug
-      if (response.failureCount > 0) {
-        response.responses.forEach((resp, idx) => {
-          if (!resp.success) {
-            console.error(`Falha no token ${tokens[idx]}:`, resp.error);
-          }
-        });
-      }
-      
+      const tokensSnapshot = await admin.firestore()
+          .collection("admin_tokens").get();
+
+      if (tokensSnapshot.empty) return null;
+
+      const tokens = tokensSnapshot.docs.map((doc) => doc.id);
+      message.tokens = tokens;
+
+      await admin.messaging().sendMulticast(message);
       return null;
     });
 
-// --- FUNÇÃO 2: CRM - Envia campanhas para Clientes ---
+// --- FUNÇÃO 2: CRM - Envia campanhas ---
 exports.enviarCampanhaMarketing = functions.firestore
     .document("artifacts/{appId}/public/data/marketing_campaigns/{campaignId}")
     .onCreate(async (snap, context) => {
       const campanha = snap.data();
       const appId = context.params.appId;
 
-      if (!campanha || !campanha.targetUids ||
-          campanha.targetUids.length === 0) {
+      // TRAVA DE SEGURANÇA: Só envia se o status for 'Pendente'
+      if (!campanha || campanha.status !== "Pendente") {
         return null;
       }
 
-      console.log(`Iniciando campanha: ${campanha.title}`);
+      if (!campanha.targetUids || campanha.targetUids.length === 0) {
+        await snap.ref.update({status: "Cancelado: Sem alvos"});
+        return null;
+      }
 
       const tokensParaEnviar = [];
       const usersRef = admin.firestore()
           .collection(`artifacts/${appId}/public/data/users`);
 
-      // Lógica para buscar tokens (Simples ou Todos)
       if (campanha.targetUids === "all") {
         const snapshot = await usersRef.get();
         snapshot.forEach((doc) => {
@@ -93,7 +73,7 @@ exports.enviarCampanhaMarketing = functions.firestore
           if (d.notificationToken) tokensParaEnviar.push(d.notificationToken);
         });
       } else {
-        // Busca individual (limitado a arrays pequenos por performance)
+        // Para listas grandes, idealmente usaríamos batch ou chunks
         for (const uid of campanha.targetUids) {
           const userDoc = await usersRef.doc(uid).get();
           if (userDoc.exists) {
@@ -104,7 +84,7 @@ exports.enviarCampanhaMarketing = functions.firestore
       }
 
       if (tokensParaEnviar.length === 0) {
-        await snap.ref.update({status: "Sem tokens", finishedAt: new Date()});
+        await snap.ref.update({status: "Falha: Sem tokens válidos"});
         return null;
       }
 
@@ -114,9 +94,7 @@ exports.enviarCampanhaMarketing = functions.firestore
           body: campanha.body,
         },
         webpush: {
-          headers: {
-            Urgency: "high",
-          },
+          headers: {Urgency: "high"},
           notification: {
             title: campanha.title,
             body: campanha.body,
@@ -124,9 +102,7 @@ exports.enviarCampanhaMarketing = functions.firestore
             badge: "/favicon.ico",
             click_action: "https://salgadosdabia.com",
           },
-          fcmOptions: {
-            link: "https://salgadosdabia.com",
-          },
+          fcmOptions: {link: "https://salgadosdabia.com"},
         },
         tokens: tokensParaEnviar,
       };
@@ -140,6 +116,5 @@ exports.enviarCampanhaMarketing = functions.firestore
         finishedAt: new Date(),
       });
 
-      console.log(`Campanha enviada. Sucesso: ${response.successCount}`);
       return null;
     });

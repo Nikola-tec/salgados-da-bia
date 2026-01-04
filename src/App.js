@@ -64,7 +64,12 @@ import {
     Navigation,
     Users,
     Megaphone,
-    Send
+    Send,
+    Save, 
+    Trash2, 
+    FileText, 
+    Filter, 
+    ArrowUpDown
 } from 'lucide-react';
 import NotificationSetup from './NotificationSetup';
 import { 
@@ -2419,6 +2424,169 @@ const CRMView = ({ orders, setView, db, showToast }) => {
     );
 };
 
+const CRMView = ({ orders, setView, db, showToast }) => {
+    const [users, setUsers] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [selectedUsers, setSelectedUsers] = useState([]);
+    const [campaignTitle, setCampaignTitle] = useState('');
+    const [campaignBody, setCampaignBody] = useState('');
+    const [sending, setSending] = useState(false);
+    
+    // Filtros e Templates
+    const [sortBy, setSortBy] = useState('recency');
+    const [templates, setTemplates] = useState([]);
+    const [showTemplates, setShowTemplates] = useState(false);
+    const [newTemplateName, setNewTemplateName] = useState('');
+    const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+
+    const appId = "salgados-da-bia";
+
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                // Carrega usuários e templates
+                const usersSnap = await getDocs(collection(db, `artifacts/${appId}/public/data/users`));
+                const templatesSnap = await getDocs(collection(db, `artifacts/${appId}/public/data/marketing_templates`));
+                
+                setTemplates(templatesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+
+                const usersData = usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                
+                // Calcula estatísticas (RFM)
+                const enrichedUsers = usersData.map(user => {
+                    const userOrders = orders.filter(o => o.userId === user.id);
+                    const lastOrderTimestamp = userOrders.length > 0 
+                        ? Math.max(...userOrders.map(o => o.createdAt?.seconds * 1000 || 0)) : 0;
+                    
+                    const daysSinceLastOrder = lastOrderTimestamp 
+                        ? Math.floor((new Date() - new Date(lastOrderTimestamp)) / (1000 * 60 * 60 * 24)) : 9999;
+
+                    const totalSpent = userOrders.reduce((acc, curr) => acc + (curr.total || 0), 0);
+                    const averageTicket = userOrders.length > 0 ? totalSpent / userOrders.length : 0;
+                    
+                    return { ...user, orderCount: userOrders.length, lastOrderDate: new Date(lastOrderTimestamp), daysSinceLastOrder, totalSpent, averageTicket };
+                });
+
+                setUsers(enrichedUsers);
+                setLoading(false);
+            } catch (error) {
+                console.error(error);
+                showToast("Erro ao carregar dados.");
+                setLoading(false);
+            }
+        };
+        fetchData();
+    }, [db, orders, showToast]);
+
+    const sortedUsers = useMemo(() => {
+        let sorted = [...users];
+        if (sortBy === 'recency') sorted.sort((a, b) => a.daysSinceLastOrder - b.daysSinceLastOrder);
+        else if (sortBy === 'totalSpent') sorted.sort((a, b) => b.totalSpent - a.totalSpent);
+        else if (sortBy === 'ticket') sorted.sort((a, b) => b.averageTicket - a.averageTicket);
+        return sorted;
+    }, [users, sortBy]);
+
+    const toggleSelectUser = (uid) => setSelectedUsers(prev => prev.includes(uid) ? prev.filter(id => id !== uid) : [...prev, uid]);
+    const selectAll = () => setSelectedUsers(selectedUsers.length === sortedUsers.length ? [] : sortedUsers.map(u => u.id));
+
+    const handleSaveTemplate = async () => {
+        if (!newTemplateName.trim()) return showToast("Dê um nome ao modelo.");
+        await addDoc(collection(db, `artifacts/${appId}/public/data/marketing_templates`), {
+            name: newTemplateName, title: campaignTitle, body: campaignBody, createdAt: new Date()
+        });
+        showToast("Modelo salvo!");
+        setIsSavingTemplate(false);
+    };
+
+    const handleSendCampaign = async () => {
+        if (!campaignTitle.trim() || !campaignBody.trim()) return showToast("Preencha a mensagem.");
+        if (selectedUsers.length === 0) return showToast("Selecione clientes.");
+        setSending(true);
+        try {
+            await addDoc(collection(db, `artifacts/${appId}/public/data/marketing_campaigns`), {
+                title: campaignTitle, body: campaignBody, targetUids: selectedUsers,
+                createdAt: new Date(), status: 'Pendente', targetCount: selectedUsers.length
+            });
+            showToast(`Enviando para ${selectedUsers.length} clientes!`);
+            setCampaignTitle(''); setCampaignBody(''); setSelectedUsers([]);
+        } catch (e) { showToast("Erro ao enviar."); } 
+        finally { setSending(false); }
+    };
+
+    if (loading) return <div className="p-10 text-center"><Loader2 className="animate-spin inline mr-2"/> Carregando...</div>;
+
+    return (
+        <div className="space-y-6 pb-20">
+            <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm">
+                <h2 className="text-2xl font-bold flex items-center gap-2"><Megaphone className='text-amber-600'/> Marketing</h2>
+                <button onClick={() => setView('admin')} className="bg-stone-100 px-4 py-2 rounded-lg font-bold text-stone-600 flex gap-2"><ChevronsLeft size={18}/> Voltar</button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm h-[600px] flex flex-col">
+                    <div className="flex justify-between mb-4">
+                        <div className="flex gap-2 overflow-x-auto">
+                            <button onClick={() => setSortBy('recency')} className={`px-3 py-1 rounded-full text-xs font-bold ${sortBy === 'recency' ? 'bg-amber-100 text-amber-800' : 'bg-stone-100'}`}>🕒 Recentes</button>
+                            <button onClick={() => setSortBy('totalSpent')} className={`px-3 py-1 rounded-full text-xs font-bold ${sortBy === 'totalSpent' ? 'bg-green-100 text-green-800' : 'bg-stone-100'}`}>💲 VIPs</button>
+                        </div>
+                        <button onClick={selectAll} className="text-xs text-amber-600 font-bold hover:underline">Selecionar Todos</button>
+                    </div>
+                    <div className="overflow-y-auto flex-1 space-y-2 pr-2">
+                        {sortedUsers.map(user => (
+                            <div key={user.id} onClick={() => toggleSelectUser(user.id)} className={`flex justify-between p-3 rounded-lg border cursor-pointer ${selectedUsers.includes(user.id) ? 'border-amber-500 bg-amber-50' : 'border-stone-100'}`}>
+                                <div>
+                                    <p className="font-bold text-stone-800">{user.name || 'Cliente'}</p>
+                                    <p className="text-xs text-stone-500">{user.email}</p>
+                                </div>
+                                <div className="text-right text-xs">
+                                    <span className={`px-2 py-0.5 rounded font-bold ${user.daysSinceLastOrder > 30 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                                        {user.daysSinceLastOrder === 9999 ? 'Novo' : `${user.daysSinceLastOrder}d atrás`}
+                                    </span>
+                                    <p className="mt-1 text-stone-400">Total: R$ {user.totalSpent.toFixed(0)}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-2xl shadow-sm h-fit">
+                    <h3 className="font-bold mb-4 flex gap-2"><Send size={20}/> Criar Mensagem</h3>
+                    
+                    {/* Templates Rapidinhos */}
+                    <div className="mb-4">
+                        <button onClick={() => setShowTemplates(!showTemplates)} className="text-xs text-amber-600 font-bold mb-2 block">📂 Carregar Modelo Salvo</button>
+                        {showTemplates && templates.map(t => (
+                            <div key={t.id} onClick={() => { setCampaignTitle(t.title); setCampaignBody(t.body); setShowTemplates(false); }} className="p-2 bg-stone-50 mb-1 rounded text-xs cursor-pointer hover:bg-stone-100 truncate">
+                                {t.name}
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="space-y-3">
+                        <input className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-amber-500" placeholder="Título (ex: Promoção!)" value={campaignTitle} onChange={e => setCampaignTitle(e.target.value)} />
+                        <textarea className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-amber-500 h-32 resize-none" placeholder="Sua mensagem..." value={campaignBody} onChange={e => setCampaignBody(e.target.value)} />
+                    </div>
+
+                    <div className="mt-2 flex justify-between items-center">
+                        {!isSavingTemplate ? (
+                            <button onClick={() => setIsSavingTemplate(true)} className="text-xs text-stone-400 hover:text-stone-600 flex items-center gap-1"><Save size={12}/> Salvar Modelo</button>
+                        ) : (
+                            <div className="flex gap-2 flex-1 mr-2">
+                                <input className="flex-1 text-xs border p-1 rounded" placeholder="Nome do modelo" value={newTemplateName} onChange={e => setNewTemplateName(e.target.value)} />
+                                <button onClick={handleSaveTemplate} className="text-green-600"><CheckCircle size={14}/></button>
+                            </div>
+                        )}
+                    </div>
+
+                    <button onClick={handleSendCampaign} disabled={sending || selectedUsers.length === 0} className="w-full mt-4 bg-green-600 text-white font-bold py-3 rounded-xl hover:bg-green-700 transition-colors flex justify-center items-center gap-2 disabled:opacity-50">
+                        {sending ? <Loader2 className="animate-spin"/> : <Send size={20}/>} {sending ? 'Enviando...' : `Enviar (${selectedUsers.length})`}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const AdminDashboard = ({ menu, orders, feedbacks, handleLogout, showToast, settings, setView, updateOrderStatus, updateUserRole, currentUserEmail }) => {
     const [adminView, setAdminView] = useState('dashboard'); 
     
@@ -2455,6 +2623,7 @@ const AdminDashboard = ({ menu, orders, feedbacks, handleLogout, showToast, sett
                 <button onClick={() => setAdminView('settings')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'settings' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Settings size={16}/> Configurações</button>
                 <button onClick={() => setAdminView('manageUsers')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'manageUsers' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Users size={16}/> Perfis</button>
                 <button onClick={() => setView('crm')} className="bg-gradient-to-r from-amber-500 to-orange-600 text-white p-4 rounded-xl shadow-md hover:shadow-lg transition-all transform hover:-translate-y-1 flex flex-col items-center justify-center gap-2"><Megaphone size={32} /><span className="font-bold text-lg">Marketing & CRM</span><span className="text-xs opacity-90">Enviar Notificações</span></button>
+                <button onClick={() => setView('crm')} className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white p-4 rounded-xl shadow-md hover:shadow-lg transition-all flex flex-col items-center justify-center gap-2 mb-4"><Megaphone size={32} /><span className="font-bold text-lg">Marketing & CRM</span><span className="text-xs opacity-90">Enviar Notificações</span></button>
             </div>
             {renderAdminView()}
         </div>
