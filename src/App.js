@@ -3132,7 +3132,7 @@ const MenuItemForm = ({ item, onSave, onCancel, allCategories }) => {
                             <option>Salgados Tradicionais</option>
                             <option>Salgados Especiais</option>
                             <option>Boxes</option>
-                            <option>Bebidas</option>
+                            <option>Empadas</option>
                         </select>
                     </div>
                      <div>
