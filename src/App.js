@@ -3131,7 +3131,7 @@ const MenuItemForm = ({ item, onSave, onCancel, allCategories }) => {
                         <select name="category" value={formData.category} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl" required>
                             <option>Salgados Tradicionais</option>
                             <option>Salgados Especiais</option>
-                            <option>Boxes</option>
+                            <option>Box</option>
                             <option>Empadas</option>
                         </select>
                     </div>
