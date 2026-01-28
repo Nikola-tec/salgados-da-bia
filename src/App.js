@@ -66,10 +66,7 @@ import {
     Megaphone,
     Send,
     Save, 
-    Trash2, 
-    FileText, 
-    Filter, 
-    ArrowUpDown
+    Trash2
 } from 'lucide-react';
 import NotificationSetup from './NotificationSetup';
 import { 
@@ -1271,7 +1268,10 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
     
     const [cepLoading, setCepLoading] = useState(false); 
 
-    const addresses = userData?.addresses || [];
+    const addresses = useMemo(() => {
+  return user?.addresses || [];
+}, [user?.addresses]);
+;
     const name = userData?.name || user?.displayName || '';
     const phone = userData?.phone || '';
 
