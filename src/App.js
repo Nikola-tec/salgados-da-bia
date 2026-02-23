@@ -845,7 +845,7 @@ function App() {
         const clientLng = order.lng || -7.92; 
         const origin = `${currentLat},${currentLng}`;
         
-        return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${clientLat},${clientLng}&travelmode=driving`;
+        return `http://googleusercontent.com/maps.google.com/${origin}&destination=${clientLat},${clientLng}&travelmode=driving`;
     };
     
     if (!firebaseInitialized && isAuthReady) return <FirebaseErrorScreen />;
@@ -859,6 +859,7 @@ function App() {
     }
 
     if (userRole === 'admin') {
+        if (!firebaseInitialized && isAuthReady) return <FirebaseErrorScreen />;
         if (userRole === 'admin') {
              switch (view) {
                 case 'admin':
@@ -3452,3 +3453,4 @@ const DeliveryView = ({ orders, setView, updateOrderStatus, trackingOrderId, sto
     ); 
 }
 export default App;
+}
