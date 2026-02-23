@@ -3453,4 +3453,3 @@ const DeliveryView = ({ orders, setView, updateOrderStatus, trackingOrderId, sto
     ); 
 }
 export default App;
-}
