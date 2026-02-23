@@ -149,6 +149,12 @@ const INITIAL_WORKING_HOURS = INITIAL_SHOP_SETTINGS.workingHours;
 const requestUserNotificationPermission = async (currentUser, currentAppId) => {
     if (!firebaseInitialized || !db || !currentUser || currentUser.isAnonymous) return;
 
+    // PROTEÇÃO ADICIONADA: Verifica se o navegador suporta a API de Notificação
+    if (!('Notification' in window)) {
+        console.log('Este navegador não suporta notificações web.');
+        return;
+    }
+
     try {
         const messaging = getMessaging(app);
         const VAPID_KEY = 'BGZAxnG_iSTgeX0y7s6rEmtFzE41Ns43DXN3gCgN6RJX51xKyDfRdOczX1T7cyQ5U3v6ZNCsJCyp3lESPuQQNKY'; 
@@ -178,6 +184,12 @@ const requestUserNotificationPermission = async (currentUser, currentAppId) => {
 
 const requestAdminNotificationPermission = async (currentUser, currentAppId) => {
     if (!firebaseInitialized || !db || !currentUser) return;
+
+    // PROTEÇÃO ADICIONADA: Verifica se o navegador suporta a API de Notificação
+    if (!('Notification' in window)) {
+        console.log('Este navegador não suporta notificações web.');
+        return;
+    }
 
     try {
         const messaging = getMessaging(app);
