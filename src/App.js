@@ -68,7 +68,6 @@ import {
     Save, 
     Trash2
 } from 'lucide-react';
-import NotificationSetup from './NotificationSetup';
 import { 
     BarChart, 
     Bar, 
