@@ -277,7 +277,7 @@ const ManageUsers = ({ userRole, currentUserEmail, updateUserRole }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (userRole !== 'admin' || !db) return;
+        if (userRole !== 'admin' || !db || !firebaseInitialized) return;
 
         setLoading(true);
         const usersRef = collection(db, `artifacts/${appId}/public/data/users`);
@@ -568,7 +568,7 @@ function App() {
     }, [stopTracking, userRole]);
     
     useEffect(() => {
-        if (!isAuthReady || !firebaseInitialized) return;
+        if (!isAuthReady || !firebaseInitialized || !db) return;
         
         const populateInitialData = async (ref, data) => {
              if (userRole !== 'admin') return;
@@ -845,7 +845,7 @@ function App() {
         const clientLng = order.lng || -7.92; 
         const origin = `${currentLat},${currentLng}`;
         
-        return `https://www.google.com/maps/dir/${origin}&destination=${clientLat},${clientLng}&travelmode=driving`;
+        return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${clientLat},${clientLng}&travelmode=driving`;
     };
     
     if (!firebaseInitialized && isAuthReady) return <FirebaseErrorScreen />;
@@ -854,6 +854,11 @@ function App() {
     const isCartButtonVisible = (view === 'menu' || view === 'cart') && cart.length > 0;
     
     const renderView = () => {
+        if (!firebaseInitialized && isAuthReady) {
+        return <FirebaseErrorScreen />;
+    }
+
+    if (userRole === 'admin') {
         if (userRole === 'admin') {
              switch (view) {
                 case 'admin':
