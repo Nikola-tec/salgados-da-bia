@@ -848,18 +848,9 @@ function App() {
         return `http://googleusercontent.com/maps.google.com/${origin}&destination=${clientLat},${clientLng}&travelmode=driving`;
     };
     
-    if (!firebaseInitialized && isAuthReady) return <FirebaseErrorScreen />;
-    if (!isAuthReady) return <div className="flex justify-center items-center h-screen bg-amber-50"><ChefHat className="animate-spin text-amber-500" size={64} /></div>;
-
-    const isCartButtonVisible = (view === 'menu' || view === 'cart') && cart.length > 0;
-    
     const renderView = () => {
-        if (!firebaseInitialized && isAuthReady) {
-        return <FirebaseErrorScreen />;
-    }
-
-    if (userRole === 'admin') {
         if (!firebaseInitialized && isAuthReady) return <FirebaseErrorScreen />;
+
         if (userRole === 'admin') {
              switch (view) {
                 case 'admin':
@@ -894,7 +885,6 @@ function App() {
             return <DeliveryView orders={orders.filter(o => o.status === 'Pronto para Entrega' || o.status === 'Saiu para Entrega')} setView={setView} updateOrderStatus={updateOrderStatus} trackingOrderId={trackingOrderId} stopTracking={stopTracking} startTracking={startTracking} getGoogleMapsLink={getGoogleMapsLink} currentLat={currentLat} currentLng={currentLng} />;
         }
         
-        // Customer View
         switch (view) {
             case 'cart': return <CartView cart={cart} updateQuantity={updateQuantity} cartTotal={cartTotal.toFixed(2)} setView={setView} emptyCart={() => setCart([])} user={user} />;
             case 'checkout': return <CheckoutView placeOrder={placeOrder} cartTotal={cartTotal} cartTotalQuantity={cartTotalQuantity} cart={cart} setView={setView} initialError={error} user={user} userData={userData} authLoading={authLoading} shopSettings={shopSettings} storeOpen={storeOpen} getWorkingInterval={getWorkingInterval}/>;
@@ -907,6 +897,10 @@ function App() {
             default: return <MenuView menu={menu} addToCart={addToCart} showStoreClosedToast={showStoreClosedToast} />;
         }
     };
+
+    if (!isAuthReady) return <div className="flex justify-center items-center h-screen bg-amber-50"><ChefHat className="animate-spin text-amber-500" size={64} /></div>;
+
+    const isCartButtonVisible = (view === 'menu' || view === 'cart') && cart.length > 0;
 
     return (
         <div className="bg-stone-50 min-h-screen font-sans text-stone-800" style={{fontFamily: "'Inter', sans-serif"}}>
@@ -3452,4 +3446,5 @@ const DeliveryView = ({ orders, setView, updateOrderStatus, trackingOrderId, sto
         </div>
     ); 
 }
+
 export default App;
