@@ -1290,6 +1290,7 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
         userData, 
         deliveryFee
     );
+    const maxPrepTime = useMemo(() => cart.reduce((max, item) => Math.max(max, item.preparationTime || 0), 0), [cart]);
     
     useEffect(() => {
         if (forceScheduling) {
@@ -1393,15 +1394,34 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
         
         try {
             const storeNow = new Date(new Date().toLocaleString("en-US", { timeZone: shopSettings.storeTimezone }));
-            storeNow.setMinutes(0, 0, 0);
             const selectedDate = new Date(`${date}T${time}:00`);
             
-            if (selectedDate < storeNow) {
-                 return 'Não é possível agendar para uma data ou hora no passado.';
+            // Verifica se o tempo escolhido respeita o tempo de preparo
+            const minTimeWithPrep = new Date(storeNow.getTime() + (maxPrepTime * 60000));
+
+            if (selectedDate < minTimeWithPrep) {
+                 return `Tempo de preparo: ${maxPrepTime} min. Agende para depois das ${minTimeWithPrep.toLocaleTimeString('pt-PT', {hour: '2-digit', minute:'2-digit'})}.`;
             }
         } catch(e) { console.error("Erro ao validar data de agendamento:", e); }
 
         return ''; 
+    };
+
+    // NOVA FUNÇÃO: Valida o tempo de Retirada (Pickup)
+    const validatePickupTime = (time) => {
+        if (!time) return '';
+        try {
+            const storeNow = new Date(new Date().toLocaleString("en-US", { timeZone: shopSettings.storeTimezone }));
+            const today = storeNow.toISOString().split('T')[0];
+            const selectedDate = new Date(`${today}T${time}:00`);
+            
+            const minTimeWithPrep = new Date(storeNow.getTime() + (maxPrepTime * 60000));
+
+            if (selectedDate < minTimeWithPrep) {
+                 return `Tempo de preparo: ${maxPrepTime} min. Retire após as ${minTimeWithPrep.toLocaleTimeString('pt-PT', {hour: '2-digit', minute:'2-digit'})}.`;
+            }
+        } catch(e) {}
+        return '';
     };
 
     const handleCepLookup = async (cep) => {
@@ -1487,7 +1507,11 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
             }
         }
 
-        if (deliveryMethod === 'pickup' && !pickupTime) { setFormError('Por favor, selecione um horário para retirada.'); return; }
+        if (deliveryMethod === 'pickup') {
+            const pError = validatePickupTime(pickupTime);
+            if (pError) { setFormError(pError); return; }
+            if (!pickupTime) { setFormError('Por favor, selecione um horário para retirada.'); return; }
+        }
         
         if (deliveryMethod === 'schedule') {
              const scheduleError = validateScheduledTime(scheduledDate, scheduledTime);
@@ -1631,6 +1655,11 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
                     <div>
                         <label htmlFor="pickupTime" className="block text-stone-700 font-bold mb-2">Horário para Retirada</label>
                         <input type="time" id="pickupTime" value={pickupTime} onChange={e => setPickupTime(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400" required />
+                            {pickupTime && validatePickupTime(pickupTime) && (
+                            <div className="text-red-600 text-sm font-semibold p-2 bg-red-100 rounded-xl mt-2">
+                                <AlertTriangle size={16} className="inline mr-1"/> {validatePickupTime(pickupTime)}
+                            </div>
+                            )}
                         <div className="mt-2 bg-stone-100 p-3 rounded-xl text-sm">
                             <p className="font-bold">Endereço de Retirada:</p>
                             <p className="text-stone-600">{shopSettings.pickupAddress}</p>
@@ -1706,7 +1735,7 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
 
                     <button 
                         type="submit" 
-                        disabled={authLoading || isCalculatingDistance || !!deliveryError || formError || (deliveryMethod === 'schedule' && validateScheduledTime(scheduledDate, scheduledTime))} 
+                        disabled={authLoading || isCalculatingDistance || !!deliveryError || formError || (deliveryMethod === 'schedule' && validateScheduledTime(scheduledDate, scheduledTime)) || (deliveryMethod === 'pickup' && validatePickupTime(pickupTime))} 
                         className="w-full bg-green-500 text-white font-bold py-3 rounded-full hover:bg-green-600 transition-colors text-lg shadow hover:shadow-lg active:scale-95 flex justify-center items-center disabled:bg-stone-400"
                     >
                         {authLoading || isCalculatingDistance ? <Loader2 className="animate-spin" /> : "Confirmar Pedido"}
@@ -3065,7 +3094,7 @@ const ManageMenu = ({ menu }) => {
     
     const startCreating = () => {
         setIsCreating(true);
-        setEditingItem({ name: '', category: 'Salgados Tradicionais', price: 0, image: '', description: '', customizable: false, size: 0, minimumOrder: 1, isAvailable: true, requiresScheduling: false, allowedCategories: [] });
+        etEditingItem({ name: '', category: 'Salgados Tradicionais', price: 0, image: '', description: '', customizable: false, size: 0, minimumOrder: 1, isAvailable: true, requiresScheduling: false, allowedCategories: [], preparationTime: 0 });
     };
     
     const allCategories = useMemo(() => [...new Set(menu.filter(item => !item.customizable).map(item => item.category))], [menu]);
@@ -3143,6 +3172,7 @@ const MenuItemForm = ({ item, onSave, onCancel, allCategories }) => {
                             <option>Salgados Especiais</option>
                             <option>Box</option>
                             <option>Empadas</option>
+                            <option>Assados</option>
                         </select>
                     </div>
                      <div>
@@ -3160,6 +3190,10 @@ const MenuItemForm = ({ item, onSave, onCancel, allCategories }) => {
                     <div>
                         <label className="block text-sm font-bold mb-1">Pedido Mínimo (Unidades)</label>
                         <input type="number" name="minimumOrder" value={formData.minimumOrder || 1} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl" />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-bold mb-1">Tempo de Preparo (Minutos)</label>
+                        <input type="number" name="preparationTime" value={formData.preparationTime || 0} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl" />
                     </div>
                     <div className="flex items-center gap-2 border p-2 rounded-xl bg-stone-50">
                         <input type="checkbox" id="customizable" name="customizable" checked={!!formData.customizable} onChange={handleChange} className="h-5 w-5"/>
