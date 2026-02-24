@@ -362,9 +362,17 @@ function App() {
     const [currentLat, setCurrentLat] = useState(40.6589); 
     const [currentLng, setCurrentLng] = useState(-7.9138);
 
+    const toastTimeoutRef = React.useRef(null);
+    
     const showToast = useCallback((message) => {
         setToastMessage(message);
-        setTimeout(() => setToastMessage(''), 4000);
+        // Se já existe um temporizador rodando, cancela ele para o novo Toast brilhar
+        if (toastTimeoutRef.current) {
+            clearTimeout(toastTimeoutRef.current);
+        }
+        toastTimeoutRef.current = setTimeout(() => {
+            setToastMessage('');
+        }, 5000); // Aumentado para 5 segundos para facilitar a leitura
     }, []);
 
     useEffect(() => {
@@ -866,6 +874,18 @@ function App() {
     useEffect(() => {
         if (!user || !userRole) return;
 
+        // INÍCIO: Observador Inteligente (Status e Novos Pedidos)
+    const previousOrdersRef = React.useRef(null);
+
+    useEffect(() => {
+        if (!user || !userRole) return;
+
+        // Evita falsos alertas quando o site acabou de carregar os dados
+        if (previousOrdersRef.current === null) {
+            previousOrdersRef.current = orders;
+            return;
+        }
+
         const previousOrders = previousOrdersRef.current;
         
         // 1. Lógica para o CLIENTE (Mudança de status do pedido)
@@ -875,13 +895,13 @@ function App() {
                     const prevOrder = previousOrders.find(o => o.id === currentOrder.id);
                     if (prevOrder && prevOrder.status !== currentOrder.status) {
                         if (currentOrder.status === 'Em Preparo') {
-                            showToast(`Boas notícias! Seu pedido #${currentOrder.id.slice(0,6).toUpperCase()} foi aceito e está em preparo!`);
+                            showToast(`Boas notícias! Seu pedido #${currentOrder.id.slice(0,6).toUpperCase()} está na cozinha!`);
                         } else if (currentOrder.status === 'Saiu para Entrega') {
                             showToast(`Uhul! Seu pedido #${currentOrder.id.slice(0,6).toUpperCase()} saiu para entrega!`);
                         } else if (currentOrder.status === 'Pronto para Entrega') {
-                            showToast(`Seu pedido #${currentOrder.id.slice(0,6).toUpperCase()} está pronto e aguardando o entregador/retirada!`);
+                            showToast(`Seu pedido #${currentOrder.id.slice(0,6).toUpperCase()} está pronto!`);
                         } else if (currentOrder.status === 'Rejeitado') {
-                            showToast(`Atenção: Seu pedido #${currentOrder.id.slice(0,6).toUpperCase()} foi cancelado pela loja.`);
+                            showToast(`Atenção: Seu pedido #${currentOrder.id.slice(0,6).toUpperCase()} foi cancelado.`);
                         }
                     }
                 }
@@ -889,22 +909,16 @@ function App() {
         }
         
         // 2. Lógica para o ADMINISTRADOR (Alerta de novo pedido)
-        if (userRole === 'admin' && previousOrders.length > 0) {
-            // Verifica se a quantidade de pedidos atual é maior que a anterior (novo pedido criado)
+        if (userRole === 'admin') {
             if (orders.length > previousOrders.length) {
-                // Encontra qual é o pedido novo
                 const newOrders = orders.filter(o => !previousOrders.some(p => p.id === o.id));
-                
                 newOrders.forEach(newOrder => {
-                    // Exibe o Toast na tela do painel
                     showToast(`🔔 NOVO PEDIDO: ${newOrder.name} acabou de pedir! (#${newOrder.id.slice(0,6).toUpperCase()})`);
-                    
-                    // Toca o "Plim" (Aviso sonoro)
                     try {
                         const audio = new Audio('https://actions.google.com/sounds/v1/alarms/positive_ping.ogg');
                         audio.play();
                     } catch (e) {
-                        console.error("Não foi possível reproduzir o som:", e);
+                        console.error("Erro no som:", e);
                     }
                 });
             }
@@ -994,8 +1008,11 @@ function App() {
 }
 
 const Toast = ({ message, isWarning = false }) => (
-     <div className={`fixed bottom-5 left-1/2 -translate-x-1/2 ${isWarning ? 'bg-red-600' : 'bg-stone-800'} text-white py-2 px-6 rounded-full shadow-lg z-50 transition-opacity duration-300 animate-fade-in-up`}>
-        <p className="flex items-center gap-2">{isWarning ? <AlertTriangle size={16}/> : <CheckCircle size={16}/>} {message}</p>
+     <div className={`fixed bottom-10 left-1/2 transform -translate-x-1/2 ${isWarning ? 'bg-red-600' : 'bg-stone-800'} text-white py-3 px-6 rounded-full shadow-2xl z-[9999] transition-all duration-300 font-bold border ${isWarning ? 'border-red-400' : 'border-stone-600'}`}>
+        <p className="flex items-center justify-center gap-2 whitespace-nowrap">
+            {isWarning ? <AlertTriangle size={18}/> : <CheckCircle size={18} className="text-green-400"/>} 
+            {message}
+        </p>
     </div>
 );
 
