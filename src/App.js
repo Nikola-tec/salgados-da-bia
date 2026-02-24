@@ -149,7 +149,6 @@ const INITIAL_WORKING_HOURS = INITIAL_SHOP_SETTINGS.workingHours;
 const requestUserNotificationPermission = async (currentUser, currentAppId) => {
     if (!firebaseInitialized || !db || !currentUser || currentUser.isAnonymous) return;
 
-    // PROTEÇÃO ADICIONADA: Verifica se o navegador suporta a API de Notificação
     if (!('Notification' in window)) {
         console.log('Este navegador não suporta notificações web.');
         return;
@@ -171,7 +170,8 @@ const requestUserNotificationPermission = async (currentUser, currentAppId) => {
 
                 onMessage(messaging, (payload) => {
                     console.log('Mensagem recebida com app aberto: ', payload);
-                    showToast(`🔔 Pedido: ${payload.notification.body}`);
+                    const event = new CustomEvent('app-notification', { detail: `🔔 Pedido: ${payload.notification.body}` });
+                    window.dispatchEvent(event);
                 });
             }
         } else {
@@ -185,7 +185,6 @@ const requestUserNotificationPermission = async (currentUser, currentAppId) => {
 const requestAdminNotificationPermission = async (currentUser, currentAppId) => {
     if (!firebaseInitialized || !db || !currentUser) return;
 
-    // PROTEÇÃO ADICIONADA: Verifica se o navegador suporta a API de Notificação
     if (!('Notification' in window)) {
         console.log('Este navegador não suporta notificações web.');
         return;
@@ -363,10 +362,16 @@ function App() {
     const [currentLat, setCurrentLat] = useState(40.6589); 
     const [currentLng, setCurrentLng] = useState(-7.9138);
 
-    const showToast = (message) => {
+    const showToast = useCallback((message) => {
         setToastMessage(message);
-        setTimeout(() => setToastMessage(''), 3000);
-    };
+        setTimeout(() => setToastMessage(''), 4000);
+    }, []);
+
+    useEffect(() => {
+        const handleAppNotification = (e) => showToast(e.detail);
+        window.addEventListener('app-notification', handleAppNotification);
+        return () => window.removeEventListener('app-notification', handleAppNotification);
+    }, [showToast]);
 
     const handleSnapshotError = useCallback((listenerName) => (err) => {
         console.error(`Erro no listener [${listenerName}]:`, err);
@@ -468,10 +473,6 @@ function App() {
                 console.error("Erro ao atualizar rastreamento:", error);
             }
             
-            if (Math.abs(latDiff) < 0.001 && Math.abs(lngDiff) < 0.001) {
-                //stopTracking();
-            }
-
         }, 5000); 
         
         setTrackerIntervalId(intervalId);
@@ -496,7 +497,7 @@ function App() {
             console.error("Erro ao atualizar perfil do usuário:", error);
             showToast("Falha ao atualizar o perfil. Verifique o console.");
         }
-    }, [userRole]);
+    }, [userRole, showToast]);
 
     useEffect(() => {
         if (!firebaseInitialized) {
@@ -859,6 +860,60 @@ function App() {
         return `http://googleusercontent.com/maps.google.com/${origin}&destination=${clientLat},${clientLng}&travelmode=driving`;
     };
     
+    // INÍCIO: Observador Inteligente (Status para Clientes e Novos Pedidos para Admin)
+    const previousOrdersRef = React.useRef(orders);
+
+    useEffect(() => {
+        if (!user || !userRole) return;
+
+        const previousOrders = previousOrdersRef.current;
+        
+        // 1. Lógica para o CLIENTE (Mudança de status do pedido)
+        if (userRole === 'customer') {
+            orders.forEach(currentOrder => {
+                if (currentOrder.userId === user.uid) {
+                    const prevOrder = previousOrders.find(o => o.id === currentOrder.id);
+                    if (prevOrder && prevOrder.status !== currentOrder.status) {
+                        if (currentOrder.status === 'Em Preparo') {
+                            showToast(`Boas notícias! Seu pedido #${currentOrder.id.slice(0,6).toUpperCase()} foi aceito e está em preparo!`);
+                        } else if (currentOrder.status === 'Saiu para Entrega') {
+                            showToast(`Uhul! Seu pedido #${currentOrder.id.slice(0,6).toUpperCase()} saiu para entrega!`);
+                        } else if (currentOrder.status === 'Pronto para Entrega') {
+                            showToast(`Seu pedido #${currentOrder.id.slice(0,6).toUpperCase()} está pronto e aguardando o entregador/retirada!`);
+                        } else if (currentOrder.status === 'Rejeitado') {
+                            showToast(`Atenção: Seu pedido #${currentOrder.id.slice(0,6).toUpperCase()} foi cancelado pela loja.`);
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 2. Lógica para o ADMINISTRADOR (Alerta de novo pedido)
+        if (userRole === 'admin' && previousOrders.length > 0) {
+            // Verifica se a quantidade de pedidos atual é maior que a anterior (novo pedido criado)
+            if (orders.length > previousOrders.length) {
+                // Encontra qual é o pedido novo
+                const newOrders = orders.filter(o => !previousOrders.some(p => p.id === o.id));
+                
+                newOrders.forEach(newOrder => {
+                    // Exibe o Toast na tela do painel
+                    showToast(`🔔 NOVO PEDIDO: ${newOrder.name} acabou de pedir! (#${newOrder.id.slice(0,6).toUpperCase()})`);
+                    
+                    // Toca o "Plim" (Aviso sonoro)
+                    try {
+                        const audio = new Audio('https://actions.google.com/sounds/v1/alarms/positive_ping.ogg');
+                        audio.play();
+                    } catch (e) {
+                        console.error("Não foi possível reproduzir o som:", e);
+                    }
+                });
+            }
+        }
+
+        previousOrdersRef.current = orders;
+    }, [orders, user, userRole, showToast]);
+    // FIM: Observador Inteligente
+
     const renderView = () => {
         if (!firebaseInitialized && isAuthReady) return <FirebaseErrorScreen />;
 
@@ -1290,6 +1345,7 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
         userData, 
         deliveryFee
     );
+
     const maxPrepTime = useMemo(() => cart.reduce((max, item) => Math.max(max, item.preparationTime || 0), 0), [cart]);
     
     useEffect(() => {
@@ -1396,7 +1452,6 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
             const storeNow = new Date(new Date().toLocaleString("en-US", { timeZone: shopSettings.storeTimezone }));
             const selectedDate = new Date(`${date}T${time}:00`);
             
-            // Verifica se o tempo escolhido respeita o tempo de preparo
             const minTimeWithPrep = new Date(storeNow.getTime() + (maxPrepTime * 60000));
 
             if (selectedDate < minTimeWithPrep) {
@@ -1407,7 +1462,6 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
         return ''; 
     };
 
-    // NOVA FUNÇÃO: Valida o tempo de Retirada (Pickup)
     const validatePickupTime = (time) => {
         if (!time) return '';
         try {
@@ -3053,11 +3107,24 @@ const ManageOrders = ({ orders, updateOrderStatus }) => {
                             )}
                          </div>
                          <div className="mt-4 flex flex-wrap gap-2 items-center">
-                             {['Pendente', 'Em Preparo', 'Pronto para Entrega', 'Saiu para Entrega', 'Concluído'].map(status => (
-                                 <button key={status} onClick={() => updateOrderStatus(order.id, status)} className={`px-3 py-1 text-sm rounded-full transition-all ${order.status === status ? 'ring-2 ring-offset-1 ring-amber-500 bg-stone-200 font-bold' : 'bg-white hover:bg-stone-200 border'}`}>{status}</button>
-                             ))}
-                             <div className="flex-grow"></div>
-                             <button onClick={() => handleRejectOrder(order.id)} className={'bg-red-100 hover:bg-red-200 border border-red-200 text-red-700 px-3 py-1 text-sm rounded-full transition-all'}>Rejeitar</button>
+                             {order.status === 'Pendente' ? (
+                                 <div className="flex gap-3 w-full sm:w-auto">
+                                     <button onClick={() => updateOrderStatus(order.id, 'Em Preparo')} className="bg-green-500 hover:bg-green-600 text-white font-bold px-6 py-2 rounded-full transition-all shadow-md flex items-center gap-2 transform active:scale-95">
+                                         <CheckCircle size={18}/> Aceitar Pedido
+                                     </button>
+                                     <button onClick={() => handleRejectOrder(order.id)} className="bg-red-100 hover:bg-red-200 text-red-700 font-bold px-6 py-2 rounded-full transition-all shadow-sm">
+                                         Rejeitar
+                                     </button>
+                                 </div>
+                             ) : (
+                                 <>
+                                     {['Em Preparo', 'Pronto para Entrega', 'Saiu para Entrega', 'Concluído'].map(status => (
+                                         <button key={status} onClick={() => updateOrderStatus(order.id, status)} className={`px-3 py-1 text-sm rounded-full transition-all ${order.status === status ? 'ring-2 ring-offset-1 ring-amber-500 bg-stone-200 font-bold' : 'bg-white hover:bg-stone-200 border'}`}>{status}</button>
+                                     ))}
+                                     <div className="flex-grow"></div>
+                                     <button onClick={() => handleRejectOrder(order.id)} className="text-red-500 hover:text-red-700 hover:underline px-3 py-1 text-sm transition-all">Cancelar Pedido</button>
+                                 </>
+                             )}
                          </div>
                     </div>
                 ))}
@@ -3094,7 +3161,7 @@ const ManageMenu = ({ menu }) => {
     
     const startCreating = () => {
         setIsCreating(true);
-        etEditingItem({ name: '', category: 'Salgados Tradicionais', price: 0, image: '', description: '', customizable: false, size: 0, minimumOrder: 1, isAvailable: true, requiresScheduling: false, allowedCategories: [], preparationTime: 0 });
+        setEditingItem({ name: '', category: 'Salgados Tradicionais', price: 0, image: '', description: '', customizable: false, size: 0, minimumOrder: 1, isAvailable: true, requiresScheduling: false, allowedCategories: [], preparationTime: 0 });
     };
     
     const allCategories = useMemo(() => [...new Set(menu.filter(item => !item.customizable).map(item => item.category))], [menu]);
@@ -3279,8 +3346,8 @@ const KitchenView = ({ orders, setView, updateOrderStatus }) => {
                         </div>
                          <div className="mt-auto pt-2">
                              {order.status === 'Pendente' && (
-                                <button onClick={() => updateOrderStatus(order.id, 'Em Preparo')} className="w-full bg-blue-500 text-white font-bold py-3 rounded-full hover:bg-blue-600 text-lg transition-colors">
-                                    Iniciar Preparo
+                                <button onClick={() => updateOrderStatus(order.id, 'Em Preparo')} className="w-full bg-blue-500 text-white font-bold py-3 rounded-full hover:bg-blue-600 text-lg transition-colors flex justify-center items-center gap-2">
+                                    <CheckCircle size={20}/> Aceitar e Iniciar Preparo
                                 </button>
                              )}
                               {order.status === 'Em Preparo' && (
