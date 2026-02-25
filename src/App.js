@@ -16,7 +16,7 @@ import {
     XCircle, CheckCircle, Package, DollarSign, Clock, Settings, Plus, Star, 
     AlertTriangle, UserCheck, KeyRound, Loader2, ChevronsLeft, MapPin, Bike, 
     TrendingUp, Percent, Calendar, Eye, EyeOff, Trash, Satellite, Map, 
-    MessageSquare, Navigation, Users, Megaphone, Send, Save, Trash2
+    MessageSquare, Navigation, Users, Megaphone, Send, Save, Trash2, ListOrdered, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, 
@@ -52,7 +52,15 @@ if (firebaseConfig && firebaseConfig.apiKey) {
   } catch (error) {}
 }
 
-const INITIAL_MENU_DATA = []; 
+const INITIAL_CATEGORIES_DATA = [
+    { name: 'Boxes', order: 1 },
+    { name: 'Salgados Tradicionais', order: 2 },
+    { name: 'Salgados Especiais', order: 3 },
+    { name: 'Empadas', order: 4 },
+    { name: 'Assados', order: 5 },
+    { name: 'Doces', order: 6 }
+];
+const INITIAL_MENU_DATA = [];
 const INITIAL_SHOP_SETTINGS = {
     storeName: "Salgados da Bia", logoUrl: "https://placehold.co/100x100/FBBF24/FFFFFF?text=SB",
     email: "contato@salgadosdabia.com", phone: "+351 000 000 000", whatsappNumber: "351000000000",
@@ -181,7 +189,7 @@ const ManageUsers = ({ userRole, currentUserEmail, updateUserRole }) => {
 function App() {
     const [view, setView] = useState('menu');
     const [cart, setCart] = useState([]);
-    const [menu, setMenu] = useState([]);
+    const [categories, setCategories] = useState([]);
     const [orders, setOrders] = useState([]);
     const [feedbacks, setFeedbacks] = useState([]);
     const [shopSettings, setShopSettings] = useState(INITIAL_SHOP_SETTINGS);
@@ -315,7 +323,14 @@ function App() {
              if (userRole !== 'admin') return;
              try { const docSnap = await getDoc(ref); if (!docSnap.exists()) await setDoc(ref, data); } catch (e) { handleSnapshotError(`popular ${ref.path}`)(e); }
         };
-        
+
+        const catRef = collection(db, `artifacts/${appId}/public/data/categories`);
+        populateInitialData(catRef, INITIAL_CATEGORIES_DATA);
+        const unsubscribeCats = onSnapshot(catRef, (snapshot) => {
+            const catData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setCategories(catData.sort((a, b) => a.order - b.order));
+        }, handleSnapshotError('categorias'));
+
         const menuRef = collection(db, `artifacts/${appId}/public/data/menu`);
         populateInitialData(menuRef, INITIAL_MENU_DATA); 
         const unsubscribeMenu = onSnapshot(menuRef, (snapshot) => {
@@ -341,7 +356,7 @@ function App() {
             if (docSnap.exists()) setShopSettings(docSnap.data()); else setShopSettings(INITIAL_SHOP_SETTINGS);
         }, (err) => { handleSnapshotError('configurações')(err); setShopSettings(INITIAL_SHOP_SETTINGS); });
 
-        return () => { unsubscribeMenu(); unsubscribeOrders(); unsubscribeSettings(); unsubscribeFeedbacks(); };
+        return () => { unsubscribeMenu(); unsubscribeOrders(); unsubscribeSettings(); unsubscribeFeedbacks(); unsubscribeCats(); };
     }, [isAuthReady, userRole, handleSnapshotError]); 
 
     const addToCart = (item, customization, priceOverride) => {
@@ -491,11 +506,11 @@ function App() {
         if (userRole === 'admin') {
              switch (view) {
                 case 'admin': case 'dashboard': case 'orders': case 'menu': case 'faturamento': case 'feedbacks': case 'manageAgenda': case 'settings': case 'manageUsers':
-                    return <AdminDashboard menu={menu} orders={orders} feedbacks={feedbacks} handleLogout={handleLogout} showToast={showToast} settings={shopSettings} setView={setView} updateOrderStatus={updateOrderStatus} updateUserRole={updateUserRole} currentUserEmail={user.email} userRole={userRole}/>;
+                    return <AdminDashboard menu={menu} orders={orders} feedbacks={feedbacks} handleLogout={handleLogout} showToast={showToast} settings={shopSettings} setView={setView} updateOrderStatus={updateOrderStatus} updateUserRole={updateUserRole} currentUserEmail={user.email} userRole={userRole} categories={categories}/>;
                 case 'kitchenView': return <KitchenView orders={orders.filter(o => ['Pendente', 'Em Preparo'].includes(o.status))} setView={setView} updateOrderStatus={updateOrderStatus} />;
                 case 'deliveryView': return <DeliveryView orders={orders.filter(o => o.status === 'Pronto para Entrega' || o.status === 'Saiu para Entrega')} setView={setView} updateOrderStatus={updateOrderStatus} trackingOrderId={trackingOrderId} stopTracking={stopTracking} startTracking={startTracking} getGoogleMapsLink={getGoogleMapsLink} currentLat={currentLat} currentLng={currentLng} />;
                 case 'crm': return <CRMView orders={orders} setView={setView} db={db} showToast={showToast} />;
-                default: return <AdminDashboard menu={menu} orders={orders} feedbacks={feedbacks} handleLogout={handleLogout} showToast={showToast} settings={shopSettings} setView={setView} updateOrderStatus={updateOrderStatus} updateUserRole={updateUserRole} currentUserEmail={user.email} userRole={userRole} />;
+                default: return <AdminDashboard menu={menu} orders={orders} feedbacks={feedbacks} handleLogout={handleLogout} showToast={showToast} settings={shopSettings} setView={setView} updateOrderStatus={updateOrderStatus} updateUserRole={updateUserRole} currentUserEmail={user.email} userRole={userRole} categories={categories} />;
             }
         }
         if (userRole === 'kitchen') return <KitchenView orders={orders.filter(o => ['Pendente', 'Em Preparo'].includes(o.status))} setView={setView} updateOrderStatus={updateOrderStatus} />;
@@ -510,7 +525,7 @@ function App() {
             case 'signUp': return <SignUpView handleSignUp={handleSignUp} error={error} setView={setView} authLoading={authLoading} />;
             case 'myOrders': return <MyOrdersView orders={orders.filter(o => o.userId === user?.uid)} setView={setView} />;
             case 'accountSettings': return <AccountSettingsView user={user} userData={userData} showToast={showToast} setView={setView} db={db} appId={appId} />;
-            default: return <MenuView menu={menu} addToCart={addToCart} showStoreClosedToast={showStoreClosedToast} />;
+            default: return <MenuView menu={menu} addToCart={addToCart} showStoreClosedToast={showStoreClosedToast} categories={categories} />;
         }
     };
 
@@ -648,7 +663,7 @@ const ConfirmDeleteModal = ({ onConfirm, onCancel, title="Confirmar Exclusão", 
     </div>
 );
 
-const MenuView = ({ menu, addToCart, showStoreClosedToast }) => {
+const MenuView = ({ menu, addToCart, showStoreClosedToast, categories }) => {
     const [customizingBox, setCustomizingBox] = useState(null);
     const handleCustomizeClick = (boxItem) => {
         const allowed = boxItem.allowedCategories || (boxItem.name.toLowerCase().includes('especial') || boxItem.name.toLowerCase().includes('gigante') ? ['Salgados Tradicionais', 'Salgados Especiais'] : ['Salgados Tradicionais']);
@@ -656,13 +671,21 @@ const MenuView = ({ menu, addToCart, showStoreClosedToast }) => {
         setCustomizingBox({ box: boxItem, availableSalgados });
     };
 
-    const categories = [...new Set(menu.filter(item => item.isAvailable !== false).map(item => item.category))].sort((a,b) => a === 'Boxes' ? -1 : b === 'Boxes' ? 1 : a.localeCompare(b));
+    // Pega as categorias usadas no menu
+    const menuCategoriesNames = [...new Set(menu.filter(item => item.isAvailable !== false).map(item => item.category))];
+    
+    // Cruza a ordem do painel de Admin com o Menu
+    const activeManagedCategories = categories.filter(c => menuCategoriesNames.includes(c.name)).sort((a, b) => a.order - b.order).map(c => c.name);
+    
+    // Tratamento de Erro: Se você apagar uma categoria mas esquecer de apagar o produto, o produto não some, vai pro final da lista!
+    const orphanCategories = menuCategoriesNames.filter(mc => !categories.some(c => c.name === mc));
+    const displayCategories = [...activeManagedCategories, ...orphanCategories];
 
     return (
         <div className="animate-fade-in">
              {showStoreClosedToast && <Toast message="A loja está fechada. Pedidos serão processados no próximo horário. Use 'Encomendar'." isWarning={true} />}
             {customizingBox && <CustomizeBoxModal box={customizingBox.box} salgados={customizingBox.availableSalgados} onClose={() => setCustomizingBox(null)} addToCart={addToCart}/>}
-            {categories.map(category => (
+            {displayCategories.map(category => (
                 <div key={category} className="mb-10">
                     <h2 className="text-3xl font-bold text-amber-600 border-b-2 border-amber-200 pb-2 mb-6">{category}</h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -1577,16 +1600,72 @@ const CRMView = ({ orders, setView, db, showToast }) => {
     );
 };
 
-const AdminDashboard = ({ menu, orders, feedbacks, handleLogout, showToast, settings, setView, updateOrderStatus, updateUserRole, currentUserEmail }) => {
+const ManageCategories = ({ categories, showToast }) => {
+    const [newCategory, setNewCategory] = useState('');
+
+    const handleAdd = async () => {
+        if (!newCategory.trim()) return;
+        const newOrder = categories.length > 0 ? Math.max(...categories.map(c => c.order)) + 1 : 1;
+        await addDoc(collection(db, `artifacts/${appId}/public/data/categories`), { name: newCategory.trim(), order: newOrder });
+        setNewCategory(''); showToast("Categoria adicionada!");
+    };
+
+    const handleDelete = async (id) => {
+        if(window.confirm("Apagar categoria? Os produtos dentro dela não sumirão, mas irão para o fim do cardápio.")) {
+            await deleteDoc(doc(db, `artifacts/${appId}/public/data/categories`, id));
+            showToast("Categoria removida.");
+        }
+    };
+
+    const moveUp = async (index) => {
+        if (index === 0) return;
+        const curr = categories[index]; const prev = categories[index - 1];
+        await updateDoc(doc(db, `artifacts/${appId}/public/data/categories`, curr.id), { order: prev.order });
+        await updateDoc(doc(db, `artifacts/${appId}/public/data/categories`, prev.id), { order: curr.order });
+    };
+
+    const moveDown = async (index) => {
+        if (index === categories.length - 1) return;
+        const curr = categories[index]; const next = categories[index + 1];
+        await updateDoc(doc(db, `artifacts/${appId}/public/data/categories`, curr.id), { order: next.order });
+        await updateDoc(doc(db, `artifacts/${appId}/public/data/categories`, next.id), { order: curr.order });
+    };
+
+    return (
+        <div>
+            <h3 className="text-xl font-bold mb-4 text-stone-700">Organizar Cardápio (Categorias)</h3>
+            <div className="flex gap-2 mb-6">
+                <input value={newCategory} onChange={e => setNewCategory(e.target.value)} placeholder="Nova Categoria (ex: Promoções)" className="border border-stone-300 p-2 rounded-xl flex-grow focus:ring focus:ring-amber-200 outline-none" />
+                <button onClick={handleAdd} className="bg-green-500 text-white px-6 rounded-xl font-bold shadow hover:bg-green-600 active:scale-95 transition-all">Criar</button>
+            </div>
+            <div className="space-y-2">
+                {categories.map((cat, index) => (
+                    <div key={cat.id} className="flex justify-between items-center bg-stone-50 p-3 rounded-xl border border-stone-200 shadow-sm">
+                        <span className="font-bold text-stone-800 text-lg">{index + 1}. {cat.name}</span>
+                        <div className="flex gap-2 items-center">
+                            <button onClick={() => moveUp(index)} disabled={index === 0} className="p-2 bg-stone-200 hover:bg-stone-300 text-stone-700 rounded-full disabled:opacity-30 transition-colors"><ArrowUp size={18}/></button>
+                            <button onClick={() => moveDown(index)} disabled={index === categories.length - 1} className="p-2 bg-stone-200 hover:bg-stone-300 text-stone-700 rounded-full disabled:opacity-30 transition-colors"><ArrowDown size={18}/></button>
+                            <div className="w-px h-6 bg-stone-300 mx-2"></div>
+                            <button onClick={() => handleDelete(cat.id)} className="p-2 text-red-500 hover:bg-red-100 rounded-full transition-colors"><Trash2 size={18}/></button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+const AdminDashboard = ({ menu, orders, feedbacks, handleLogout, showToast, settings, setView, updateOrderStatus, updateUserRole, currentUserEmail, categories }) => {
     const [adminView, setAdminView] = useState('dashboard'); 
     const renderAdminView = () => {
         switch(adminView) {
             case 'orders': return <ManageOrders orders={orders} updateOrderStatus={updateOrderStatus} />;
-            case 'menu': return <ManageMenu menu={menu} />;
+            case 'menu': return <ManageMenu menu={menu} dbCategories={categories} showToast={showToast} />;
+            case 'categories': return <ManageCategories categories={categories} showToast={showToast} />;
             case 'settings': return <AdminSettings showToast={showToast} currentSettings={settings} />;
             case 'faturamento': return <FaturamentoView orders={orders} />;
             case 'feedbacks': return <FeedbacksView feedbacks={feedbacks} showToast={showToast} />;
-            case 'manageAgenda': return <ManageAgenda currentSettings={settings} showToast={showToast} db={db} appId={appId}/>;
+            case 'manageAgenda': return <ManageAgenda currentSettings={settings} showToast={showToast} />;
             case 'manageUsers': return <ManageUsers userRole={'admin'} currentUserEmail={currentUserEmail} updateUserRole={updateUserRole} />;
             default: return <AdminStats orders={orders} />;
         }
@@ -1596,17 +1675,17 @@ const AdminDashboard = ({ menu, orders, feedbacks, handleLogout, showToast, sett
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b pb-4">
                 <h2 className="text-3xl font-bold text-stone-800">Painel de Admin</h2>
                 <div className="flex items-center gap-4 mt-2 sm:mt-0">
-                    <button onClick={() => setView('kitchenView')} className="bg-stone-800 text-white font-semibold py-2 px-4 rounded-full hover:bg-stone-900 transition-colors text-sm">Visão Cozinha</button>
-                    <button onClick={() => setView('deliveryView')} className="bg-blue-600 text-white font-semibold py-2 px-4 rounded-full hover:bg-blue-700 transition-colors text-sm">Visão Entregador</button>
+                    <button onClick={() => setView('kitchenView')} className="bg-stone-800 text-white font-semibold py-2 px-4 rounded-full hover:bg-stone-900 transition-colors text-sm shadow-md">Visão Cozinha</button>
+                    <button onClick={() => setView('deliveryView')} className="bg-blue-600 text-white font-semibold py-2 px-4 rounded-full hover:bg-blue-700 transition-colors text-sm shadow-md">Visão Entregador</button>
                     <button onClick={handleLogout} title="Sair" className="p-2 rounded-full text-red-500 hover:bg-red-100 transition-colors"><LogOut /></button>
                 </div>
             </div>
-            <div className="flex flex-wrap gap-2 mb-6 border-b">
+            <div className="flex flex-wrap gap-2 mb-6 border-b pb-2">
                 <button onClick={() => setAdminView('dashboard')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'dashboard' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Package size={16}/> Resumo</button>
                 <button onClick={() => setAdminView('orders')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'orders' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><ShoppingCart size={16}/> Pedidos</button>
-                <button onClick={() => setAdminView('menu')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'menu' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><ChefHat size={16}/> Cardápio</button>
+                <button onClick={() => setAdminView('menu')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'menu' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><ChefHat size={16}/> Produtos</button>
+                <button onClick={() => setAdminView('categories')} className={`px-4 py-2 font-black text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'categories' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><ListOrdered size={16}/> Categorias</button>
                 <button onClick={() => setAdminView('faturamento')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'faturamento' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><TrendingUp size={16}/> Faturamento</button>
-                <button onClick={() => setAdminView('feedbacks')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'feedbacks' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Star size={16}/> Feedbacks</button>
                 <button onClick={() => setAdminView('manageAgenda')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'manageAgenda' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Calendar size={16}/> Agenda</button>
                 <button onClick={() => setAdminView('settings')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'settings' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Settings size={16}/> Configurações</button>
                 <button onClick={() => setAdminView('manageUsers')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'manageUsers' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Users size={16}/> Perfis</button>
@@ -1884,58 +1963,30 @@ const ManageOrders = ({ orders, updateOrderStatus }) => {
     );
 };
 
-const ManageMenu = ({ menu }) => {
+const ManageMenu = ({ menu, dbCategories, showToast }) => {
     const [editingItem, setEditingItem] = useState(null);
-    const [isCreating, setIsCreating] = useState(false);
-    const [deletingItemId, setDeletingItemId] = useState(null);
-
-    const handleSave = async (itemToSave) => {
-        // Higienizador: Remove campos vazios para não quebrar o Firebase
-        const cleanItem = Object.fromEntries(Object.entries(itemToSave).filter(([_, v]) => v !== undefined));
-        
-        const menuCollectionPath = `artifacts/${appId}/public/data/menu`;
-        if (cleanItem.id) {
-            const itemRef = doc(db, menuCollectionPath, cleanItem.id);
-            const { id, ...dataToUpdate } = cleanItem;
-            await updateDoc(itemRef, dataToUpdate);
-        } else { await addDoc(collection(db, menuCollectionPath), cleanItem); }
-        setEditingItem(null); setIsCreating(false);
+    const handleSave = async (item) => {
+        const cleanItem = Object.fromEntries(Object.entries(item).filter(([_, v]) => v !== undefined));
+        if (cleanItem.id) await updateDoc(doc(db, `artifacts/${appId}/public/data/menu`, cleanItem.id), cleanItem);
+        else await addDoc(collection(db, `artifacts/${appId}/public/data/menu`), cleanItem);
+        setEditingItem(null); showToast("Produto salvo com sucesso!");
     };
-    
-    const handleDeleteConfirm = async () => {
-        if (deletingItemId) { const itemRef = doc(db, `artifacts/${appId}/public/data/menu`, deletingItemId); await deleteDoc(itemRef); setDeletingItemId(null); }
-    };
-    
-    const startCreating = () => {
-        setIsCreating(true);
-        setEditingItem({ name: '', category: 'Salgados Tradicionais', price: 0, image: '', videoUrl: '', description: '', customizable: false, size: 0, minimumOrder: 1, isAvailable: true, requiresScheduling: false, allowedCategories: [], preparationTime: 0, isNew: false, isPromo: false });
-    };
-    
-    const allCategories = useMemo(() => [...new Set(menu.filter(item => !item.customizable).map(item => item.category))], [menu]);
-
     return (
         <div>
-            {deletingItemId && <ConfirmDeleteModal onConfirm={handleDeleteConfirm} onCancel={() => setDeletingItemId(null)} />}
-            <div className="flex justify-between items-center mb-4">
-                 <h3 className="text-xl font-bold text-stone-700">Gerenciar Cardápio</h3>
-                 <button onClick={startCreating} className="bg-green-500 text-white font-bold py-2 px-4 rounded-full hover:bg-green-600 flex items-center gap-2 shadow-lg active:scale-95"><Plus size={18}/> Novo Item</button>
-            </div>
-            {(editingItem || isCreating) && <MenuItemForm item={editingItem} onSave={handleSave} onCancel={() => { setEditingItem(null); setIsCreating(false); }} allCategories={allCategories} />}
-            <div className="space-y-2 mt-6">
+            <button onClick={() => setEditingItem({ name: '', price: 0, preparationTime: 0, category: '' })} className="bg-green-500 text-white font-bold py-3 px-6 rounded-full mb-6 shadow-lg flex items-center gap-2 hover:bg-green-600 active:scale-95 transition-all"><Plus size={20}/> Novo Produto</button>
+            {(editingItem) && <MenuItemForm item={editingItem} onSave={handleSave} onCancel={() => setEditingItem(null)} dbCategories={dbCategories}/>}
+            <div className="space-y-3">
                 {menu.map(item => (
-                    <div key={item.id} className={`flex items-center justify-between p-3 rounded-xl border ${item.isAvailable !== false ? 'bg-stone-50 border-stone-200' : 'bg-stone-200 border-stone-300 opacity-60'}`}>
-                        <div className="flex items-center gap-4">
-                             <img src={item.image} alt={item.name} className="w-12 h-12 rounded-xl object-cover bg-stone-200" onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/100x100/FBBF24/FFFFFF?text=?'; }}/>
+                    <div key={item.id} className="p-4 border border-stone-200 rounded-xl flex justify-between items-center bg-stone-50 shadow-sm hover:shadow-md transition-all">
+                        <div className="flex gap-4 items-center">
+                            <img src={item.image} alt="" className="w-16 h-16 rounded-lg object-cover bg-stone-200 border border-stone-300"/>
                             <div>
-                                <p className="font-bold text-stone-800">{item.name}</p>
-                                <p className="text-sm text-stone-500">{item.category} - {item.price.toFixed(2)}€</p>
+                                <p className="font-bold text-stone-800 text-lg leading-tight">{item.name}</p>
+                                <p className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded inline-block mt-1">{item.category || 'Sem Categoria'}</p>
+                                <p className="text-sm font-bold text-green-600 mt-1">{item.price.toFixed(2)}€</p>
                             </div>
                         </div>
-                        <div className="flex gap-2 items-center">
-                             <span className="text-xs font-semibold flex items-center gap-1">{item.isAvailable !== false ? <Eye size={14} className="text-green-600"/> : <EyeOff size={14} className="text-red-600"/>}</span>
-                             <button onClick={() => setEditingItem(item)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-full transition-colors"><Edit size={18} /></button>
-                             <button onClick={() => setDeletingItemId(item.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-full transition-colors"><Trash2 size={18}/></button>
-                        </div>
+                        <button onClick={() => setEditingItem(item)} className="text-blue-600 bg-blue-100 hover:bg-blue-200 p-3 rounded-full transition-colors shadow-sm"><Edit size={20}/></button>
                     </div>
                 ))}
             </div>
@@ -1943,60 +1994,51 @@ const ManageMenu = ({ menu }) => {
     );
 };
 
-const MenuItemForm = ({ item, onSave, onCancel, allCategories }) => {
+const MenuItemForm = ({ item, onSave, onCancel, dbCategories }) => {
     const [formData, setFormData] = useState(item);
-    useEffect(() => { setFormData(item); }, [item]);
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
         const val = type === 'checkbox' ? checked : (type === 'number' ? parseFloat(value) || 0 : value);
         setFormData(prev => ({...prev, [name]: val}));
     };
     
-    const handleCategoryChange = (category) => {
-        const currentCategories = formData.allowedCategories || [];
-        if (currentCategories.includes(category)) setFormData(prev => ({...prev, allowedCategories: currentCategories.filter(c => c !== category)}));
-        else setFormData(prev => ({...prev, allowedCategories: [...currentCategories, category]}));
-    }
-
-    const handleSubmit = (e) => { e.preventDefault(); onSave(formData); };
-
     return (
-        <div className="fixed inset-0 bg-black/50 z-50 flex justify-center items-center p-4 animate-fade-in">
-            <form onSubmit={handleSubmit} className="bg-white p-6 rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-slide-up">
-                <h4 className="text-lg font-bold mb-4">{item.id ? 'Editar Item' : 'Criar Novo Item'}</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div><label className="block text-sm font-bold mb-1">Nome</label><input type="text" name="name" value={formData.name} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl" required /></div>
-                     <div><label className="block text-sm font-bold mb-1">Categoria</label><select name="category" value={formData.category} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl" required><option>Salgados Tradicionais</option><option>Salgados Especiais</option><option>Box</option><option>Empadas</option><option>Assados</option><option>Doces</option></select></div>
-                     <div><label className="block text-sm font-bold mb-1">Preço (€)</label><input type="number" name="price" value={formData.price} onChange={handleChange} step="0.01" className="w-full p-2 border border-stone-300 rounded-xl" required /></div>
-                     <div className="md:col-span-2"><label className="block text-sm font-bold mb-1">URL da Imagem</label><input type="text" name="image" value={formData.image} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl" /></div>
-                     <div className="md:col-span-2"><label className="block text-sm font-bold mb-1">URL do Vídeo Curto (Opcional - MP4)</label><input type="text" name="videoUrl" value={formData.videoUrl || ''} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl bg-blue-50" placeholder="Ex: https://meusite.com/video.mp4" /><p className="text-xs text-stone-500 mt-1">Cole um link de vídeo MP4. O vídeo tocará no fundo da imagem quando o cliente interagir com o card.</p></div>
-                     <div className="md:col-span-2"><label className="block text-sm font-bold mb-1">Descrição (opcional)</label><textarea name="description" value={formData.description || ''} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl"></textarea></div>
-                    <div><label className="block text-sm font-bold mb-1">Pedido Mínimo (Unidades)</label><input type="number" name="minimumOrder" value={formData.minimumOrder || 1} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl" /></div>
-                    <div><label className="block text-sm font-bold mb-1">Tempo de Preparo (Minutos)</label><input type="number" name="preparationTime" value={formData.preparationTime || 0} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl" /></div>
-                    <div className="flex items-center gap-2 border p-2 rounded-xl bg-stone-50"><input type="checkbox" id="customizable" name="customizable" checked={!!formData.customizable} onChange={handleChange} className="h-5 w-5"/><label htmlFor="customizable">É um box customizável?</label></div>
-                     {formData.customizable && (<div className="md:col-span-2"><label className="block text-sm font-bold mb-1">Nº mínimo de salgados no box</label><input type="number" name="size" value={formData.size} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl" /></div>)}
+        <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-[100] p-4 animate-fade-in">
+            <div className="bg-white p-6 rounded-2xl w-full max-w-lg space-y-4 shadow-2xl animate-slide-up max-h-[90vh] overflow-y-auto">
+                <h4 className="font-bold text-2xl border-b border-stone-200 pb-3 text-stone-800 flex items-center gap-2"><ChefHat className="text-amber-500"/> Detalhes do Produto</h4>
+                
+                <div><label className="text-xs font-bold text-stone-500 uppercase tracking-wider">Nome</label><input type="text" name="name" value={formData.name || ''} onChange={handleChange} className="w-full p-3 border border-stone-300 focus:ring focus:ring-amber-200 rounded-xl font-bold text-stone-800" /></div>
+                
+                <div>
+                    <label className="text-xs font-bold text-stone-500 uppercase tracking-wider">Vincular a qual Categoria?</label>
+                    <select name="category" value={formData.category || ''} onChange={handleChange} className="w-full p-3 border border-stone-300 focus:ring focus:ring-amber-200 rounded-xl bg-stone-50 font-bold text-stone-800" required>
+                        <option value="">Selecione uma Categoria...</option>
+                        {dbCategories.map(cat => (<option key={cat.id} value={cat.name}>{cat.name}</option>))}
+                        {formData.category && !dbCategories.some(c => c.name === formData.category) && (<option value={formData.category}>{formData.category} (Aviso: Categoria Órfã)</option>)}
+                    </select>
                 </div>
 
-                {formData.customizable && (
-                    <div className="mt-4 border-t pt-4">
-                        <label className="block text-sm font-bold mb-2">Categorias Permitidas no Box</label>
-                        <div className="grid grid-cols-2 gap-2">
-                            {allCategories.map(cat => (<div key={cat} className="flex items-center gap-2"><input type="checkbox" id={`cat-${cat}`} checked={(formData.allowedCategories || []).includes(cat)} onChange={() => handleCategoryChange(cat)} className="h-4 w-4"/><label htmlFor={`cat-${cat}`}>{cat}</label></div>))}
-                        </div>
-                    </div>
-                )}
+                <div className="grid grid-cols-2 gap-4">
+                    <div><label className="text-xs font-bold text-stone-500 uppercase tracking-wider">Preço (€)</label><input type="number" name="price" value={formData.price || 0} onChange={handleChange} className="w-full p-3 border border-stone-300 focus:ring focus:ring-amber-200 rounded-xl font-black text-green-700" /></div>
+                    <div><label className="text-xs font-bold text-stone-500 uppercase tracking-wider">Preparo (Minutos)</label><input type="number" name="preparationTime" value={formData.preparationTime || 0} onChange={handleChange} className="w-full p-3 border border-stone-300 focus:ring focus:ring-amber-200 rounded-xl font-bold text-stone-800" /></div>
+                </div>
 
-                <div className="grid grid-cols-2 gap-4 mt-4 border-t pt-4">
-                    <div className="flex items-center gap-2 p-2 rounded-xl bg-stone-50 border"><input type="checkbox" id="isNew" name="isNew" checked={!!formData.isNew} onChange={handleChange} className="h-5 w-5"/><label htmlFor="isNew">É Novidade?</label></div>
-                    <div className="flex items-center gap-2 p-2 rounded-xl bg-stone-50 border"><input type="checkbox" id="isPromo" name="isPromo" checked={!!formData.isPromo} onChange={handleChange} className="h-5 w-5"/><label htmlFor="isPromo">É Promoção?</label></div>
-                     <div className="flex items-center gap-2 p-2 rounded-xl bg-stone-50 border"><input type="checkbox" id="isAvailable" name="isAvailable" checked={formData.isAvailable !== false} onChange={handleChange} className="h-5 w-5"/><label htmlFor="isAvailable">Exibir no catálogo?</label></div>
-                     <div className="flex items-center gap-2 p-2 rounded-xl bg-stone-50 border"><input type="checkbox" id="requiresScheduling" name="requiresScheduling" checked={!!formData.requiresScheduling} onChange={handleChange} className="h-5 w-5"/><label htmlFor="requiresScheduling">Requer encomenda?</label></div>
+                <div><label className="text-xs font-bold text-stone-500 uppercase tracking-wider">Link da Imagem</label><input type="text" name="image" value={formData.image || ''} onChange={handleChange} className="w-full p-3 border border-stone-300 focus:ring focus:ring-amber-200 rounded-xl" /></div>
+                <div><label className="text-xs font-bold text-blue-600 uppercase tracking-wider flex items-center gap-1">Link do Vídeo MP4 <span className="text-stone-400 normal-case">(Opcional)</span></label><input type="text" name="videoUrl" value={formData.videoUrl || ''} onChange={handleChange} className="w-full p-3 border border-blue-200 bg-blue-50 focus:ring focus:ring-blue-200 rounded-xl" placeholder="Cole o link do Firebase Storage" /></div>
+                <div><label className="text-xs font-bold text-stone-500 uppercase tracking-wider">Descrição</label><textarea name="description" value={formData.description || ''} onChange={handleChange} className="w-full p-3 border border-stone-300 focus:ring focus:ring-amber-200 rounded-xl"></textarea></div>
+
+                <div className="flex items-center gap-2 border border-stone-200 p-3 rounded-xl bg-stone-50"><input type="checkbox" id="customizable" name="customizable" checked={!!formData.customizable} onChange={handleChange} className="w-5 h-5 accent-amber-500"/><label htmlFor="customizable" className="font-bold text-stone-700">É um Box Customizável?</label></div>
+                {formData.customizable && (<div><label className="text-xs font-bold text-stone-500 uppercase tracking-wider">Tamanho do Box (Unidades)</label><input type="number" name="size" value={formData.size || 0} onChange={handleChange} className="w-full p-3 border border-stone-300 rounded-xl font-bold" /></div>)}
+
+                <div className="grid grid-cols-2 gap-3 mt-2">
+                    <label className="flex items-center gap-2 text-sm font-black text-blue-600 cursor-pointer border border-stone-200 p-3 rounded-xl bg-white"><input type="checkbox" name="isNew" checked={!!formData.isNew} onChange={handleChange} className="w-5 h-5 accent-blue-600"/> NOVIDADE</label>
+                    <label className="flex items-center gap-2 text-sm font-black text-red-600 cursor-pointer border border-stone-200 p-3 rounded-xl bg-white"><input type="checkbox" name="isPromo" checked={!!formData.isPromo} onChange={handleChange} className="w-5 h-5 accent-red-600"/> PROMOÇÃO</label>
+                    <label className="flex items-center gap-2 text-sm font-bold text-stone-700 cursor-pointer border border-stone-200 p-3 rounded-xl bg-white col-span-2"><input type="checkbox" name="requiresScheduling" checked={!!formData.requiresScheduling} onChange={handleChange} className="w-5 h-5 accent-stone-800"/> Requer Encomenda?</label>
+                    <label className="flex items-center gap-2 text-sm font-bold text-stone-700 cursor-pointer border border-stone-200 p-3 rounded-xl bg-white col-span-2"><input type="checkbox" name="isAvailable" checked={formData.isAvailable !== false} onChange={handleChange} className="w-5 h-5 accent-stone-800"/> Exibir no Cardápio?</label>
                 </div>
-                <div className="flex justify-end gap-4 mt-6">
-                    <button type="button" onClick={onCancel} className="bg-stone-300 text-stone-800 font-bold py-2 px-4 rounded-full hover:bg-stone-400 active:scale-95 transition-colors">Cancelar</button>
-                    <button type="submit" className="bg-amber-500 text-white font-bold py-2 px-4 rounded-full hover:bg-amber-600 active:scale-95 transition-colors">Salvar</button>
-                </div>
-            </form>
+                
+                <div className="flex justify-end gap-3 pt-6 border-t border-stone-200 mt-4"><button onClick={onCancel} className="px-6 py-3 text-stone-600 font-bold hover:bg-stone-200 rounded-full transition-colors active:scale-95">Cancelar</button><button onClick={() => onSave(formData)} className="bg-green-500 hover:bg-green-600 text-white px-8 py-3 rounded-full font-bold shadow-lg transition-colors active:scale-95 flex items-center gap-2"><Save size={18}/> Salvar Produto</button></div>
+            </div>
         </div>
     );
 };
