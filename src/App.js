@@ -676,31 +676,76 @@ const MenuView = ({ menu, addToCart, showStoreClosedToast }) => {
     );
 };
 
-const MenuItemCard = ({ item, onOrderClick }) => (
-    <div className="bg-white rounded-xl shadow-lg overflow-hidden flex flex-col transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 group">
-        <div className="h-48 overflow-hidden relative">
-            <img src={item.image} alt={item.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/400x300/FBBF24/FFFFFF?text=Salgado'; }} />
-            
-            <div className="absolute top-2 left-2 flex flex-col gap-1 items-start">
-                {item.isNew && <span className="bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-md shadow-md animate-fade-in-up">NOVIDADE</span>}
-                {item.isPromo && <span className="bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-md shadow-md flex items-center gap-1 animate-fade-in-up"><TrendingUp size={12}/> PROMOÇÃO</span>}
-            </div>
+const MenuItemCard = ({ item, onOrderClick }) => {
+    // Referência para controlar o vídeo dinamicamente
+    const videoRef = useRef(null);
 
-            {item.requiresScheduling && <div className="absolute top-2 right-2 bg-stone-800/80 backdrop-blur text-white text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1"><Calendar size={12}/> Sob Encomenda</div>}
-        </div>
-        <div className="p-4 flex flex-col flex-grow">
-            <h3 className="text-lg font-bold text-stone-800">{item.name}</h3>
-            {item.minimumOrder > 1 && <p className="text-xs text-amber-600 font-semibold mt-1">Pedido mínimo: {item.minimumOrder} unidades</p>}
-            <p className="text-stone-600 text-sm flex-grow mt-1">{item.description || ''}</p>
-            <div className="flex justify-between items-center mt-4">
-                <span className="text-xl font-bold text-green-600">{item.price.toFixed(2)}€</span>
-                <button onClick={onOrderClick} className="bg-amber-500 text-white font-bold py-2 px-4 rounded-full hover:bg-amber-600 transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow-md transform active:scale-95">
-                    <Plus size={18} /> {item.customizable ? 'Montar' : 'Adicionar'}
-                </button>
+    // Funções que garantem o funcionamento no Mouse (PC) e no Toque (Celular)
+    const handleInteraction = () => {
+        if (videoRef.current) {
+            videoRef.current.currentTime = 0;
+            videoRef.current.play().catch(e => console.log("Autoplay bloqueado:", e));
+        }
+    };
+
+    const handleLeave = () => {
+        if (videoRef.current) {
+            videoRef.current.pause();
+        }
+    };
+
+    return (
+        <div 
+            className="bg-white rounded-xl shadow-lg overflow-hidden flex flex-col transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 group cursor-pointer"
+            onMouseEnter={handleInteraction}
+            onMouseLeave={handleLeave}
+            onTouchStart={handleInteraction} // Garante que o celular entenda o toque como hover
+            onTouchEnd={handleLeave}
+        >
+            <div className="h-48 sm:h-56 overflow-hidden relative bg-stone-100">
+                {/* Imagem Padrão (Fica atrás) */}
+                <img src={item.image} alt={item.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/400x300/FBBF24/FFFFFF?text=Salgado'; }} />
+                
+                {/* Vídeo Dinâmico (Fica invisível, aparece só com o mouse/toque) */}
+                {item.videoUrl && (
+                    <video 
+                        ref={videoRef}
+                        src={item.videoUrl}
+                        className="absolute inset-0 w-full h-full object-cover opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none z-10"
+                        muted 
+                        playsInline 
+                        loop 
+                        preload="metadata"
+                    />
+                )}
+
+                {/* ETIQUETAS CORRIGIDAS (z-30 garante que NUNCA sumam no celular) */}
+                <div className="absolute top-2 left-2 flex flex-col gap-1.5 items-start z-30">
+                    {item.isNew && <span className="bg-blue-600 text-white text-[10px] sm:text-xs font-black px-2.5 py-1 rounded-md shadow-lg border border-blue-400/30 uppercase tracking-wide">NOVIDADE</span>}
+                    {item.isPromo && <span className="bg-red-600 text-white text-[10px] sm:text-xs font-black px-2.5 py-1 rounded-md shadow-lg border border-red-400/30 flex items-center gap-1 uppercase tracking-wide"><TrendingUp size={14}/> PROMOÇÃO</span>}
+                </div>
+
+                {item.requiresScheduling && <div className="absolute top-2 right-2 bg-stone-900/90 backdrop-blur-sm text-white text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1 z-30 shadow-lg"><Calendar size={12}/> Encomenda</div>}
+            </div>
+            
+            <div className="p-4 flex flex-col flex-grow z-20 bg-white">
+                <h3 className="text-lg font-bold text-stone-800 leading-tight">{item.name}</h3>
+                {item.minimumOrder > 1 && <p className="text-xs text-amber-600 font-bold mt-1">Pedido mínimo: {item.minimumOrder} un</p>}
+                <p className="text-stone-600 text-xs sm:text-sm flex-grow mt-1.5 line-clamp-2">{item.description || ''}</p>
+                
+                <div className="flex justify-between items-center mt-4 border-t pt-3">
+                    <span className="text-xl font-black text-green-600">{item.price.toFixed(2)}€</span>
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); onOrderClick(); }} 
+                        className="bg-amber-500 text-white font-bold py-2 px-5 rounded-full hover:bg-amber-600 transition-all duration-200 flex items-center gap-2 shadow-md hover:shadow-lg transform active:scale-95"
+                    >
+                        <Plus size={18} /> {item.customizable ? 'Montar' : 'Pedir'}
+                    </button>
+                </div>
             </div>
         </div>
-    </div>
-);
+    );
+};
 
 const CustomizeBoxModal = ({ box, salgados, onClose, addToCart }) => {
     const [selection, setSelection] = useState({});
@@ -1863,7 +1908,7 @@ const ManageMenu = ({ menu }) => {
     
     const startCreating = () => {
         setIsCreating(true);
-        setEditingItem({ name: '', category: 'Salgados Tradicionais', price: 0, image: '', description: '', customizable: false, size: 0, minimumOrder: 1, isAvailable: true, requiresScheduling: false, allowedCategories: [], preparationTime: 0, isNew: false, isPromo: false });
+        setEditingItem({ name: '', category: 'Salgados Tradicionais', price: 0, image: '', videoUrl: '', description: '', customizable: false, size: 0, minimumOrder: 1, isAvailable: true, requiresScheduling: false, allowedCategories: [], preparationTime: 0, isNew: false, isPromo: false });
     };
     
     const allCategories = useMemo(() => [...new Set(menu.filter(item => !item.customizable).map(item => item.category))], [menu]);
@@ -1924,6 +1969,7 @@ const MenuItemForm = ({ item, onSave, onCancel, allCategories }) => {
                      <div><label className="block text-sm font-bold mb-1">Categoria</label><select name="category" value={formData.category} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl" required><option>Salgados Tradicionais</option><option>Salgados Especiais</option><option>Box</option><option>Empadas</option><option>Assados</option><option>Doces</option></select></div>
                      <div><label className="block text-sm font-bold mb-1">Preço (€)</label><input type="number" name="price" value={formData.price} onChange={handleChange} step="0.01" className="w-full p-2 border border-stone-300 rounded-xl" required /></div>
                      <div className="md:col-span-2"><label className="block text-sm font-bold mb-1">URL da Imagem</label><input type="text" name="image" value={formData.image} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl" /></div>
+                     <div className="md:col-span-2"><label className="block text-sm font-bold mb-1">URL do Vídeo Curto (Opcional - MP4)</label><input type="text" name="videoUrl" value={formData.videoUrl || ''} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl bg-blue-50" placeholder="Ex: https://meusite.com/video.mp4" /><p className="text-xs text-stone-500 mt-1">Cole um link de vídeo MP4. O vídeo tocará no fundo da imagem quando o cliente interagir com o card.</p></div>
                      <div className="md:col-span-2"><label className="block text-sm font-bold mb-1">Descrição (opcional)</label><textarea name="description" value={formData.description || ''} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl"></textarea></div>
                     <div><label className="block text-sm font-bold mb-1">Pedido Mínimo (Unidades)</label><input type="number" name="minimumOrder" value={formData.minimumOrder || 1} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl" /></div>
                     <div><label className="block text-sm font-bold mb-1">Tempo de Preparo (Minutos)</label><input type="number" name="preparationTime" value={formData.preparationTime || 0} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl" /></div>
