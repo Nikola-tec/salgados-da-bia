@@ -61,6 +61,7 @@ const INITIAL_CATEGORIES_DATA = [
     { name: 'Doces', order: 6 }
 ];
 const INITIAL_MENU_DATA = [];
+
 const INITIAL_SHOP_SETTINGS = {
     storeName: "Salgados da Bia", logoUrl: "https://placehold.co/100x100/FBBF24/FFFFFF?text=SB",
     email: "contato@salgadosdabia.com", phone: "+351 000 000 000", whatsappNumber: "351000000000",
