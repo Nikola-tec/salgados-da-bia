@@ -318,14 +318,13 @@ function App() {
                 if (snapshot.empty) {
                     const batch = writeBatch(db); data.forEach(item => { const docRef = doc(collection(db, ref.path)); batch.set(docRef, item); }); await batch.commit();
                 }
-             } catch (e) { handleSnapshotError(`popular ${ref.path}`)(e); }
+             } catch (e) {}
         };
         const populateInitialSettings = async (ref, data) => {
              if (userRole !== 'admin') return;
-             try { const docSnap = await getDoc(ref); if (!docSnap.exists()) await setDoc(ref, data); } catch (e) { handleSnapshotError(`popular ${ref.path}`)(e); }
+             try { const docSnap = await getDoc(ref); if (!docSnap.exists()) await setDoc(ref, data); } catch (e) {}
         };
         
-        // Fetch Categories
         const catRef = collection(db, `artifacts/${appId}/public/data/categories`);
         populateInitialData(catRef, INITIAL_CATEGORIES_DATA);
         const unsubscribeCats = onSnapshot(catRef, (snapshot) => {
@@ -333,7 +332,6 @@ function App() {
             setCategories(catData.sort((a, b) => a.order - b.order));
         }, handleSnapshotError('categorias'));
 
-        // Fetch Menu
         const menuRef = collection(db, `artifacts/${appId}/public/data/menu`);
         populateInitialData(menuRef, INITIAL_MENU_DATA); 
         const unsubscribeMenu = onSnapshot(menuRef, (snapshot) => {
@@ -429,7 +427,18 @@ function App() {
             const { subtotal, hasDiscount, discountAmount, finalTotal } = customerDetails;
             const deliveryDetails = (customerDetails.lat && customerDetails.lng) ? { deliveryTracker: { lat: currentLat, lng: currentLng, lastUpdate: null, active: false } } : {};
 
-            const cleanCart = cart.map(item => Object.fromEntries(Object.entries(item).filter(([_, v]) => v !== undefined)));
+            const cleanCart = cart.map(item => {
+                const cleanedItem = { ...item };
+                Object.keys(cleanedItem).forEach(key => cleanedItem[key] === undefined && delete cleanedItem[key]);
+                if (cleanedItem.customization) {
+                    cleanedItem.customization = cleanedItem.customization.map(c => {
+                        const cleanC = { ...c };
+                        Object.keys(cleanC).forEach(key => cleanC[key] === undefined && delete cleanC[key]);
+                        return cleanC;
+                    });
+                }
+                return cleanedItem;
+            });
 
             const orderData = {
                 ...customerDetails, ...deliveryDetails, items: cleanCart, subtotal: subtotal, total: finalTotal, 
@@ -808,7 +817,9 @@ const CartView = ({ cart, updateQuantity, cartTotal, setView, emptyCart, user })
                 <ShoppingCart size={64} className="mx-auto text-stone-300" />
                 <h2 className="text-2xl font-bold mt-4 text-stone-700">O seu carrinho está vazio</h2>
                 <p className="text-stone-500 mt-2">Adicione alguns salgados deliciosos para começar!</p>
-                <button onClick={() => setView('menu')} className="mt-6 bg-amber-500 text-white font-bold py-3 px-6 rounded-full hover:bg-amber-600 transition-colors shadow hover:shadow-lg active:scale-95">Ver Cardápio</button>
+                <button onClick={() => setView('menu')} className="mt-6 bg-amber-500 text-white font-bold py-3 px-6 rounded-full hover:bg-amber-600 transition-colors shadow hover:shadow-lg active:scale-95">
+                    Ver Cardápio
+                </button>
             </div>
         );
     }
@@ -826,8 +837,16 @@ const CartView = ({ cart, updateQuantity, cartTotal, setView, emptyCart, user })
                             <img src={item.image} alt={item.name} className="w-20 h-20 rounded-xl object-cover" onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/200x200/FBBF24/FFFFFF?text=Item'; }}/>
                             <div>
                                 <h3 className="font-bold text-stone-800">{item.name}</h3>
-                                {item.customization && (<ul className="text-sm text-stone-600 list-disc list-inside mt-1">{item.customization.map(c => <li key={c.name}>{c.quantity}x {c.name}</li>)}</ul>)}
-                                 {item.customizable ? <p className="text-stone-600 font-bold">{item.price.toFixed(2)}€</p> : <p className="text-stone-600">{item.price.toFixed(2)}€ /unidade</p>}
+                                {item.customization && (
+                                    <ul className="text-sm text-stone-600 list-disc list-inside mt-1">
+                                        {item.customization.map(c => <li key={c.name}>{c.quantity}x {c.name}</li>)}
+                                    </ul>
+                                )}
+                                 {item.customizable ? (
+                                    <p className="text-stone-600 font-bold">{item.price.toFixed(2)}€</p>
+                                ) : (
+                                    <p className="text-stone-600">{item.price.toFixed(2)}€ /unidade</p>
+                                )}
                             </div>
                         </div>
                         <div className="flex flex-col items-end">
@@ -844,7 +863,9 @@ const CartView = ({ cart, updateQuantity, cartTotal, setView, emptyCart, user })
             </div>
             <div className="mt-6 text-right">
                 <p className="text-lg">Subtotal: <span className="font-bold text-xl text-stone-800">{cartTotal}€</span></p>
-                <button onClick={() => user.isAnonymous ? setView('customerLogin') : setView('checkout')} className="mt-4 bg-green-500 text-white font-bold py-3 px-8 rounded-full hover:bg-green-600 transition-colors text-lg shadow hover:shadow-lg active:scale-95">Finalizar Pedido</button>
+                <button onClick={() => user.isAnonymous ? setView('customerLogin') : setView('checkout')} className="mt-4 bg-green-500 text-white font-bold py-3 px-8 rounded-full hover:bg-green-600 transition-colors text-lg shadow hover:shadow-lg active:scale-95">
+                    Finalizar Pedido
+                </button>
             </div>
         </div>
     );
@@ -858,10 +879,15 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
     const [deliveryMethod, setDeliveryMethod] = useState(forceScheduling ? 'schedule' : 'deliver');
     const addresses = useMemo(() => user?.addresses || [], [user?.addresses]);
     const [selectedAddress, setSelectedAddress] = useState(null); 
-    useEffect(() => { if (addresses.length > 0 && !selectedAddress) setSelectedAddress(addresses[0].id); }, [addresses, selectedAddress]);
-
     const [newAddressDetails, setNewAddressDetails] = useState({ cep: '', street: '', number: '', district: '', city: '', state: '', lat: null, lng: null });
     const [isAddingNewAddress, setIsAddingNewAddress] = useState(false);
+    
+    useEffect(() => {
+        if (addresses.length > 0 && !selectedAddress && !isAddingNewAddress) {
+            setSelectedAddress(addresses[0].id);
+        }
+    }, [addresses, selectedAddress, isAddingNewAddress]);
+
     const [pickupTime, setPickupTime] = useState(''); const [scheduledDate, setScheduledDate] = useState(''); const [scheduledTime, setScheduledTime] = useState('');
     const [formError, setFormError] = useState(''); const [deliveryFee, setDeliveryFee] = useState(0); const [deliveryDistance, setDeliveryDistance] = useState(0); const [isCalculatingDistance, setIsCalculatingDistance] = useState(false); const [deliveryError, setDeliveryError] = useState(''); const [cepLoading, setCepLoading] = useState(false); 
     const name = userData?.name || user?.displayName || ''; const phone = userData?.phone || '';
@@ -916,12 +942,16 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
             const interval = getWorkingInterval(shopSettings.workingHours, todayStr);
             if (!interval) return 'A loja está fechada hoje.';
             const { start, end } = interval;
-            if (start > end) { if (time < start && time >= end) return `Horário é das ${start} até ${end} (dia seguinte).`; } 
-            else { if (time < start || (end !== '00:00' && time >= end)) return `Horário é das ${start} às ${end}.`; }
+            if (start > end) {
+                if (time < start && time >= end) return `A loja atende das ${start} até ${end} (dia seguinte).`;
+            } else {
+                if (time < start || (end !== '00:00' && time >= end)) return `Fora de horário (${start} às ${end}).`;
+            }
             const selectedDate = new Date(`${todayStr}T${time}:00`);
             const minTimeWithPrep = new Date(storeNow.getTime() + (maxPrepTime * 60000));
             if (selectedDate < minTimeWithPrep) return `Tempo de preparo: ${maxPrepTime} min. Retire após as ${minTimeWithPrep.toLocaleTimeString('pt-PT', {hour: '2-digit', minute:'2-digit'})}.`;
-        } catch(e) {} return '';
+        } catch(e) {}
+        return '';
     };
 
     const handleCepLookup = async (cep) => {
@@ -976,8 +1006,10 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
         } else { 
             if (!scheduledDate || !scheduledTime) { setFormError('Selecione data e hora.'); return; }
             details.scheduledDate = scheduledDate; details.scheduledTime = scheduledTime;
-            if (finalAddress) { details.address = `${finalAddress.street}, ${finalAddress.number}, ${finalAddress.district}, ${finalAddress.city}`; details.lat = finalAddress.lat; details.lng = finalAddress.lng; } 
-            else { details.address = `Retirada em: ${shopSettings.pickupAddress}`; }
+            if (finalAddress) {
+                details.address = `${finalAddress.street}, ${finalAddress.number}, ${finalAddress.district}, ${finalAddress.city}`;
+                details.lat = finalAddress.lat; details.lng = finalAddress.lng;
+            } else { details.address = `Retirada em: ${shopSettings.pickupAddress}`; }
             details.isScheduled = true;
         }
         placeOrder(details);
@@ -1023,7 +1055,7 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
                 {isAddingNewAddress && (
                     <div className="p-4 bg-red-50 rounded-xl border border-red-200 space-y-3">
                         <h3 className="font-bold text-lg text-red-700 flex justify-between items-center">Novo Endereço <button type="button" onClick={() => setIsAddingNewAddress(false)} className="text-red-500 hover:text-red-700"><XCircle size={20}/></button></h3>
-                        <div className="flex items-center gap-2"><input type="text" placeholder="CEP" value={newAddressDetails.cep} onChange={e => setNewAddressDetails(p => ({...p, cep: e.target.value}))} onBlur={(e) => handleCepLookup(e.target.value)} className="w-1/2 p-2 border border-stone-300 rounded-xl focus:ring-amber-400" /><button type="button" onClick={handleCurrentLocation} disabled={cepLoading} className="w-1/2 bg-blue-500 text-white font-bold py-2 px-3 rounded-xl hover:bg-blue-600 flex items-center justify-center gap-2 text-sm">{cepLoading ? <Loader2 className="animate-spin" size={18}/> : <><MapPin size={18}/> Localização Atual</>}</button></div>
+                        <div className="flex items-center gap-2"><input type="text" placeholder="CEP" value={newAddressDetails.cep} onChange={e => setNewAddressDetails(p => ({...p, cep: e.target.value}))} onBlur={(e) => handleCepLookup(e.target.value)} className="w-1/2 p-2 border border-stone-300 rounded-xl focus:ring-amber-400" /><button type="button" onClick={handleCurrentLocation} disabled={cepLoading} className="w-1/2 bg-blue-500 text-white font-bold py-2 px-3 rounded-xl hover:bg-blue-600 flex items-center justify-center gap-2 text-sm disabled:opacity-50">{cepLoading ? <Loader2 className="animate-spin" size={18}/> : <><MapPin size={18}/> Localização Atual</>}</button></div>
                         <input type="text" name="street" placeholder="Rua / Logradouro" value={newAddressDetails.street} onChange={e => setNewAddressDetails(p => ({...p, street: e.target.value}))} className="w-full p-2 border border-stone-300 rounded-xl" required />
                         <div className="grid grid-cols-2 gap-2"><input type="text" name="number" placeholder="Número" value={newAddressDetails.number} onChange={e => setNewAddressDetails(p => ({...p, number: e.target.value}))} className="w-full p-2 border border-stone-300 rounded-xl" required /><input type="text" name="district" placeholder="Bairro" value={newAddressDetails.district} onChange={e => setNewAddressDetails(p => ({...p, district: e.target.value}))} className="w-full p-2 border border-stone-300 rounded-xl" required /></div>
                         <input type="text" name="city" placeholder="Município/Cidade" value={newAddressDetails.city} onChange={e => setNewAddressDetails(p => ({...p, city: e.target.value}))} className="w-full p-2 border border-stone-300 rounded-xl" required />
@@ -1118,9 +1150,18 @@ const FeedbackForm = ({ onSubmit }) => {
         <div className="max-w-lg mx-auto bg-white p-8 rounded-xl shadow-lg animate-fade-in">
             <h2 className="text-2xl font-bold text-center mb-6">Sua Opinião é Importante</h2>
             <form onSubmit={handleSubmit} className="space-y-6">
-                <div><label className="block text-stone-700 font-bold mb-2">Como avalia o nosso aplicativo?</label><div className="flex justify-center gap-2">{[1,2,3,4,5].map(star => <Star key={star} size={32} className={`cursor-pointer ${star <= rating ? 'text-amber-500' : 'text-stone-300'}`} onClick={() => setRating(star)} />)}</div></div>
-                 <div><label className="block text-stone-700 font-bold mb-2">Como nos conheceu?</label><select value={howFound} onChange={e => setHowFound(e.target.value)} className="w-full px-3 py-2 border rounded-xl" required><option value="">Selecione</option><option>Indicação</option><option>Google</option><option>Instagram</option></select></div>
-                <div><label className="block text-stone-700 font-bold mb-2">Indicaria para amigos?</label><div className="flex gap-4"><label><input type="radio" name="recommend" value="Sim" onChange={e => setWouldRecommend(e.target.value)} required /> Sim</label><label><input type="radio" name="recommend" value="Não" onChange={e => setWouldRecommend(e.target.value)} required /> Não</label></div></div>
+                <div>
+                    <label className="block text-stone-700 font-bold mb-2">Como avalia o nosso aplicativo?</label>
+                    <div className="flex justify-center gap-2">{[1,2,3,4,5].map(star => <Star key={star} size={32} className={`cursor-pointer ${star <= rating ? 'text-amber-500' : 'text-stone-300'}`} onClick={() => setRating(star)} />)}</div>
+                </div>
+                 <div>
+                    <label className="block text-stone-700 font-bold mb-2">Como nos conheceu?</label>
+                    <select value={howFound} onChange={e => setHowFound(e.target.value)} className="w-full px-3 py-2 border rounded-xl" required><option value="">Selecione</option><option>Indicação</option><option>Google</option><option>Instagram</option></select>
+                </div>
+                <div>
+                     <label className="block text-stone-700 font-bold mb-2">Indicaria para amigos?</label>
+                     <div className="flex gap-4"><label><input type="radio" name="recommend" value="Sim" onChange={e => setWouldRecommend(e.target.value)} required /> Sim</label><label><input type="radio" name="recommend" value="Não" onChange={e => setWouldRecommend(e.target.value)} required /> Não</label></div>
+                </div>
                  <button type="submit" disabled={isSubmitting} className="w-full bg-green-500 text-white font-bold py-2 rounded-full">{isSubmitting ? <Loader2 className="animate-spin mx-auto" /> : "Enviar"}</button>
             </form>
         </div>
@@ -1376,7 +1417,6 @@ const CRMView = ({ orders, setView, db, showToast }) => {
     );
 };
 
-// --- NOVO COMPONENTE: GERENCIADOR DE CATEGORIAS ---
 const ManageCategories = ({ categories, showToast }) => {
     const [newCategory, setNewCategory] = useState('');
 
@@ -1529,8 +1569,11 @@ const ManageOrders = ({ orders, updateOrderStatus }) => {
 const ManageMenu = ({ menu, dbCategories }) => {
     const [editingItem, setEditingItem] = useState(null);
     const handleSave = async (item) => {
-        if (item.id) await updateDoc(doc(db, `artifacts/${appId}/public/data/menu`, item.id), item);
-        else await addDoc(collection(db, `artifacts/${appId}/public/data/menu`), item);
+        // Limpador do Firebase
+        const cleanItem = Object.fromEntries(Object.entries(item).filter(([_, v]) => v !== undefined));
+        
+        if (cleanItem.id) await updateDoc(doc(db, `artifacts/${appId}/public/data/menu`, cleanItem.id), cleanItem);
+        else await addDoc(collection(db, `artifacts/${appId}/public/data/menu`), cleanItem);
         setEditingItem(null);
     };
     return (
@@ -1564,7 +1607,6 @@ const MenuItemForm = ({ item, onSave, onCancel, dbCategories }) => {
                     <input type="text" value={formData.name || ''} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full p-2 border rounded-xl" />
                 </div>
                 
-                {/* SELECT DINÂMICO BASEADO NO BANCO DE DADOS */}
                 <div>
                     <label className="text-xs font-bold text-stone-500">Vincular a qual Categoria?</label>
                     <select value={formData.category || ''} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full p-2 border rounded-xl bg-stone-50" required>
@@ -1587,6 +1629,20 @@ const MenuItemForm = ({ item, onSave, onCancel, dbCategories }) => {
                         <label className="text-xs font-bold text-stone-500">Preparo (Minutos)</label>
                         <input type="number" value={formData.preparationTime || 0} onChange={e => setFormData({...formData, preparationTime: parseInt(e.target.value)})} className="w-full p-2 border rounded-xl" />
                     </div>
+                </div>
+
+                <div>
+                    <label className="text-xs font-bold text-stone-500">Link da Imagem</label>
+                    <input type="text" value={formData.image || ''} onChange={e => setFormData({...formData, image: e.target.value})} className="w-full p-2 border rounded-xl" />
+                </div>
+                <div>
+                    <label className="text-xs font-bold text-stone-500">Link do Vídeo MP4 (Opcional)</label>
+                    <input type="text" value={formData.videoUrl || ''} onChange={e => setFormData({...formData, videoUrl: e.target.value})} className="w-full p-2 border rounded-xl" />
+                </div>
+
+                <div className="flex gap-4 border p-2 rounded-xl bg-stone-50">
+                    <label className="flex items-center gap-1 text-sm font-bold text-blue-600"><input type="checkbox" checked={!!formData.isNew} onChange={e => setFormData({...formData, isNew: e.target.checked})}/> Novidade?</label>
+                    <label className="flex items-center gap-1 text-sm font-bold text-red-600"><input type="checkbox" checked={!!formData.isPromo} onChange={e => setFormData({...formData, isPromo: e.target.checked})}/> Promoção?</label>
                 </div>
                 
                 <div className="flex justify-end gap-2 pt-4 border-t"><button onClick={onCancel} className="px-4 py-2 text-stone-600 font-bold hover:bg-stone-100 rounded-full">Cancelar</button><button onClick={() => onSave(formData)} className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-full font-bold">Salvar</button></div>
