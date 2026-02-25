@@ -656,7 +656,29 @@ const MenuView = ({ menu, addToCart, showStoreClosedToast }) => {
         setCustomizingBox({ box: boxItem, availableSalgados });
     };
 
-    const categories = [...new Set(menu.filter(item => item.isAvailable !== false).map(item => item.category))].sort((a,b) => a === 'Boxes' ? -1 : b === 'Boxes' ? 1 : a.localeCompare(b));
+    // 1. Defina aqui a ordem exata que você quer no aplicativo (de cima para baixo):
+    const ordemDesejada = [
+        'Salgados Tradicionais',
+        'Salgados Especiais',
+        'Empadas',
+        'Assados',
+        'Doces',
+        'Boxes',
+        'Bebidas'
+    ];
+
+    // 2. O sistema vai ler a sua lista acima e ordenar a tela seguindo ela
+    const categories = [...new Set(menu.filter(item => item.isAvailable !== false).map(item => item.category))]
+        .sort((a, b) => {
+            let indexA = ordemDesejada.indexOf(a);
+            let indexB = ordemDesejada.indexOf(b);
+            
+            // Se você criar uma categoria nova no painel e esquecer de por na lista acima, ele joga ela pro final do cardápio automaticamente
+            if (indexA === -1) indexA = 999;
+            if (indexB === -1) indexB = 999;
+            
+            return indexA - indexB;
+        });
 
     return (
         <div className="animate-fade-in">
