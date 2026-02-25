@@ -575,7 +575,7 @@ const WhatsAppButton = ({ settings }) => {
 };
 
 const Header = ({ cartCount, setView, user, isAdmin, settings }) => (
-    <header className="bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-20">
+    <header className="bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 flex justify-between items-center">
             <div className="flex items-center gap-4 cursor-pointer transition-transform hover:scale-105" onClick={() => setView(isAdmin ? 'admin' : 'menu')}>
                 <img src={settings.logoUrl} alt="Logo Salgados da Bia" className="h-14 w-14 object-contain" onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/100x100/FBBF24/FFFFFF?text=SB'; }} />
