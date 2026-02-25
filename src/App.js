@@ -415,7 +415,7 @@ function App() {
             const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, userCredential.user.uid);
             await setDoc(userDocRef, { name, email, addresses: [], hasGivenFeedback: false, hasFeedbackDiscount: false, notificationTokens: [], role: 'customer' });
             setUserRole('customer'); setView('cart');
-        } catch(err) { setError('Não foi possível criar a conta. O email pode já estar em uso.'); } finally { setAuthLoading(false); }
+        } catch(err) { setError('Não foi possível criar a conta.'); } finally { setAuthLoading(false); }
     }
 
     const handleLogout = async () => { await signOut(auth); setCart([]); setUserRole('customer'); setIsAdmin(false); setView('menu'); };
@@ -511,7 +511,7 @@ function App() {
         }
         previousOrdersRef.current = orders;
     }, [orders, user, userRole, showToast]);
-    
+
     const renderView = () => {
         if (!firebaseInitialized && isAuthReady) return <FirebaseErrorScreen />;
         if (userRole === 'admin') {
@@ -837,16 +837,8 @@ const CartView = ({ cart, updateQuantity, cartTotal, setView, emptyCart, user })
                             <img src={item.image} alt={item.name} className="w-20 h-20 rounded-xl object-cover" onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/200x200/FBBF24/FFFFFF?text=Item'; }}/>
                             <div>
                                 <h3 className="font-bold text-stone-800">{item.name}</h3>
-                                {item.customization && (
-                                    <ul className="text-sm text-stone-600 list-disc list-inside mt-1">
-                                        {item.customization.map(c => <li key={c.name}>{c.quantity}x {c.name}</li>)}
-                                    </ul>
-                                )}
-                                 {item.customizable ? (
-                                    <p className="text-stone-600 font-bold">{item.price.toFixed(2)}€</p>
-                                ) : (
-                                    <p className="text-stone-600">{item.price.toFixed(2)}€ /unidade</p>
-                                )}
+                                {item.customization && (<ul className="text-sm text-stone-600 list-disc list-inside mt-1">{item.customization.map(c => <li key={c.name}>{c.quantity}x {c.name}</li>)}</ul>)}
+                                 {item.customizable ? <p className="text-stone-600 font-bold">{item.price.toFixed(2)}€</p> : <p className="text-stone-600">{item.price.toFixed(2)}€ /unidade</p>}
                             </div>
                         </div>
                         <div className="flex flex-col items-end">
@@ -1127,7 +1119,8 @@ const ConfirmationView = ({ setView, showToast, user, userData }) => {
         return (
              <div className="text-center py-16 max-w-lg mx-auto bg-white p-8 rounded-xl shadow-lg animate-fade-in">
                 <Star size={64} className="mx-auto text-amber-500" /><h2 className="text-3xl font-bold mt-4 text-green-600">Desconto de 5% Liberado!</h2>
-                <button onClick={() => setView('myOrders')} className="mt-8 bg-amber-500 text-white font-bold py-3 px-8 rounded-full hover:bg-amber-600">Ver Meus Pedidos</button>
+                <p className="text-stone-600 mt-2">Um desconto de 5% será aplicado automaticamente no seu próximo pedido.</p>
+                <button onClick={() => setView('myOrders')} className="mt-8 bg-amber-500 text-white font-bold py-3 px-8 rounded-full hover:bg-amber-600 transition-colors shadow hover:shadow-lg active:scale-95">Ver Meus Pedidos</button>
             </div>
         );
     }
@@ -1135,9 +1128,11 @@ const ConfirmationView = ({ setView, showToast, user, userData }) => {
     return (
         <div className="text-center py-16 max-w-lg mx-auto bg-white p-8 rounded-xl shadow-lg animate-fade-in">
             <CheckCircle size={64} className="mx-auto text-green-500" /><h2 className="text-3xl font-bold mt-4">Pedido Recebido!</h2>
-            <button onClick={() => setView('myOrders')} className="mt-8 bg-amber-500 text-white font-bold py-3 px-8 rounded-full hover:bg-amber-600">Ver Meus Pedidos</button>
+            <p className="text-stone-600 mt-2">Obrigado pela sua preferência! O seu pedido já está a ser preparado com muito carinho.</p>
+            <p className="text-stone-600 mt-1">Pode acompanhar o estado do seu pedido na secção "Meus Pedidos".</p>
+            <button onClick={() => setView('myOrders')} className="mt-8 bg-amber-500 text-white font-bold py-3 px-8 rounded-full hover:bg-amber-600 transition-colors shadow hover:shadow-lg active:scale-95">Ver Meus Pedidos</button>
             {showFeedbackSection && (
-                <div className="mt-8 pt-6 border-t"><h3 className="text-lg font-semibold text-stone-700">Ganhe 5% de Desconto!</h3><button onClick={() => setFeedbackView(true)} className="mt-4 bg-stone-800 text-white font-bold py-2 px-6 rounded-full hover:bg-stone-900">Dar Feedback</button></div>
+                <div className="mt-8 pt-6 border-t"><h3 className="text-lg font-semibold text-stone-700">Ganhe 5% de Desconto!</h3><p className="text-stone-500 text-sm mt-1">Ajude-nos a melhorar! Responda a 3 perguntas rápidas e ganhe 5% de desconto no seu próximo pedido.</p><button onClick={() => setFeedbackView(true)} className="mt-4 bg-stone-800 text-white font-bold py-2 px-6 rounded-full hover:bg-stone-900 transition-colors shadow active:scale-95">Dar Feedback</button></div>
             )}
         </div>
     );
@@ -1150,19 +1145,10 @@ const FeedbackForm = ({ onSubmit }) => {
         <div className="max-w-lg mx-auto bg-white p-8 rounded-xl shadow-lg animate-fade-in">
             <h2 className="text-2xl font-bold text-center mb-6">Sua Opinião é Importante</h2>
             <form onSubmit={handleSubmit} className="space-y-6">
-                <div>
-                    <label className="block text-stone-700 font-bold mb-2">Como avalia o nosso aplicativo?</label>
-                    <div className="flex justify-center gap-2">{[1,2,3,4,5].map(star => <Star key={star} size={32} className={`cursor-pointer ${star <= rating ? 'text-amber-500' : 'text-stone-300'}`} onClick={() => setRating(star)} />)}</div>
-                </div>
-                 <div>
-                    <label className="block text-stone-700 font-bold mb-2">Como nos conheceu?</label>
-                    <select value={howFound} onChange={e => setHowFound(e.target.value)} className="w-full px-3 py-2 border rounded-xl" required><option value="">Selecione</option><option>Indicação</option><option>Google</option><option>Instagram</option></select>
-                </div>
-                <div>
-                     <label className="block text-stone-700 font-bold mb-2">Indicaria para amigos?</label>
-                     <div className="flex gap-4"><label><input type="radio" name="recommend" value="Sim" onChange={e => setWouldRecommend(e.target.value)} required /> Sim</label><label><input type="radio" name="recommend" value="Não" onChange={e => setWouldRecommend(e.target.value)} required /> Não</label></div>
-                </div>
-                 <button type="submit" disabled={isSubmitting} className="w-full bg-green-500 text-white font-bold py-2 rounded-full">{isSubmitting ? <Loader2 className="animate-spin mx-auto" /> : "Enviar"}</button>
+                <div><label className="block text-stone-700 font-bold mb-2">Como avalia o nosso aplicativo?</label><div className="flex justify-center gap-2">{[1,2,3,4,5].map(star => <Star key={star} size={32} className={`cursor-pointer transition-colors ${star <= rating ? 'text-amber-500' : 'text-stone-300 hover:text-amber-300'}`} onClick={() => setRating(star)} />)}</div></div>
+                 <div><label className="block text-stone-700 font-bold mb-2">Como nos conheceu?</label><select value={howFound} onChange={e => setHowFound(e.target.value)} className="w-full px-3 py-2 border rounded-xl" required><option value="">Selecione</option><option>Indicação</option><option>Google</option><option>Instagram</option></select></div>
+                <div><label className="block text-stone-700 font-bold mb-2">Indicaria para amigos?</label><div className="flex gap-4"><label className="flex items-center gap-2"><input type="radio" name="recommend" value="Sim" onChange={e => setWouldRecommend(e.target.value)} required /> Sim</label><label className="flex items-center gap-2"><input type="radio" name="recommend" value="Não" onChange={e => setWouldRecommend(e.target.value)} required /> Não</label></div></div>
+                 <button type="submit" disabled={isSubmitting} className="w-full bg-green-500 text-white font-bold py-2 rounded-full hover:bg-green-600 transition-colors shadow hover:shadow-lg active:scale-95 flex justify-center items-center disabled:bg-green-300">{isSubmitting ? <Loader2 className="animate-spin mx-auto" /> : "Enviar"}</button>
             </form>
         </div>
     );
@@ -1172,13 +1158,13 @@ const LoginView = ({ handleLogin, error, setView, isAdminLogin = false, authLoad
     const [email, setEmail] = useState(''); const [password, setPassword] = useState('');
     const handleSubmit = (e) => { e.preventDefault(); handleLogin(email, password); };
     return (
-        <div className="max-w-sm mx-auto mt-10 bg-white p-8 rounded-xl shadow-xl">
+        <div className="max-w-sm mx-auto mt-10 bg-white p-8 rounded-xl shadow-xl animate-fade-in">
             <h2 className="text-2xl font-bold text-center mb-6">{isAdminLogin ? 'Gestão' : 'Entrar'}</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
                 <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-3 py-2 border rounded-xl" required />
                 <input type="password" placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-3 py-2 border rounded-xl" required />
                 {error && <p className="text-red-500 text-center">{error}</p>}
-                <button type="submit" disabled={authLoading} className="w-full bg-amber-500 text-white font-bold py-2 rounded-full">{authLoading ? <Loader2 className="animate-spin mx-auto" /> : "Entrar"}</button>
+                <button type="submit" disabled={authLoading} className="w-full bg-amber-500 text-white font-bold py-2 rounded-full hover:bg-amber-600 transition-colors shadow hover:shadow-lg active:scale-95 flex justify-center items-center disabled:bg-amber-300">{authLoading ? <Loader2 className="animate-spin mx-auto" /> : "Entrar"}</button>
                 {!isAdminLogin && <p className="text-center text-sm pt-2">Sem conta? <button type="button" onClick={() => setView('signUp')} className="text-amber-600 font-bold hover:underline">Crie uma.</button></p>}
             </form>
         </div>
@@ -1189,7 +1175,7 @@ const SignUpView = ({ handleSignUp, error, setView, authLoading }) => {
     const [name, setName] = useState(''); const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [confirmPassword, setConfirmPassword] = useState(''); const [localError, setLocalError] = useState('');
     const handleSubmit = (e) => { e.preventDefault(); if (password !== confirmPassword) { setLocalError('Senhas não coincidem.'); return; } setLocalError(''); handleSignUp(email, password, name); };
     return (
-        <div className="max-w-sm mx-auto mt-10 bg-white p-8 rounded-xl shadow-xl">
+        <div className="max-w-sm mx-auto mt-10 bg-white p-8 rounded-xl shadow-xl animate-fade-in">
             <h2 className="text-2xl font-bold text-center mb-6">Criar Conta</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
                 <input type="text" placeholder="Nome" value={name} onChange={e => setName(e.target.value)} className="w-full px-3 py-2 border rounded-xl" required />
@@ -1198,7 +1184,7 @@ const SignUpView = ({ handleSignUp, error, setView, authLoading }) => {
                 <input type="password" placeholder="Confirmar Senha" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full px-3 py-2 border rounded-xl" required />
                 {localError && <p className="text-red-500 text-center">{localError}</p>}
                 {error && <p className="text-red-500 text-center">{error}</p>}
-                <button type="submit" disabled={authLoading} className="w-full bg-amber-500 text-white font-bold py-2 rounded-full">{authLoading ? <Loader2 className="animate-spin mx-auto" /> : "Criar Conta"}</button>
+                <button type="submit" disabled={authLoading} className="w-full bg-amber-500 text-white font-bold py-2 rounded-full hover:bg-amber-600 transition-colors shadow hover:shadow-lg active:scale-95 flex justify-center items-center disabled:bg-amber-300">{authLoading ? <Loader2 className="animate-spin mx-auto" /> : "Criar Conta"}</button>
                  <p className="text-center text-sm pt-2">Já tem conta? <button type="button" onClick={() => setView('customerLogin')} className="text-amber-600 font-bold hover:underline">Entre.</button></p>
             </form>
         </div>
@@ -1235,22 +1221,22 @@ const AddressForm = ({ address, onSave, onCancel, showToast }) => {
         onSave(formData);
     };
     return (
-         <div className="fixed inset-0 bg-black/50 z-50 flex justify-center items-center p-4">
-            <form onSubmit={handleSubmit} className="bg-white p-6 rounded-xl shadow-xl w-full max-w-lg">
+         <div className="fixed inset-0 bg-black/50 z-50 flex justify-center items-center p-4 animate-fade-in">
+            <form onSubmit={handleSubmit} className="bg-white p-6 rounded-xl shadow-xl w-full max-w-lg animate-slide-up">
                 <h4 className="text-xl font-bold mb-4">Endereço</h4>
                 <div className="space-y-3">
                      <div className="flex gap-2">
-                         <input type="text" name="cep" placeholder="CEP" value={formData.cep} onChange={handleChange} onBlur={e => handleCepLookup(e.target.value)} className="w-1/2 p-2 border rounded-xl" />
-                         <button type="button" onClick={handleCurrentLocation} className="w-1/2 bg-blue-500 text-white rounded-xl">📍 Localização</button>
+                         <input type="text" name="cep" placeholder="CEP" value={formData.cep} onChange={handleChange} onBlur={e => handleCepLookup(e.target.value)} className="w-1/2 p-2 border border-stone-300 rounded-xl focus:ring-amber-400" />
+                         <button type="button" onClick={handleCurrentLocation} className="w-1/2 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors flex items-center justify-center gap-2 font-bold">📍 Localização</button>
                     </div>
-                    <input type="text" name="street" placeholder="Rua" value={formData.street} onChange={handleChange} className="w-full p-2 border rounded-xl" required />
-                    <input type="text" name="number" placeholder="Número" value={formData.number} onChange={handleChange} className="w-full p-2 border rounded-xl" required />
-                    <input type="text" name="city" placeholder="Cidade" value={formData.city} onChange={handleChange} className="w-full p-2 border rounded-xl" required />
+                    <input type="text" name="street" placeholder="Rua" value={formData.street} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl focus:ring-amber-400" required />
+                    <input type="text" name="number" placeholder="Número" value={formData.number} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl focus:ring-amber-400" required />
+                    <input type="text" name="city" placeholder="Cidade" value={formData.city} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl focus:ring-amber-400" required />
                 </div>
                  {formError && <p className="text-red-500 mt-2">{formError}</p>}
                  <div className="flex justify-end gap-4 mt-6">
-                    <button type="button" onClick={onCancel} className="bg-stone-300 py-2 px-4 rounded-full">Cancelar</button>
-                    <button type="submit" className="bg-amber-500 text-white py-2 px-4 rounded-full">Salvar</button>
+                    <button type="button" onClick={onCancel} className="bg-stone-300 text-stone-800 font-bold py-2 px-4 rounded-full hover:bg-stone-400 active:scale-95 transition-colors">Cancelar</button>
+                    <button type="submit" className="bg-amber-500 text-white font-bold py-2 px-4 rounded-full hover:bg-amber-600 active:scale-95 transition-colors">Salvar</button>
                 </div>
             </form>
         </div>
@@ -1299,25 +1285,25 @@ const AccountSettingsView = ({ user, userData, showToast, setView, db, appId }) 
              <h2 className="text-3xl font-bold mb-6 text-stone-800">Minha Conta</h2>
               <div className="bg-white p-6 rounded-xl shadow-lg space-y-4 mb-8">
                   <h3 className="font-bold text-xl text-amber-600 border-b pb-2">Dados Pessoais</h3>
-                  <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full p-2 border rounded-xl" placeholder="Nome" />
-                  <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} className="w-full p-2 border rounded-xl" placeholder="Telefone" />
+                  <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full p-2 border border-stone-300 rounded-xl" placeholder="Nome" />
+                  <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} className="w-full p-2 border border-stone-300 rounded-xl" placeholder="Telefone" />
                   <div className="pt-4 flex justify-between">
-                      <button onClick={handleSaveUserData} disabled={isSaving} className="bg-amber-500 text-white font-bold py-2 px-6 rounded-full">{isSaving ? <Loader2 className="animate-spin" /> : "Salvar"}</button>
+                      <button onClick={handleSaveUserData} disabled={isSaving} className="bg-amber-500 text-white font-bold py-2 px-6 rounded-full hover:bg-amber-600 transition-colors shadow-sm active:scale-95 flex items-center justify-center">{isSaving ? <Loader2 className="animate-spin" /> : "Salvar"}</button>
                       <button onClick={() => setView('myOrders')} className="text-stone-600 font-semibold hover:underline">Ver meus pedidos</button>
                   </div>
               </div>
                <div className="bg-white p-6 rounded-xl shadow-lg space-y-4">
                   <div className="flex justify-between items-center border-b pb-2">
                       <h3 className="font-bold text-xl text-amber-600">Meus Endereços</h3>
-                       <button onClick={() => setEditingAddress({})} className="text-sm font-semibold text-green-600">Adicionar</button>
+                       <button onClick={() => setEditingAddress({})} className="text-sm font-semibold text-green-600 hover:underline"><Plus className="inline" size={16}/> Adicionar</button>
                   </div>
                   <div className="space-y-3">
                       {addresses.map(addr => (
-                          <div key={addr.id} className="p-3 bg-stone-50 rounded-xl border flex justify-between">
-                              <p>{addr.street}, {addr.number}</p>
+                          <div key={addr.id} className="p-3 bg-stone-50 rounded-xl border flex justify-between items-center border-stone-200">
+                              <p className="font-semibold text-stone-700">{addr.street}, {addr.number}</p>
                               <div className="flex gap-2">
-                                  <button onClick={() => setEditingAddress({ data: addr })} className="text-blue-600"><Edit size={18} /></button>
-                                  <button onClick={() => setDeletingAddressId(addr.id)} className="text-red-600"><Trash2 size={18}/></button>
+                                  <button onClick={() => setEditingAddress({ data: addr })} className="p-1 text-blue-600 hover:bg-blue-100 rounded-full transition-colors"><Edit size={18} /></button>
+                                  <button onClick={() => setDeletingAddressId(addr.id)} className="p-1 text-red-600 hover:bg-red-100 rounded-full transition-colors"><Trash2 size={18}/></button>
                               </div>
                           </div>
                       ))}
@@ -1330,13 +1316,13 @@ const AccountSettingsView = ({ user, userData, showToast, setView, db, appId }) 
 const DeliveryTrackerComponent = ({ order }) => {
     const { deliveryTracker } = order;
     if (!deliveryTracker || !deliveryTracker.active || order.status !== 'Saiu para Entrega') {
-        return <div className="bg-blue-50 text-blue-800 p-3 mt-4 rounded-xl text-sm">Rastreamento Inativo.</div>;
+        return <div className="bg-blue-50 border-l-4 border-blue-400 text-blue-800 p-3 mt-4 rounded-xl flex items-center gap-3"><Satellite size={20} /><p className="text-sm">Rastreamento Inativo.</p></div>;
     }
     const mapUrl = `https://maps.google.com/maps?q=$${deliveryTracker.lat},${deliveryTracker.lng}&z=14&t=k&output=embed`;
     return (
-        <div className="mt-4 p-4 border rounded-xl">
-            <h4 className="font-bold text-green-600">Entrega em Tempo Real</h4>
-            <div className="relative w-full h-64 overflow-hidden rounded-xl border">
+        <div className="mt-4 p-4 border rounded-xl bg-white border-green-200 shadow-inner">
+            <h4 className="font-bold text-green-600 flex items-center gap-2"><MapPin size={20}/> Entrega em Tempo Real</h4>
+            <div className="relative w-full h-64 overflow-hidden rounded-xl border border-stone-300 mt-2">
                 <iframe title="Mapa" width="100%" height="100%" frameBorder="0" src={mapUrl}></iframe>
             </div>
         </div>
@@ -1344,21 +1330,21 @@ const DeliveryTrackerComponent = ({ order }) => {
 }
 
 const MyOrdersView = ({ orders, setView }) => {
-    if (orders.length === 0) return <div className="text-center py-16"><h2 className="text-2xl font-bold">Sem pedidos</h2></div>;
+    if (orders.length === 0) return <div className="text-center py-16 animate-fade-in"><Package size={64} className="mx-auto text-stone-300" /><h2 className="text-2xl font-bold mt-4 text-stone-700">Sem pedidos</h2></div>;
     return (
-        <div className="max-w-4xl mx-auto">
-             <h2 className="text-3xl font-bold mb-6">Meus Pedidos</h2>
+        <div className="max-w-4xl mx-auto animate-fade-in">
+             <div className="flex justify-between items-center mb-6"><h2 className="text-3xl font-bold text-stone-800">Meus Pedidos</h2></div>
             <div className="space-y-6">
                 {orders.map(order => (
-                    <div key={order.id} className="bg-white p-6 rounded-xl shadow-lg border">
+                    <div key={order.id} className="bg-white p-6 rounded-xl shadow-lg border border-stone-200">
                          <div className="flex justify-between border-b pb-3 mb-3">
                              <div>
-                                <p className="text-sm font-mono">#{order.id.slice(0, 8)}</p>
-                                <p className="font-bold">{order.status}</p>
+                                <p className="text-sm font-mono text-stone-500">#{order.id.slice(0, 8)}</p>
+                                <p className="font-bold text-lg">{order.status}</p>
                              </div>
-                             <span className="font-bold text-xl">{order.total.toFixed(2)}€</span>
+                             <span className="font-bold text-xl text-stone-800">{order.total.toFixed(2)}€</span>
                          </div>
-                         <ul className="text-sm list-disc pl-4">{order.items.map(i => <li key={i.id}>{i.name}</li>)}</ul>
+                         <ul className="text-sm list-disc pl-4 text-stone-700">{order.items.map(i => <li key={i.id}>{i.name}</li>)}</ul>
                          {order.deliveryTracker && <DeliveryTrackerComponent order={order} />}
                     </div>
                 ))}
@@ -1371,9 +1357,9 @@ const AdminStats = ({ orders }) => {
     const totalRevenue = useMemo(() => orders.filter(o => o.status === 'Concluído').reduce((acc, o) => acc + o.total, 0), [orders]);
     return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="bg-stone-100 p-4 rounded-xl">Total: {orders.length}</div>
-            <div className="bg-stone-100 p-4 rounded-xl">Faturamento: {totalRevenue.toFixed(2)}€</div>
-            <div className="bg-stone-100 p-4 rounded-xl">Ativos: {orders.filter(o => o.status !== 'Concluído' && o.status !== 'Rejeitado').length}</div>
+            <div className="bg-stone-100 p-4 rounded-xl shadow-lg flex items-center gap-4"><div className="bg-blue-200 p-3 rounded-full"><Package className="text-blue-600" size={24}/></div><div><p className="text-sm text-stone-500">Total de Pedidos</p><p className="text-2xl font-bold text-stone-800">{orders.length}</p></div></div>
+            <div className="bg-stone-100 p-4 rounded-xl shadow-lg flex items-center gap-4"><div className="bg-green-200 p-3 rounded-full"><DollarSign className="text-green-600" size={24}/></div><div><p className="text-sm text-stone-500">Faturamento (Concluídos)</p><p className="text-2xl font-bold text-stone-800">{totalRevenue.toFixed(2)}€</p></div></div>
+            <div className="bg-stone-100 p-4 rounded-xl shadow-lg flex items-center gap-4"><div className="bg-yellow-200 p-3 rounded-full"><Clock className="text-yellow-600" size={24}/></div><div><p className="text-sm text-stone-500">Pedidos Ativos</p><p className="text-2xl font-bold text-stone-800">{orders.filter(o => o.status !== 'Concluído' && o.status !== 'Rejeitado').length}</p></div></div>
         </div>
     );
 }
@@ -1400,17 +1386,17 @@ const CRMView = ({ orders, setView, db, showToast }) => {
 
     return (
         <div className="space-y-6">
-            <h2 className="text-2xl font-bold">Marketing</h2>
+            <h2 className="text-2xl font-bold flex items-center gap-2"><Megaphone className="text-amber-600"/> Marketing</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white p-4 rounded-xl border h-64 overflow-y-auto">
+                <div className="bg-white p-4 rounded-xl border h-64 overflow-y-auto shadow-sm">
                     {users.map(u => (
-                        <div key={u.id} onClick={() => setSelectedUsers(p => p.includes(u.id) ? p.filter(id => id !== u.id) : [...p, u.id])} className={`p-2 border cursor-pointer ${selectedUsers.includes(u.id) ? 'bg-amber-100' : ''}`}>{u.name || u.email}</div>
+                        <div key={u.id} onClick={() => setSelectedUsers(p => p.includes(u.id) ? p.filter(id => id !== u.id) : [...p, u.id])} className={`p-2 border cursor-pointer rounded-lg mb-1 ${selectedUsers.includes(u.id) ? 'bg-amber-100 border-amber-500' : 'bg-stone-50 hover:bg-stone-100'}`}>{u.name || u.email}</div>
                     ))}
                 </div>
-                <div className="bg-white p-4 rounded-xl border space-y-3">
-                    <input className="w-full p-2 border" placeholder="Título" value={campaignTitle} onChange={e => setCampaignTitle(e.target.value)} />
-                    <textarea className="w-full p-2 border h-32" placeholder="Mensagem" value={campaignBody} onChange={e => setCampaignBody(e.target.value)} />
-                    <button onClick={handleSend} className="w-full bg-green-500 text-white p-2 rounded">Enviar</button>
+                <div className="bg-white p-4 rounded-xl border space-y-3 shadow-sm">
+                    <input className="w-full p-2 border rounded-lg outline-none focus:ring-2 focus:ring-amber-500" placeholder="Título" value={campaignTitle} onChange={e => setCampaignTitle(e.target.value)} />
+                    <textarea className="w-full p-2 border h-32 rounded-lg outline-none focus:ring-2 focus:ring-amber-500" placeholder="Mensagem" value={campaignBody} onChange={e => setCampaignBody(e.target.value)} />
+                    <button onClick={handleSend} className="w-full bg-green-500 text-white font-bold py-3 rounded-full hover:bg-green-600 transition-colors flex justify-center items-center gap-2 shadow-lg"><Send size={20}/> Enviar</button>
                 </div>
             </div>
         </div>
@@ -1488,24 +1474,23 @@ const AdminDashboard = ({ menu, orders, feedbacks, handleLogout, showToast, sett
         }
     }
     return (
-        <div className="bg-white p-4 md:p-6 rounded-xl shadow-lg">
-            <div className="flex justify-between mb-6 border-b pb-4">
-                <h2 className="text-3xl font-bold">Admin</h2>
-                <div className="flex gap-2">
-                    <button onClick={() => setView('kitchenView')} className="bg-stone-800 text-white px-4 py-2 rounded-full">Cozinha</button>
-                    <button onClick={() => setView('deliveryView')} className="bg-blue-600 text-white px-4 py-2 rounded-full">Entregador</button>
-                    <button onClick={handleLogout} className="text-red-500"><LogOut /></button>
+        <div className="bg-white p-4 md:p-6 rounded-xl shadow-lg animate-fade-in">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b pb-4">
+                <h2 className="text-3xl font-bold text-stone-800">Painel de Admin</h2>
+                <div className="flex items-center gap-4 mt-2 sm:mt-0">
+                    <button onClick={() => setView('kitchenView')} className="bg-stone-800 text-white font-semibold py-2 px-4 rounded-full hover:bg-stone-900 transition-colors text-sm">Visão Cozinha</button>
+                    <button onClick={() => setView('deliveryView')} className="bg-blue-600 text-white font-semibold py-2 px-4 rounded-full hover:bg-blue-700 transition-colors text-sm">Visão Entregador</button>
+                    <button onClick={handleLogout} title="Sair" className="p-2 rounded-full text-red-500 hover:bg-red-100 transition-colors"><LogOut /></button>
                 </div>
             </div>
             <div className="flex flex-wrap gap-2 mb-6 border-b pb-2">
-                <button onClick={() => setAdminView('dashboard')} className="px-4 py-2">Resumo</button>
-                <button onClick={() => setAdminView('orders')} className="px-4 py-2">Pedidos</button>
-                <button onClick={() => setAdminView('menu')} className="px-4 py-2">Produtos</button>
-                <button onClick={() => setAdminView('categories')} className="px-4 py-2 font-bold text-amber-600 flex items-center gap-1"><ListOrdered size={16}/> Categorias</button>
-                <button onClick={() => setAdminView('faturamento')} className="px-4 py-2">Faturamento</button>
-                <button onClick={() => setAdminView('manageAgenda')} className="px-4 py-2">Agenda</button>
-                <button onClick={() => setAdminView('settings')} className="px-4 py-2">Ajustes</button>
-                <button onClick={() => setView('crm')} className="px-4 py-2">CRM</button>
+                <button onClick={() => setAdminView('dashboard')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'dashboard' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Package size={16}/> Resumo</button>
+                <button onClick={() => setAdminView('orders')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'orders' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><ShoppingCart size={16}/> Pedidos</button>
+                <button onClick={() => setAdminView('menu')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'menu' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><ChefHat size={16}/> Produtos</button>
+                <button onClick={() => setAdminView('categories')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'categories' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><ListOrdered size={16}/> Categorias</button>
+                <button onClick={() => setAdminView('faturamento')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'faturamento' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><TrendingUp size={16}/> Faturamento</button>
+                <button onClick={() => setAdminView('manageAgenda')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'manageAgenda' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Calendar size={16}/> Agenda</button>
+                <button onClick={() => setAdminView('settings')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'settings' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Settings size={16}/> Configurações</button>
             </div>
             {renderAdminView()}
         </div>
@@ -1514,11 +1499,11 @@ const AdminDashboard = ({ menu, orders, feedbacks, handleLogout, showToast, sett
 
 const FaturamentoView = ({ orders }) => {
     const total = orders.filter(o => o.status === 'Concluído').reduce((sum, o) => sum + o.total, 0);
-    return <div className="p-4 bg-green-100 rounded-xl"><p>Faturamento Total: <b className="text-2xl">{total.toFixed(2)}€</b></p></div>;
+    return <div className="p-4 bg-green-100 rounded-xl shadow-sm"><p className="text-green-800">Faturamento Total: <b className="text-3xl text-green-900 ml-2">{total.toFixed(2)}€</b></p></div>;
 };
 
 const FeedbacksView = ({ feedbacks, showToast }) => {
-    return <div className="p-4 bg-stone-100 rounded-xl">Total de Feedbacks: {feedbacks.length}</div>;
+    return <div className="p-4 bg-stone-100 rounded-xl shadow-sm font-bold text-stone-700">Total de Feedbacks Registrados: {feedbacks.length}</div>;
 };
 
 const AdminSettings = ({showToast, currentSettings}) => {
@@ -1526,13 +1511,13 @@ const AdminSettings = ({showToast, currentSettings}) => {
     useEffect(() => setSettings(currentSettings), [currentSettings]);
     const handleSave = async () => {
         await setDoc(doc(db, `artifacts/${appId}/public/data/settings`, 'shopConfig'), settings, { merge: true });
-        showToast("Salvo!");
+        showToast("Configurações Salvas!");
     }
     return (
-         <div className="bg-stone-50 p-6 rounded-xl border space-y-4">
-             <input type="text" value={settings.storeName || ''} onChange={e => setSettings({...settings, storeName: e.target.value})} className="w-full p-2 border" placeholder="Nome" />
-             <input type="number" value={settings.deliveryPricePerKm || 0} onChange={e => setSettings({...settings, deliveryPricePerKm: parseFloat(e.target.value)})} className="w-full p-2 border" placeholder="Preço/KM" />
-             <button onClick={handleSave} className="bg-amber-500 text-white py-2 px-6 rounded-full">Salvar</button>
+         <div className="bg-stone-50 p-6 rounded-xl border border-stone-200 shadow-md space-y-4 max-w-2xl">
+             <div><label className="font-bold text-sm text-stone-600">Nome da Loja</label><input type="text" value={settings.storeName || ''} onChange={e => setSettings({...settings, storeName: e.target.value})} className="w-full p-2 border border-stone-300 rounded-xl" placeholder="Nome" /></div>
+             <div><label className="font-bold text-sm text-stone-600">Taxa de Entrega por KM</label><input type="number" value={settings.deliveryPricePerKm || 0} onChange={e => setSettings({...settings, deliveryPricePerKm: parseFloat(e.target.value)})} className="w-full p-2 border border-stone-300 rounded-xl" placeholder="Preço/KM" /></div>
+             <button onClick={handleSave} className="bg-amber-500 text-white font-bold py-3 px-8 rounded-full hover:bg-amber-600 shadow-lg active:scale-95 transition-all">Salvar Configurações</button>
          </div>
     );
 };
@@ -1541,21 +1526,21 @@ const ManageOrders = ({ orders, updateOrderStatus }) => {
     return (
         <div className="space-y-4">
             {orders.map(order => (
-                <div key={order.id} className="bg-stone-50 p-4 rounded-xl border">
-                     <div className="flex justify-between items-center">
-                         <div><p className="font-bold">{order.name}</p><p className="text-sm">{order.status}</p></div>
-                         <span className="font-bold">{order.total.toFixed(2)}€</span>
+                <div key={order.id} className="bg-stone-50 p-4 rounded-xl border border-stone-200 shadow-sm">
+                     <div className="flex justify-between items-center border-b pb-2 mb-2">
+                         <div><p className="font-bold text-lg text-stone-800">{order.name}</p><p className="text-sm text-stone-500">Status: <span className="font-bold">{order.status}</span></p></div>
+                         <span className="font-black text-xl text-green-600">{order.total.toFixed(2)}€</span>
                      </div>
                      <div className="mt-4 flex flex-wrap gap-2 items-center">
                          {order.status === 'Pendente' ? (
                              <div className="flex gap-3">
-                                 <button onClick={() => updateOrderStatus(order.id, 'Em Preparo')} className="bg-green-500 text-white font-bold px-6 py-2 rounded-full">Aceitar Pedido</button>
-                                 <button onClick={() => updateOrderStatus(order.id, 'Rejeitado')} className="bg-red-100 text-red-700 px-6 py-2 rounded-full">Rejeitar</button>
+                                 <button onClick={() => updateOrderStatus(order.id, 'Em Preparo')} className="bg-green-500 hover:bg-green-600 text-white font-bold px-6 py-2 rounded-full shadow-md flex items-center gap-2"><CheckCircle size={18}/> Aceitar Pedido</button>
+                                 <button onClick={() => updateOrderStatus(order.id, 'Rejeitado')} className="bg-red-100 hover:bg-red-200 text-red-700 font-bold px-6 py-2 rounded-full shadow-sm">Rejeitar</button>
                              </div>
                          ) : (
                              <>
                                  {['Em Preparo', 'Pronto para Entrega', 'Saiu para Entrega', 'Concluído'].map(s => (
-                                     <button key={s} onClick={() => updateOrderStatus(order.id, s)} className={`px-3 py-1 text-sm rounded-full border ${order.status === s ? 'bg-stone-300 font-bold' : 'bg-white'}`}>{s}</button>
+                                     <button key={s} onClick={() => updateOrderStatus(order.id, s)} className={`px-4 py-2 text-sm rounded-full border transition-all ${order.status === s ? 'bg-stone-300 font-bold border-stone-400 shadow-inner' : 'bg-white hover:bg-stone-100'}`}>{s}</button>
                                  ))}
                              </>
                          )}
@@ -1569,25 +1554,26 @@ const ManageOrders = ({ orders, updateOrderStatus }) => {
 const ManageMenu = ({ menu, dbCategories }) => {
     const [editingItem, setEditingItem] = useState(null);
     const handleSave = async (item) => {
-        // Limpador do Firebase
         const cleanItem = Object.fromEntries(Object.entries(item).filter(([_, v]) => v !== undefined));
-        
         if (cleanItem.id) await updateDoc(doc(db, `artifacts/${appId}/public/data/menu`, cleanItem.id), cleanItem);
         else await addDoc(collection(db, `artifacts/${appId}/public/data/menu`), cleanItem);
         setEditingItem(null);
     };
     return (
         <div>
-            <button onClick={() => setEditingItem({ name: '', price: 0, preparationTime: 0, category: '' })} className="bg-green-500 text-white py-2 px-4 rounded-full mb-4 font-bold flex gap-2 items-center"><Plus size={18}/> Novo Produto</button>
+            <button onClick={() => setEditingItem({ name: '', price: 0, preparationTime: 0, category: '' })} className="bg-green-500 text-white font-bold py-3 px-6 rounded-full mb-6 shadow-lg flex items-center gap-2 hover:bg-green-600 active:scale-95 transition-all"><Plus size={20}/> Novo Produto</button>
             {(editingItem) && <MenuItemForm item={editingItem} onSave={handleSave} onCancel={() => setEditingItem(null)} dbCategories={dbCategories}/>}
-            <div className="space-y-2">
+            <div className="space-y-3">
                 {menu.map(item => (
-                    <div key={item.id} className="p-3 border rounded flex justify-between bg-stone-50">
-                        <div>
-                            <p className="font-bold">{item.name}</p>
-                            <p className="text-xs text-stone-500">Pertence a: {item.category || 'Sem Categoria'}</p>
+                    <div key={item.id} className="p-4 border border-stone-200 rounded-xl flex justify-between items-center bg-stone-50 shadow-sm hover:shadow-md transition-all">
+                        <div className="flex gap-4 items-center">
+                            <img src={item.image} alt="" className="w-12 h-12 rounded-lg object-cover bg-stone-200"/>
+                            <div>
+                                <p className="font-bold text-stone-800 text-lg">{item.name}</p>
+                                <p className="text-xs font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded inline-block mt-1">{item.category || 'Sem Categoria'}</p>
+                            </div>
                         </div>
-                        <button onClick={() => setEditingItem(item)} className="text-blue-500 bg-blue-100 p-2 rounded-full"><Edit size={18}/></button>
+                        <button onClick={() => setEditingItem(item)} className="text-blue-600 bg-blue-100 hover:bg-blue-200 p-3 rounded-full transition-colors"><Edit size={20}/></button>
                     </div>
                 ))}
             </div>
@@ -1598,54 +1584,35 @@ const ManageMenu = ({ menu, dbCategories }) => {
 const MenuItemForm = ({ item, onSave, onCancel, dbCategories }) => {
     const [formData, setFormData] = useState(item);
     return (
-        <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-[100]">
-            <div className="bg-white p-6 rounded-xl w-full max-w-md space-y-4">
-                <h4 className="font-bold text-lg border-b pb-2">Detalhes do Produto</h4>
+        <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-[100] p-4 animate-fade-in">
+            <div className="bg-white p-6 rounded-2xl w-full max-w-lg space-y-4 shadow-2xl animate-slide-up max-h-[90vh] overflow-y-auto">
+                <h4 className="font-bold text-2xl border-b pb-3 text-stone-800 flex items-center gap-2"><ChefHat className="text-amber-500"/> Detalhes do Produto</h4>
+                
+                <div><label className="text-xs font-bold text-stone-500 uppercase tracking-wider">Nome</label><input type="text" value={formData.name || ''} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full p-3 border border-stone-300 focus:ring focus:ring-amber-200 rounded-xl font-bold" /></div>
                 
                 <div>
-                    <label className="text-xs font-bold text-stone-500">Nome</label>
-                    <input type="text" value={formData.name || ''} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full p-2 border rounded-xl" />
-                </div>
-                
-                <div>
-                    <label className="text-xs font-bold text-stone-500">Vincular a qual Categoria?</label>
-                    <select value={formData.category || ''} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full p-2 border rounded-xl bg-stone-50" required>
+                    <label className="text-xs font-bold text-stone-500 uppercase tracking-wider">Vincular a qual Categoria?</label>
+                    <select value={formData.category || ''} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full p-3 border border-stone-300 focus:ring focus:ring-amber-200 rounded-xl bg-stone-50 font-bold" required>
                         <option value="">Selecione uma Categoria...</option>
-                        {dbCategories.map(cat => (
-                            <option key={cat.id} value={cat.name}>{cat.name}</option>
-                        ))}
-                        {formData.category && !dbCategories.some(c => c.name === formData.category) && (
-                            <option value={formData.category}>{formData.category} (Aviso: Categoria Órfã)</option>
-                        )}
+                        {dbCategories.map(cat => (<option key={cat.id} value={cat.name}>{cat.name}</option>))}
+                        {formData.category && !dbCategories.some(c => c.name === formData.category) && (<option value={formData.category}>{formData.category} (Aviso: Categoria Órfã)</option>)}
                     </select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                    <div>
-                        <label className="text-xs font-bold text-stone-500">Preço</label>
-                        <input type="number" value={formData.price || 0} onChange={e => setFormData({...formData, price: parseFloat(e.target.value)})} className="w-full p-2 border rounded-xl" />
-                    </div>
-                    <div>
-                        <label className="text-xs font-bold text-stone-500">Preparo (Minutos)</label>
-                        <input type="number" value={formData.preparationTime || 0} onChange={e => setFormData({...formData, preparationTime: parseInt(e.target.value)})} className="w-full p-2 border rounded-xl" />
-                    </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div><label className="text-xs font-bold text-stone-500 uppercase tracking-wider">Preço (€)</label><input type="number" value={formData.price || 0} onChange={e => setFormData({...formData, price: parseFloat(e.target.value)})} className="w-full p-3 border border-stone-300 focus:ring focus:ring-amber-200 rounded-xl font-black text-green-700" /></div>
+                    <div><label className="text-xs font-bold text-stone-500 uppercase tracking-wider">Preparo (Minutos)</label><input type="number" value={formData.preparationTime || 0} onChange={e => setFormData({...formData, preparationTime: parseInt(e.target.value)})} className="w-full p-3 border border-stone-300 focus:ring focus:ring-amber-200 rounded-xl font-bold" /></div>
                 </div>
 
-                <div>
-                    <label className="text-xs font-bold text-stone-500">Link da Imagem</label>
-                    <input type="text" value={formData.image || ''} onChange={e => setFormData({...formData, image: e.target.value})} className="w-full p-2 border rounded-xl" />
-                </div>
-                <div>
-                    <label className="text-xs font-bold text-stone-500">Link do Vídeo MP4 (Opcional)</label>
-                    <input type="text" value={formData.videoUrl || ''} onChange={e => setFormData({...formData, videoUrl: e.target.value})} className="w-full p-2 border rounded-xl" />
-                </div>
+                <div><label className="text-xs font-bold text-stone-500 uppercase tracking-wider">Link da Imagem</label><input type="text" value={formData.image || ''} onChange={e => setFormData({...formData, image: e.target.value})} className="w-full p-3 border border-stone-300 focus:ring focus:ring-amber-200 rounded-xl" /></div>
+                <div><label className="text-xs font-bold text-blue-600 uppercase tracking-wider flex items-center gap-1">Link do Vídeo MP4 <span className="text-stone-400 normal-case">(Opcional)</span></label><input type="text" value={formData.videoUrl || ''} onChange={e => setFormData({...formData, videoUrl: e.target.value})} className="w-full p-3 border border-blue-200 bg-blue-50 focus:ring focus:ring-blue-200 rounded-xl" placeholder="Cole aqui o link do Firebase Storage..." /></div>
 
-                <div className="flex gap-4 border p-2 rounded-xl bg-stone-50">
-                    <label className="flex items-center gap-1 text-sm font-bold text-blue-600"><input type="checkbox" checked={!!formData.isNew} onChange={e => setFormData({...formData, isNew: e.target.checked})}/> Novidade?</label>
-                    <label className="flex items-center gap-1 text-sm font-bold text-red-600"><input type="checkbox" checked={!!formData.isPromo} onChange={e => setFormData({...formData, isPromo: e.target.checked})}/> Promoção?</label>
+                <div className="flex gap-4 border border-stone-200 p-3 rounded-xl bg-stone-50">
+                    <label className="flex items-center gap-2 text-sm font-black text-blue-600 cursor-pointer"><input type="checkbox" checked={!!formData.isNew} onChange={e => setFormData({...formData, isNew: e.target.checked})} className="w-5 h-5 accent-blue-600"/> NOVIDADE</label>
+                    <label className="flex items-center gap-2 text-sm font-black text-red-600 cursor-pointer"><input type="checkbox" checked={!!formData.isPromo} onChange={e => setFormData({...formData, isPromo: e.target.checked})} className="w-5 h-5 accent-red-600"/> PROMOÇÃO</label>
                 </div>
                 
-                <div className="flex justify-end gap-2 pt-4 border-t"><button onClick={onCancel} className="px-4 py-2 text-stone-600 font-bold hover:bg-stone-100 rounded-full">Cancelar</button><button onClick={() => onSave(formData)} className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-full font-bold">Salvar</button></div>
+                <div className="flex justify-end gap-3 pt-6 border-t mt-4"><button onClick={onCancel} className="px-6 py-3 text-stone-600 font-bold hover:bg-stone-200 rounded-full transition-colors active:scale-95">Cancelar</button><button onClick={() => onSave(formData)} className="bg-green-500 hover:bg-green-600 text-white px-8 py-3 rounded-full font-bold shadow-lg transition-colors active:scale-95 flex items-center gap-2"><Save size={18}/> Salvar</button></div>
             </div>
         </div>
     );
@@ -1654,14 +1621,14 @@ const MenuItemForm = ({ item, onSave, onCancel, dbCategories }) => {
 const KitchenView = ({ orders, setView, updateOrderStatus }) => {
     return (
         <div className="bg-stone-900 min-h-screen p-4 text-white">
-            <button onClick={() => setView('admin')} className="mb-4 bg-stone-700 px-4 py-2 rounded">Voltar</button>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <button onClick={() => setView('admin')} className="mb-6 bg-stone-700 hover:bg-stone-600 px-6 py-2 rounded-full font-bold flex items-center gap-2 transition-colors"><ChevronsLeft size={18}/> Voltar ao Painel</button>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {orders.map(order => (
-                    <div key={order.id} className="p-4 border rounded bg-stone-800">
-                        <h2 className="text-xl font-bold mb-2">{order.name}</h2>
-                        <ul>{order.items.map(i => <li key={i.id}>{i.quantity}x {i.name}</li>)}</ul>
-                        {order.status === 'Pendente' && <button onClick={() => updateOrderStatus(order.id, 'Em Preparo')} className="mt-4 bg-blue-500 w-full py-2 rounded">Aceitar e Iniciar Preparo</button>}
-                        {order.status === 'Em Preparo' && <button onClick={() => updateOrderStatus(order.id, 'Pronto para Entrega')} className="mt-4 bg-green-500 w-full py-2 rounded">Finalizar</button>}
+                    <div key={order.id} className="p-6 border-2 border-stone-700 rounded-2xl bg-stone-800 shadow-2xl flex flex-col">
+                        <h2 className="text-2xl font-black mb-4 border-b border-stone-600 pb-2">{order.name}</h2>
+                        <ul className="text-lg space-y-2 flex-grow mb-4">{order.items.map(i => <li key={i.id} className="flex justify-between border-b border-stone-700/50 pb-1"><span className="font-bold text-amber-400">{i.quantity}x</span> <span>{i.name}</span></li>)}</ul>
+                        {order.status === 'Pendente' && <button onClick={() => updateOrderStatus(order.id, 'Em Preparo')} className="mt-auto bg-blue-600 hover:bg-blue-500 font-black text-xl w-full py-4 rounded-xl shadow-lg transition-colors flex justify-center items-center gap-2"><CheckCircle size={24}/> Iniciar Preparo</button>}
+                        {order.status === 'Em Preparo' && <button onClick={() => updateOrderStatus(order.id, 'Pronto para Entrega')} className="mt-auto bg-green-600 hover:bg-green-500 font-black text-xl w-full py-4 rounded-xl shadow-lg transition-colors">Pronto p/ Entrega</button>}
                     </div>
                 ))}
             </div>
@@ -1670,22 +1637,24 @@ const KitchenView = ({ orders, setView, updateOrderStatus }) => {
 };
 
 const ManageAgenda = ({ currentSettings, showToast }) => {
-    return <div className="p-4 bg-stone-100 rounded-xl">Agenda em funcionamento. Edite no painel Settings principal.</div>;
+    return <div className="p-6 bg-blue-50 border border-blue-200 rounded-xl shadow-sm text-blue-800 font-bold flex items-center gap-3"><Clock size={24}/> A Agenda está funcionando normalmente. As edições de horário são feitas na aba "Ajustes".</div>;
 }
 
 const DeliveryView = ({ orders, setView, updateOrderStatus, getGoogleMapsLink }) => {
     return (
-        <div className="p-4">
-            <button onClick={() => setView('admin')} className="mb-4 bg-stone-700 text-white px-4 py-2 rounded">Voltar</button>
+        <div className="p-4 bg-stone-100 min-h-screen">
+            <button onClick={() => setView('admin')} className="mb-6 bg-stone-800 text-white font-bold px-6 py-2 rounded-full flex items-center gap-2 hover:bg-stone-900 transition-colors shadow-md"><ChevronsLeft size={18}/> Voltar ao Painel</button>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {orders.map(order => (
-                <div key={order.id} className="p-4 border rounded mb-2 bg-white">
-                    <p className="font-bold">{order.name}</p><p>{order.address}</p>
-                    <div className="flex gap-2 mt-2">
-                        {order.status === 'Pronto para Entrega' && <button onClick={() => updateOrderStatus(order.id, 'Saiu para Entrega')} className="bg-purple-500 text-white px-4 py-1 rounded">Saiu para Entrega</button>}
-                        {order.status === 'Saiu para Entrega' && <button onClick={() => updateOrderStatus(order.id, 'Concluído')} className="bg-green-500 text-white px-4 py-1 rounded">Concluída</button>}
+                <div key={order.id} className="p-6 border border-stone-200 rounded-2xl mb-2 bg-white shadow-xl">
+                    <p className="font-black text-2xl text-stone-800 mb-1">{order.name}</p><p className="text-stone-600 font-medium mb-4 flex items-start gap-2"><MapPin size={20} className="mt-0.5 text-red-500 flex-shrink-0"/> {order.address}</p>
+                    <div className="flex flex-col sm:flex-row gap-3 mt-4 pt-4 border-t border-stone-100">
+                        {order.status === 'Pronto para Entrega' && <button onClick={() => updateOrderStatus(order.id, 'Saiu para Entrega')} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-black px-4 py-3 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2"><Bike size={20}/> Iniciar Entrega</button>}
+                        {order.status === 'Saiu para Entrega' && <button onClick={() => updateOrderStatus(order.id, 'Concluído')} className="flex-1 bg-green-500 hover:bg-green-600 text-white font-black px-4 py-3 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2"><CheckCircle size={20}/> Concluir Entrega</button>}
                     </div>
                 </div>
             ))}
+            </div>
         </div>
     ); 
 }
