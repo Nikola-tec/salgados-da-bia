@@ -198,42 +198,29 @@ function App() {
     const [trackingOrderId, setTrackingOrderId] = useState(null);
     const [currentLat, setCurrentLat] = useState(40.6589); 
     const [currentLng, setCurrentLng] = useState(-7.9138);
-
-    const handleGoogleCredentialResponse = async (response) => {
-    setAuthLoading(true);
-    setError('');
-    try {
-        // 1. Converte o token do Google em credencial do Firebase
-        const credential = GoogleAuthProvider.credential(response.credential);
-        
-        // 2. Autentica o usuário no Firebase do Salgados da Bia
-        const result = await signInWithCredential(auth, credential);
-        const loggedUser = result.user;
-
-        // 3. Garante que o perfil do cliente existe no Firestore com o papel correto
-        const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, loggedUser.uid);
-        const docSnap = await getDoc(userDocRef);
-
-        if (!docSnap.exists()) {
-            await setDoc(userDocRef, {
-                name: loggedUser.displayName,
-                email: loggedUser.email,
-                photoURL: loggedUser.photoURL,
-                addresses: [],
-                role: 'customer', // Define como cliente para compras em Portugal
-                createdAt: new Date()
-            });
+    
+    const handleGoogleCredentialResponse = useCallback(async (response) => {
+        setAuthLoading(true);
+        setError('');
+        try {
+            const credential = GoogleAuthProvider.credential(response.credential);
+            const result = await signInWithCredential(auth, credential);
+            
+            // O Firebase já cuida do resto no useEffect do onAuthStateChanged
+            showToast(`Bem-vindo(a)! 🥟`);
+            setView('menu'); 
+        } catch (err) {
+            console.error("Erro no SSO Google:", err);
+            setError('Falha ao entrar com o Google.');
+        } finally {
+            setAuthLoading(false);
         }
+    }, [auth, showToast]);
 
-        showToast(`Bem-vindo(a), ${loggedUser.displayName.split(' ')[0]}! 🥟`);
-        setView('menu'); // MUDA A TELA PARA O CARDÁPIO AUTOMATICAMENTE
-    } catch (err) {
-        console.error("Erro no SSO Google:", err);
-        setError('Não foi possível entrar com o Google. Tente novamente.');
-    } finally {
-        setAuthLoading(false);
-    }
-    };
+    // Torna a função visível para o Google que está "fora" do React
+    useEffect(() => {
+        window.handleGoogleCredentialResponse = handleGoogleCredentialResponse;
+    }, [handleGoogleCredentialResponse]);
 
     const toastTimeoutRef = useRef(null);
     const showToast = useCallback((message) => {
@@ -1537,13 +1524,6 @@ const FeedbackForm = ({ onSubmit }) => {
     );
 }
 
-// Adicione esta função logo acima do const LoginView
-const handleGoogleCredentialResponse = async (response) => {
-    // Aqui usaremos o seu 'setAuthLoading' que já existe no App.js
-    console.log("Token do Google recebido:", response.credential);
-    // No futuro, aqui entrará o signInWithCredential do Firebase
-};
-
 const LoginView = ({ handleLogin, error, setView, isAdminLogin = false, authLoading }) => {
     const [email, setEmail] = useState(''); const [password, setPassword] = useState('');
     useEffect(() => {
@@ -1551,7 +1531,7 @@ const LoginView = ({ handleLogin, error, setView, isAdminLogin = false, authLoad
         if (window.google && !isAdminLogin) {
             window.google.accounts.id.initialize({
                 client_id: "2844533583-inkg5afrb639c9ffd07l8m3j8hveb6rk.apps.googleusercontent.com",
-                callback: handleGoogleCredentialResponse
+                callback: window.handleGoogleCredentialResponse
             });
             window.google.accounts.id.renderButton(
                 document.getElementById("googleSignInDiv"),

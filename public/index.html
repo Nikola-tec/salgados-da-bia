@@ -23,24 +23,5 @@
     
     <div id="root"></div>
 
-    <script>
-      function handleCredentialResponse(response) {
-        // Esta função será chamada quando o cliente logar
-        console.log("Token JWT recebido:", response.credential);
-        // Aqui enviaremos para o seu backend da Nikola TEC posteriormente
-      }
-
-      window.onload = function () {
-        if (window.google) {
-          google.accounts.id.initialize({
-            client_id: "2844533583-inkg5afrb639c9ffd07l8m3j8hveb6rk.apps.googleusercontent.com",
-            callback: handleCredentialResponse
-          });
-          
-          // Opcional: Ativa o "One Tap" para os clientes em Portugal
-          google.accounts.id.prompt();
-        }
-      };
-    </script>
   </body>
 </html>
