@@ -907,64 +907,93 @@ const CustomizeBoxModal = ({ box, salgados, onClose, addToCart }) => {
     };
 
     return (
-        <div className="fixed inset-0 bg-black/70 z-50 flex justify-center items-end sm:items-center p-0 sm:p-4 animate-fade-in">
-            <div className="bg-white rounded-t-3xl sm:rounded-xl shadow-2xl max-w-lg w-full max-h-[95vh] flex flex-col animate-slide-up overflow-hidden">
+        <div className="fixed inset-0 bg-black/80 z-50 flex justify-center items-end sm:items-center p-0 sm:p-4 animate-fade-in backdrop-blur-sm">
+            <div className="bg-stone-50 rounded-t-3xl sm:rounded-2xl shadow-2xl max-w-lg w-full max-h-[95vh] flex flex-col animate-slide-up overflow-hidden relative">
                 
-                {/* CABEÇALHO ESTILIZADO E FIXO */}
-                <div className="shrink-0 relative">
-                    {/* Topo em Degradê */}
-                    <div className="h-24 bg-gradient-to-r from-amber-400 to-amber-500 relative flex justify-center">
-                        <button onClick={onClose} className="absolute top-4 right-4 p-2 rounded-full bg-white/30 text-white hover:bg-white/50 backdrop-blur-sm transition-colors z-20">
-                            <XCircle size={24}/>
-                        </button>
-                        
-                        {/* Imagem Centralizada (Avatar) - CORRIGIDA AQUI */}
-                        <div className="absolute -bottom-10 w-24 h-24 sm:w-28 sm:h-28 rounded-full border-4 border-white shadow-lg bg-white overflow-hidden z-10 flex items-center justify-center">
-                            <img src={box.image} alt={box.name} className="w-full h-full object-contain p-2" onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/200x200/FBBF24/FFFFFF?text=Combo'; }} />
+                {/* 1. HEADER COM FOTO EDGE-TO-EDGE (Foco na comida!) */}
+                <div className="shrink-0 relative h-48 sm:h-56 w-full bg-stone-200">
+                    <img 
+                        src={box.image} 
+                        alt={box.name} 
+                        className="w-full h-full object-cover" 
+                        onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/600x400/FBBF24/FFFFFF?text=Combo'; }} 
+                    />
+                    {/* Gradiente escuro em cima e embaixo para leitura e contraste */}
+                    <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-black/70"></div>
+                    
+                    <button onClick={onClose} className="absolute top-4 right-4 p-2 rounded-full bg-black/40 text-white hover:bg-black/60 backdrop-blur-md transition-all z-20 active:scale-95 shadow-lg">
+                        <XCircle size={24}/>
+                    </button>
+
+                    {/* Título sobreposto na imagem */}
+                    <div className="absolute bottom-4 left-5 right-5 text-white z-20">
+                        <h2 className="text-3xl font-black drop-shadow-lg leading-tight">{box.name}</h2>
+                    </div>
+                </div>
+                
+                {/* 2. INFORMAÇÕES E BOTÃO SURPRESA */}
+                <div className="shrink-0 bg-white px-5 pt-4 pb-4 shadow-sm z-10">
+                    <div className="flex justify-between items-center mb-4">
+                        <p className="text-stone-600 text-sm">
+                            Mínimo de <strong className="text-amber-600">{box.size}</strong> salgados.
+                        </p>
+                        <div className="bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-sm font-bold flex items-center gap-1 shadow-inner">
+                            <span>Selecionados: {totalSelected}</span>
                         </div>
                     </div>
                     
-                    {/* Informações da Montagem */}
-                    <div className="pt-12 pb-4 px-4 text-center bg-white border-b shadow-sm z-20 relative">
-                        <h2 className="text-2xl font-black text-amber-600 mb-1 leading-tight">{box.name}</h2>
-                        <p className="text-stone-600 text-sm">Mínimo de <strong className="text-stone-800">{box.size}</strong> salgados. Adicione mais se quiser!</p>
-                        <p className="mt-2 font-bold text-stone-700 text-lg">
-                            Selecionados: <span className={`text-2xl font-black ${totalSelected >= box.size ? 'text-green-500' : 'text-amber-500'}`}>{totalSelected}</span>
-                        </p>
-                        
-                        {/* Botão de Montagem Aleatória */}
-                        <button 
-                            onClick={handleRandomize} 
-                            className="mt-4 inline-flex items-center justify-center gap-2 bg-amber-50 text-amber-700 border border-amber-200 font-bold py-2.5 px-6 rounded-full hover:bg-amber-100 active:scale-95 transition-all text-sm shadow-sm"
-                        >
-                            🎲 Montar Aleatoriamente
-                        </button>
-                    </div>
+                    <button 
+                        onClick={handleRandomize} 
+                        className="w-full flex items-center justify-center gap-2 bg-stone-50 text-stone-700 border border-stone-200 font-bold py-3 rounded-xl hover:bg-amber-50 hover:text-amber-700 hover:border-amber-300 active:scale-95 transition-all text-sm shadow-sm"
+                    >
+                        🎲 Surpreenda-me (Montar Aleatoriamente)
+                    </button>
                 </div>
 
-                {/* ÁREA DE ROLAGEM DOS SALGADOS */}
-                <div className="flex-grow overflow-y-auto p-4 bg-stone-50">
-                    <div className="space-y-3">
+                {/* 3. LISTA DE SALGADOS (Design mais limpo e clicável) */}
+                <div className="flex-grow overflow-y-auto px-4 py-3 bg-stone-50">
+                    <div className="space-y-3 pb-2">
                         {salgados.map(salgado => (
-                            <div key={salgado.id} className="flex justify-between items-center bg-white p-3 rounded-xl border border-stone-200 shadow-sm transition-all hover:border-amber-300">
-                                <p className="font-semibold text-stone-700">{salgado.name}</p>
-                                <div className="flex items-center gap-2">
-                                    <button onClick={() => handleSelectionChange(salgado.id, -1)} className="p-1.5 rounded-full bg-amber-100 text-amber-800 hover:bg-amber-200 disabled:opacity-30 disabled:hover:bg-amber-100 transition-colors active:scale-90" disabled={(selection[salgado.id] || 0) === 0}><MinusCircle size={22} /></button>
-                                    <span className="font-black w-8 text-center text-lg">{selection[salgado.id] || 0}</span>
-                                    <button onClick={() => handleSelectionChange(salgado.id, 1)} className="p-1.5 rounded-full bg-amber-100 text-amber-800 hover:bg-amber-200 transition-colors active:scale-90"><PlusCircle size={22} /></button>
-                                    <button onClick={() => handleSelectionChange(salgado.id, 10)} className="text-xs font-black w-10 h-10 rounded-xl bg-amber-200 text-amber-900 hover:bg-amber-300 transition-colors active:scale-90 shadow-sm">+10</button>
+                            <div key={salgado.id} className="flex justify-between items-center bg-white p-3 sm:p-4 rounded-2xl border border-stone-200 shadow-sm transition-all hover:border-amber-300 hover:shadow-md">
+                                <p className="font-bold text-stone-700 text-sm sm:text-base">{salgado.name}</p>
+                                <div className="flex items-center gap-1 sm:gap-2">
+                                    <button onClick={() => handleSelectionChange(salgado.id, -1)} className="p-1.5 sm:p-2 rounded-full text-amber-500 hover:bg-amber-100 disabled:opacity-30 disabled:hover:bg-transparent transition-colors active:scale-90" disabled={(selection[salgado.id] || 0) === 0}>
+                                        <MinusCircle size={24} />
+                                    </button>
+                                    <span className="font-black w-6 sm:w-8 text-center text-lg text-stone-800">{selection[salgado.id] || 0}</span>
+                                    <button onClick={() => handleSelectionChange(salgado.id, 1)} className="p-1.5 sm:p-2 rounded-full text-amber-500 hover:bg-amber-100 transition-colors active:scale-90">
+                                        <PlusCircle size={24} />
+                                    </button>
+                                    <button onClick={() => handleSelectionChange(salgado.id, 10)} className="text-xs font-black ml-1 w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors active:scale-90 flex items-center justify-center">
+                                        +10
+                                    </button>
                                 </div>
                             </div>
                         ))}
                     </div>
                 </div>
                 
-                {/* RODAPÉ FIXO */}
-                <div className="shrink-0 p-4 border-t bg-white">
-                         {error && <p className="text-red-500 text-center text-sm font-bold mb-2 animate-bounce">{error}</p>}
-                         <button onClick={handleAddToCart} disabled={totalSelected < box.size} className="w-full bg-green-500 text-white font-bold py-4 px-4 rounded-full hover:bg-green-600 transition-all duration-200 disabled:bg-stone-300 flex items-center justify-center gap-2 shadow-lg transform active:scale-95 text-lg">
-                            <ShoppingCart size={22} /> Adicionar ({dynamicPrice.toFixed(2)}€)
-                        </button>
+                {/* 4. RODAPÉ FIXO INTELIGENTE */}
+                <div className="shrink-0 p-4 border-t bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+                    {error && <p className="text-red-500 text-center text-sm font-bold mb-3 animate-pulse">{error}</p>}
+                    <button 
+                        onClick={handleAddToCart} 
+                        disabled={totalSelected < box.size} 
+                        className={`w-full font-black py-4 px-4 rounded-2xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg transform active:scale-95 text-lg
+                            ${totalSelected < box.size 
+                                ? 'bg-stone-300 text-stone-500' 
+                                : 'bg-green-500 text-white hover:bg-green-600'
+                            }`}
+                    >
+                        {totalSelected < box.size ? (
+                            `Selecione mais ${box.size - totalSelected} itens`
+                        ) : (
+                            <>
+                                <ShoppingCart size={22} /> 
+                                Adicionar ({dynamicPrice.toFixed(2)}€)
+                            </>
+                        )}
+                    </button>
                 </div>
             </div>
         </div>
