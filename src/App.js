@@ -628,7 +628,7 @@ const WhatsAppButton = ({ settings }) => {
     return (
         <div className="group relative flex items-center">
              <div className="absolute right-full mr-3 whitespace-nowrap bg-white text-stone-700 text-sm font-semibold py-2 px-4 rounded-lg shadow-lg transform transition-all duration-300 scale-0 group-hover:scale-100 origin-right">
-                Fale Connosco
+                Fale Conosco
             </div>
             <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="bg-green-500 text-white rounded-full p-3 shadow-lg hover:scale-110 transition-transform flex items-center justify-center">
                 <MessageSquare size={24}/>
@@ -732,8 +732,8 @@ const BoxCarouselCard = ({ item, onClick }) => {
 
                 {/* Etiquetas Superiores */}
                 <div className="absolute top-2 left-2 flex flex-col gap-1 z-20">
-                    {item.isNew && <span className="bg-blue-600 text-white text-[9px] font-black px-2 py-0.5 rounded shadow-lg uppercase">Novo</span>}
-                    {item.isPromo && <span className="bg-red-600 text-white text-[9px] font-black px-2 py-0.5 rounded shadow-lg uppercase">Promo</span>}
+                    {item.isNew && <span className="bg-blue-600 text-white text-[9px] font-black px-2 py-0.5 rounded shadow-lg uppercase">Lançamento</span>}
+                    {item.isPromo && <span className="bg-red-600 text-white text-[9px] font-black px-2 py-0.5 rounded shadow-lg uppercase">Promoção</span>}
                 </div>
 
                 {/* Informações e Ação (Rodapé do Card) */}
