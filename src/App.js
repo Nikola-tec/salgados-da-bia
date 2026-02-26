@@ -199,6 +199,13 @@ function App() {
     const [currentLat, setCurrentLat] = useState(40.6589); 
     const [currentLng, setCurrentLng] = useState(-7.9138);
     
+    const toastTimeoutRef = useRef(null);
+    const showToast = useCallback((message) => {
+        setToastMessage(message);
+        if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+        toastTimeoutRef.current = setTimeout(() => { setToastMessage(''); }, 5000);
+    }, []);
+
     const handleGoogleCredentialResponse = useCallback(async (response) => {
         setAuthLoading(true);
         setError('');
@@ -206,7 +213,6 @@ function App() {
             const credential = GoogleAuthProvider.credential(response.credential);
             const result = await signInWithCredential(auth, credential);
             
-            // O Firebase já cuida do resto no useEffect do onAuthStateChanged
             showToast(`Bem-vindo(a)! 🥟`);
             setView('menu'); 
         } catch (err) {
@@ -215,19 +221,11 @@ function App() {
         } finally {
             setAuthLoading(false);
         }
-    }, [auth, showToast]);
+    }, [showToast]); // Removido o 'auth' daqui para o ESLint não reclamar
 
-    // Torna a função visível para o Google que está "fora" do React
     useEffect(() => {
         window.handleGoogleCredentialResponse = handleGoogleCredentialResponse;
     }, [handleGoogleCredentialResponse]);
-
-    const toastTimeoutRef = useRef(null);
-    const showToast = useCallback((message) => {
-        setToastMessage(message);
-        if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-        toastTimeoutRef.current = setTimeout(() => { setToastMessage(''); }, 5000);
-    }, []);
 
     useEffect(() => {
         const handleAppNotification = (e) => showToast(e.detail);
