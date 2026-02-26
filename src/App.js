@@ -648,6 +648,46 @@ const ConfirmDeleteModal = ({ onConfirm, onCancel, title="Confirmar Exclusão", 
     </div>
 );
 
+// --- NOVO COMPONENTE: Card do Carrossel de Boxes ---
+const BoxCarouselCard = ({ item, onClick }) => {
+    return (
+        <div 
+            onClick={onClick}
+            className="relative w-40 sm:w-48 md:w-56 flex-shrink-0 snap-start bg-white rounded-2xl shadow-md overflow-hidden cursor-pointer group transition-transform duration-300 hover:-translate-y-1 hover:shadow-xl active:scale-95"
+        >
+            <div className="h-44 sm:h-52 relative overflow-hidden bg-stone-100">
+                {/* Imagem de Fundo */}
+                <img 
+                    src={item.image} 
+                    alt={item.name} 
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
+                    onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/400x300/FBBF24/FFFFFF?text=Combo'; }} 
+                />
+                
+                {/* Gradiente escuro para garantir leitura do texto */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent z-10"></div>
+
+                {/* Etiquetas Superiores */}
+                <div className="absolute top-2 left-2 flex flex-col gap-1 z-20">
+                    {item.isNew && <span className="bg-blue-600 text-white text-[9px] font-black px-2 py-0.5 rounded shadow-lg uppercase">Novo</span>}
+                    {item.isPromo && <span className="bg-red-600 text-white text-[9px] font-black px-2 py-0.5 rounded shadow-lg uppercase">Promo</span>}
+                </div>
+
+                {/* Informações e Ação (Rodapé do Card) */}
+                <div className="absolute bottom-0 left-0 w-full p-3 z-20 flex flex-col justify-end">
+                    <h3 className="text-white font-bold text-sm sm:text-base leading-tight drop-shadow-md line-clamp-2">{item.name}</h3>
+                    <div className="flex justify-between items-center mt-2">
+                        <span className="text-amber-400 font-black text-sm sm:text-base drop-shadow-md">{item.price.toFixed(2)}€</span>
+                        <div className="bg-amber-500 text-white p-1.5 rounded-full shadow-lg group-hover:bg-amber-400 transition-colors">
+                            <Plus size={16} />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const MenuView = ({ menu, addToCart, showStoreClosedToast }) => {
     const [customizingBox, setCustomizingBox] = useState(null);
     const handleCustomizeClick = (boxItem) => {
@@ -656,7 +696,6 @@ const MenuView = ({ menu, addToCart, showStoreClosedToast }) => {
         setCustomizingBox({ box: boxItem, availableSalgados });
     };
 
-    // 1. Defina aqui a ordem exata que você quer no aplicativo (de cima para baixo):
     const ordemDesejada = [
         'Salgados Tradicionais',
         'Salgados Especiais',
@@ -667,24 +706,52 @@ const MenuView = ({ menu, addToCart, showStoreClosedToast }) => {
         'Bebidas'
     ];
 
-    // 2. O sistema vai ler a sua lista acima e ordenar a tela seguindo ela
     const categories = [...new Set(menu.filter(item => item.isAvailable !== false).map(item => item.category))]
         .sort((a, b) => {
             let indexA = ordemDesejada.indexOf(a);
             let indexB = ordemDesejada.indexOf(b);
-            
-            // Se você criar uma categoria nova no painel e esquecer de por na lista acima, ele joga ela pro final do cardápio automaticamente
             if (indexA === -1) indexA = 999;
             if (indexB === -1) indexB = 999;
-            
             return indexA - indexB;
         });
 
+    // Filtra para separar os combos (Boxes) do resto do cardápio
+    const boxesMenu = menu.filter(item => item.category === 'Boxes' && item.isAvailable !== false);
+    const otherCategories = categories.filter(category => category !== 'Boxes');
+
     return (
-        <div className="animate-fade-in">
-             {showStoreClosedToast && <Toast message="A loja está fechada. Pedidos serão processados no próximo horário. Use 'Encomendar'." isWarning={true} />}
+        <div className="animate-fade-in relative">
+            {/* Adicionando estilo embutido para esconder a barra de rolagem horizontal mantendo a funcionalidade */}
+            <style>{`
+                .hide-scrollbar::-webkit-scrollbar { display: none; }
+                .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+            `}</style>
+
+            {showStoreClosedToast && <Toast message="A loja está fechada. Pedidos serão processados no próximo horário. Use 'Encomendar'." isWarning={true} />}
             {customizingBox && <CustomizeBoxModal box={customizingBox.box} salgados={customizingBox.availableSalgados} onClose={() => setCustomizingBox(null)} addToCart={addToCart}/>}
-            {categories.map(category => (
+            
+            {/* SESSÃO 1: Carrossel Horizontal de Combos (Boxes) */}
+            {boxesMenu.length > 0 && (
+                <div className="mb-10">
+                    <div className="flex justify-between items-end mb-4 border-b-2 border-amber-200 pb-2">
+                        <h2 className="text-2xl md:text-3xl font-bold text-amber-600">Combos Rápidos</h2>
+                        <span className="text-xs text-stone-500 font-semibold animate-pulse mr-2">Deslize ➔</span>
+                    </div>
+                    
+                    <div className="flex overflow-x-auto gap-4 pb-4 pt-2 snap-x snap-mandatory scroll-smooth hide-scrollbar px-1">
+                        {boxesMenu.map(box => (
+                            <BoxCarouselCard 
+                                key={box.id} 
+                                item={box} 
+                                onClick={() => box.customizable ? handleCustomizeClick(box) : addToCart(box)} 
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* SESSÃO 2: Restante do Cardápio em Grade Tradicional */}
+            {otherCategories.map(category => (
                 <div key={category} className="mb-10">
                     <h2 className="text-3xl font-bold text-amber-600 border-b-2 border-amber-200 pb-2 mb-6">{category}</h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
