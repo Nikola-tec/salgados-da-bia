@@ -366,7 +366,18 @@ function App() {
     const updateQuantity = (itemId, amount, customization) => {
         setCart(prevCart => prevCart.map(item => {
             if (item.id === itemId && JSON.stringify(item.customization || null) === JSON.stringify(customization || null)) {
-                let newQuantity = item.quantity + amount; return { ...item, quantity: Math.max(0, newQuantity) };
+                let newQuantity = item.quantity + amount;
+                
+                // Definir qual é o limite mínimo deste item
+                const minAllowed = item.customizable ? 1 : (item.minimumOrder || 1);
+                
+                // Se estiver a tentar diminuir e ficar abaixo do mínimo (e não for para apagar o item totalmente)
+                if (amount < 0 && newQuantity > 0 && newQuantity < minAllowed) {
+                    showToast(`O pedido mínimo para ${item.name} é de ${minAllowed} unidades.`);
+                    return item; // Aborta a ação e mantém a quantidade como estava
+                }
+
+                return { ...item, quantity: Math.max(0, newQuantity) };
             }
             return item;
         }).filter(item => item.quantity > 0));
@@ -935,7 +946,7 @@ const CustomizeBoxModal = ({ box, salgados, onClose, addToCart }) => {
                 <div className="shrink-0 bg-white px-5 pt-4 pb-4 shadow-sm z-10">
                     <div className="flex justify-between items-center mb-4">
                         <p className="text-stone-600 text-sm">
-                            Mínimo de <strong className="text-amber-600">{box.size}</strong> salgados.
+                            Mínimo de <strong className="text-amber-600">{box.size}</strong>
                         </p>
                         <div className="bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-sm font-bold flex items-center gap-1 shadow-inner">
                             <span>Selecionados: {totalSelected}</span>
@@ -1025,7 +1036,12 @@ const CartView = ({ cart, updateQuantity, cartTotal, setView, emptyCart, user })
                  <button onClick={() => setConfirmingEmpty(true)} className="text-sm text-red-500 hover:underline flex items-center gap-1"><Trash2 size={14}/> Esvaziar Carrinho</button>
             </div>
             <div className="space-y-4">
-                {cart.map((item, index) => (
+                {cart.map((item, index) => {
+                    // CÁLCULO DE BLOQUEIO VISUAL DO BOTÃO DE MENOS
+                    const minAllowed = item.customizable ? 1 : (item.minimumOrder || 1);
+                    const isMinReached = item.quantity <= minAllowed;
+
+                    return (
                     <div key={item.id + index} className="flex items-start justify-between border-b pb-4">
                         <div className="flex items-start gap-4">
                             <img src={item.image} alt={item.name} className="w-20 h-20 rounded-xl object-cover" onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/200x200/FBBF24/FFFFFF?text=Item'; }}/>
@@ -1045,15 +1061,28 @@ const CartView = ({ cart, updateQuantity, cartTotal, setView, emptyCart, user })
                         </div>
                         <div className="flex flex-col items-end">
                              <div className="flex items-center gap-2">
-                                <button onClick={() => updateQuantity(item.id, -1, item.customization)} className="p-1 rounded-full text-stone-600 hover:bg-stone-200 active:scale-90"><MinusCircle size={20} /></button>
+                                {/* BOTÃO DE MENOS BLOQUEADO SE CHEGOU NO MÍNIMO */}
+                                <button 
+                                    onClick={() => updateQuantity(item.id, -1, item.customization)} 
+                                    disabled={isMinReached}
+                                    className={`p-1 rounded-full active:scale-90 transition-colors ${isMinReached ? 'text-stone-300 cursor-not-allowed' : 'text-stone-600 hover:bg-stone-200'}`}
+                                >
+                                    <MinusCircle size={20} />
+                                </button>
+                                
                                 <span className="font-bold text-lg w-8 text-center">{item.quantity}</span>
+                                
                                 <button onClick={() => updateQuantity(item.id, 1, item.customization)} className="p-1 rounded-full text-stone-600 hover:bg-stone-200 active:scale-90"><PlusCircle size={20} /></button>
                             </div>
                             <p className="font-bold mt-2 text-stone-800">{(item.price * item.quantity).toFixed(2)}€</p>
-                            <button onClick={() => updateQuantity(item.id, -item.quantity, item.customization)} className="text-red-500 hover:text-red-700 text-sm mt-1"><Trash2 size={16} /></button>
+                            
+                            {/* CAIXOTE DO LIXO SEMPRE DISPONÍVEL */}
+                            <button onClick={() => updateQuantity(item.id, -item.quantity, item.customization)} className="text-red-500 hover:text-red-700 text-sm mt-1 flex items-center gap-1">
+                                <Trash2 size={16} /> Remover
+                            </button>
                         </div>
                     </div>
-                ))}
+                )})}
             </div>
             <div className="mt-6 text-right">
                 <p className="text-lg">Subtotal: <span className="font-bold text-xl text-stone-800">{cartTotal}€</span></p>
