@@ -17,7 +17,7 @@ import {
     XCircle, CheckCircle, Package, DollarSign, Clock, Settings, Plus, Star, 
     AlertTriangle, UserCheck, KeyRound, Loader2, ChevronsLeft, MapPin, Bike, 
     TrendingUp, Percent, Calendar, Eye, EyeOff, Trash, Satellite, Map, 
-    MessageSquare, Navigation, Users, Megaphone, Send, Save, Trash2
+    MessageSquare, Navigation, Users, Megaphone, Send, Save, Trash2, Phone
 } from 'lucide-react';
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, 
