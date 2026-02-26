@@ -4,7 +4,8 @@ import { initializeApp } from 'firebase/app';
 import { 
     getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
     onAuthStateChanged, signOut, signInAnonymously, updateProfile,
-    setPersistence, browserLocalPersistence
+    setPersistence, browserLocalPersistence,
+    GoogleAuthProvider, signInWithCredential
 } from 'firebase/auth';
 import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 import { 
@@ -197,6 +198,42 @@ function App() {
     const [trackingOrderId, setTrackingOrderId] = useState(null);
     const [currentLat, setCurrentLat] = useState(40.6589); 
     const [currentLng, setCurrentLng] = useState(-7.9138);
+
+    const handleGoogleCredentialResponse = async (response) => {
+    setAuthLoading(true);
+    setError('');
+    try {
+        // 1. Converte o token do Google em credencial do Firebase
+        const credential = GoogleAuthProvider.credential(response.credential);
+        
+        // 2. Autentica o usuário no Firebase do Salgados da Bia
+        const result = await signInWithCredential(auth, credential);
+        const loggedUser = result.user;
+
+        // 3. Verifica/Cria o perfil do cliente no Firestore para pedidos em Portugal
+        const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, loggedUser.uid);
+        const docSnap = await getDoc(userDocRef);
+
+        if (!docSnap.exists()) {
+            await setDoc(userDocRef, {
+                name: loggedUser.displayName,
+                email: loggedUser.email,
+                photoURL: loggedUser.photoURL,
+                addresses: [],
+                role: 'customer',
+                createdAt: new Date()
+            });
+        }
+
+        showToast(`Bem-vindo(a), ${loggedUser.displayName.split(' ')[0]}! 🥟`);
+        setView('menu'); 
+    } catch (err) {
+        console.error("Erro no SSO Google:", err);
+        setError('Não foi possível entrar com o Google. Tente novamente.');
+    } finally {
+        setAuthLoading(false);
+    }
+    };
 
     const toastTimeoutRef = useRef(null);
     const showToast = useCallback((message) => {
@@ -1500,12 +1537,43 @@ const FeedbackForm = ({ onSubmit }) => {
     );
 }
 
+// Adicione esta função logo acima do const LoginView
+const handleGoogleCredentialResponse = async (response) => {
+    // Aqui usaremos o seu 'setAuthLoading' que já existe no App.js
+    console.log("Token do Google recebido:", response.credential);
+    // No futuro, aqui entrará o signInWithCredential do Firebase
+};
+
 const LoginView = ({ handleLogin, error, setView, isAdminLogin = false, authLoading }) => {
     const [email, setEmail] = useState(''); const [password, setPassword] = useState('');
+    useEffect(() => {
+        // Só renderiza se não for login de administrador e se o script carregou
+        if (window.google && !isAdminLogin) {
+            window.google.accounts.id.initialize({
+                client_id: "2844533583-inkg5afrb639c9ffd07l8m3j8hveb6rk.apps.googleusercontent.com",
+                callback: handleGoogleCredentialResponse
+            });
+            window.google.accounts.id.renderButton(
+                document.getElementById("googleSignInDiv"),
+                { theme: "outline", size: "large", width: "100%", shape: "pill" }
+            );
+        }
+    }, [isAdminLogin]);
+
     const handleSubmit = (e) => { e.preventDefault(); handleLogin(email, password); };
     return (
         <div className="max-w-sm mx-auto mt-10 bg-white p-8 rounded-xl shadow-xl animate-fade-in">
             <h2 className="text-2xl font-bold text-center mb-6">{isAdminLogin ? 'Acesso Gestão' : 'Entrar na sua Conta'}</h2>
+            {!isAdminLogin && (
+                <div className="mb-6">
+                    <div id="googleSignInDiv" className="w-full"></div>
+                    <div className="relative flex py-5 items-center">
+                        <div className="flex-grow border-t border-stone-200"></div>
+                        <span className="flex-shrink mx-4 text-stone-400 text-xs uppercase">ou</span>
+                        <div className="flex-grow border-t border-stone-200"></div>
+                    </div>
+                </div>
+            )}
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div><label className="block text-stone-700 font-bold mb-2">Email</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400" required /></div>
                 <div><label className="block text-stone-700 font-bold mb-2">Senha</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400" required /></div>
