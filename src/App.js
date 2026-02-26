@@ -877,17 +877,15 @@ const CustomizeBoxModal = ({ box, salgados, onClose, addToCart }) => {
         setSelection(prev => ({ ...prev, [salgadoId]: newCount }));
     };
 
-    // NOVA FUNÇÃO: Montagem Aleatória Inteligente
     const handleRandomize = () => {
         if (box.size <= 0 || salgados.length === 0) return;
         let remaining = box.size;
         const newSelection = {};
-        salgados.forEach(s => newSelection[s.id] = 0); // Zera a seleção anterior
+        salgados.forEach(s => newSelection[s.id] = 0); 
 
         while (remaining > 0) {
             const randomIdx = Math.floor(Math.random() * salgados.length);
             const salgado = salgados[randomIdx];
-            // Para não adicionar 1 de cada num combo de 100, ele tenta adicionar de 10 em 10 ou 5 em 5.
             const addAmount = remaining >= 10 ? 10 : (remaining >= 5 ? 5 : 1);
             newSelection[salgado.id] += addAmount;
             remaining -= addAmount;
@@ -920,11 +918,11 @@ const CustomizeBoxModal = ({ box, salgados, onClose, addToCart }) => {
                             <XCircle size={24}/>
                         </button>
                         
-                        {/* Imagem Centralizada (Avatar) - CORRIGIDA */}
+                        {/* Imagem Centralizada (Avatar) - CORRIGIDA AQUI */}
                         <div className="absolute -bottom-10 w-24 h-24 sm:w-28 sm:h-28 rounded-full border-4 border-white shadow-lg bg-white overflow-hidden z-10 flex items-center justify-center">
-                            {/* Mudamos 'object-cover' para 'object-contain' e adicionamos um pequeno padding 'p-2' para a foto não tocar na borda branca */}
                             <img src={box.image} alt={box.name} className="w-full h-full object-contain p-2" onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/200x200/FBBF24/FFFFFF?text=Combo'; }} />
                         </div>
+                    </div>
                     
                     {/* Informações da Montagem */}
                     <div className="pt-12 pb-4 px-4 text-center bg-white border-b shadow-sm z-20 relative">
