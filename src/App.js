@@ -700,8 +700,8 @@ const MenuView = ({ menu, addToCart, showStoreClosedToast }) => {
     const ordemDesejada = [
         'Salgados Tradicionais',
         'Salgados Especiais',
-        'Empadas',
         'Assados',
+        'Empadas',
         'Doces',
         'Box',
         'Boxes',
@@ -877,6 +877,25 @@ const CustomizeBoxModal = ({ box, salgados, onClose, addToCart }) => {
         setSelection(prev => ({ ...prev, [salgadoId]: newCount }));
     };
 
+    // NOVA FUNÇÃO: Montagem Aleatória Inteligente
+    const handleRandomize = () => {
+        if (box.size <= 0 || salgados.length === 0) return;
+        let remaining = box.size;
+        const newSelection = {};
+        salgados.forEach(s => newSelection[s.id] = 0); // Zera a seleção anterior
+
+        while (remaining > 0) {
+            const randomIdx = Math.floor(Math.random() * salgados.length);
+            const salgado = salgados[randomIdx];
+            // Para não adicionar 1 de cada num combo de 100, ele tenta adicionar de 10 em 10 ou 5 em 5.
+            const addAmount = remaining >= 10 ? 10 : (remaining >= 5 ? 5 : 1);
+            newSelection[salgado.id] += addAmount;
+            remaining -= addAmount;
+        }
+        setSelection(newSelection);
+        setError('');
+    };
+
     const handleAddToCart = () => {
         setError('');
         const customization = Object.entries(selection).filter(([, quantity]) => quantity > 0).map(([salgadoId, quantity]) => {
@@ -890,35 +909,63 @@ const CustomizeBoxModal = ({ box, salgados, onClose, addToCart }) => {
     };
 
     return (
-        <div className="fixed inset-0 bg-black/70 z-50 flex justify-center items-center p-4 animate-fade-in">
-            <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col animate-slide-up">
-                <div className="p-4 border-b flex justify-between items-center">
-                    <h2 className="text-xl font-bold text-amber-600">Monte seu {box.name}</h2>
-                    <button onClick={onClose} className="p-1 rounded-full text-stone-500 hover:bg-stone-200"><XCircle /></button>
-                </div>
-                <div className="p-4 overflow-y-auto">
-                    <div className="sticky top-0 bg-white py-2 mb-2 z-10">
-                        <p className="mb-2 text-center text-stone-600">Mínimo de {box.size} salgados. Adicione mais se quiser!</p>
-                        <p className="text-center text-sm text-stone-500">Selecionados: <strong className="text-amber-600">{totalSelected}</strong></p>
+        <div className="fixed inset-0 bg-black/70 z-50 flex justify-center items-end sm:items-center p-0 sm:p-4 animate-fade-in">
+            <div className="bg-white rounded-t-3xl sm:rounded-xl shadow-2xl max-w-lg w-full max-h-[95vh] flex flex-col animate-slide-up overflow-hidden">
+                
+                {/* CABEÇALHO ESTILIZADO E FIXO */}
+                <div className="shrink-0 relative">
+                    {/* Topo em Degradê */}
+                    <div className="h-24 bg-gradient-to-r from-amber-400 to-amber-500 relative flex justify-center">
+                        <button onClick={onClose} className="absolute top-4 right-4 p-2 rounded-full bg-white/30 text-white hover:bg-white/50 backdrop-blur-sm transition-colors z-20">
+                            <XCircle size={24}/>
+                        </button>
+                        
+                        {/* Imagem Centralizada (Avatar) */}
+                        <div className="absolute -bottom-10 w-24 h-24 sm:w-28 sm:h-28 rounded-full border-4 border-white shadow-lg bg-white overflow-hidden z-10">
+                            <img src={box.image} alt={box.name} className="w-full h-full object-cover" onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/200x200/FBBF24/FFFFFF?text=Combo'; }} />
+                        </div>
                     </div>
+                    
+                    {/* Informações da Montagem */}
+                    <div className="pt-12 pb-4 px-4 text-center bg-white border-b shadow-sm z-20 relative">
+                        <h2 className="text-2xl font-black text-amber-600 mb-1 leading-tight">{box.name}</h2>
+                        <p className="text-stone-600 text-sm">Mínimo de <strong className="text-stone-800">{box.size}</strong> salgados. Adicione mais se quiser!</p>
+                        <p className="mt-2 font-bold text-stone-700 text-lg">
+                            Selecionados: <span className={`text-2xl font-black ${totalSelected >= box.size ? 'text-green-500' : 'text-amber-500'}`}>{totalSelected}</span>
+                        </p>
+                        
+                        {/* Botão de Montagem Aleatória */}
+                        <button 
+                            onClick={handleRandomize} 
+                            className="mt-4 inline-flex items-center justify-center gap-2 bg-amber-50 text-amber-700 border border-amber-200 font-bold py-2.5 px-6 rounded-full hover:bg-amber-100 active:scale-95 transition-all text-sm shadow-sm"
+                        >
+                            🎲 Montar Aleatoriamente
+                        </button>
+                    </div>
+                </div>
+
+                {/* ÁREA DE ROLAGEM DOS SALGADOS */}
+                <div className="flex-grow overflow-y-auto p-4 bg-stone-50">
                     <div className="space-y-3">
                         {salgados.map(salgado => (
-                            <div key={salgado.id} className="flex justify-between items-center bg-stone-100 p-3 rounded-md">
+                            <div key={salgado.id} className="flex justify-between items-center bg-white p-3 rounded-xl border border-stone-200 shadow-sm transition-all hover:border-amber-300">
                                 <p className="font-semibold text-stone-700">{salgado.name}</p>
                                 <div className="flex items-center gap-2">
-                                    <button onClick={() => handleSelectionChange(salgado.id, -1)} className="p-1 rounded-full bg-amber-200 text-amber-800 hover:bg-amber-300 disabled:opacity-50 transition-colors active:scale-90" disabled={(selection[salgado.id] || 0) === 0}><MinusCircle size={22} /></button>
-                                    <span className="font-bold w-8 text-center text-lg">{selection[salgado.id] || 0}</span>
-                                    <button onClick={() => handleSelectionChange(salgado.id, 1)} className="p-1 rounded-full bg-amber-200 text-amber-800 hover:bg-amber-300 transition-colors active:scale-90"><PlusCircle size={22} /></button>
-                                    <button onClick={() => handleSelectionChange(salgado.id, 10)} className="text-xs font-bold w-9 h-9 rounded-md bg-amber-300 text-amber-900 hover:bg-amber-400 transition-colors active:scale-90">+10</button>
+                                    <button onClick={() => handleSelectionChange(salgado.id, -1)} className="p-1.5 rounded-full bg-amber-100 text-amber-800 hover:bg-amber-200 disabled:opacity-30 disabled:hover:bg-amber-100 transition-colors active:scale-90" disabled={(selection[salgado.id] || 0) === 0}><MinusCircle size={22} /></button>
+                                    <span className="font-black w-8 text-center text-lg">{selection[salgado.id] || 0}</span>
+                                    <button onClick={() => handleSelectionChange(salgado.id, 1)} className="p-1.5 rounded-full bg-amber-100 text-amber-800 hover:bg-amber-200 transition-colors active:scale-90"><PlusCircle size={22} /></button>
+                                    <button onClick={() => handleSelectionChange(salgado.id, 10)} className="text-xs font-black w-10 h-10 rounded-xl bg-amber-200 text-amber-900 hover:bg-amber-300 transition-colors active:scale-90 shadow-sm">+10</button>
                                 </div>
                             </div>
                         ))}
                     </div>
                 </div>
-                <div className="p-4 border-t mt-auto bg-stone-50 rounded-b-xl">
-                         {error && <p className="text-red-500 text-center text-sm mb-2">{error}</p>}
-                         <button onClick={handleAddToCart} disabled={totalSelected < box.size} className="w-full bg-green-500 text-white font-bold py-3 px-4 rounded-full hover:bg-green-600 transition-all duration-200 disabled:bg-stone-400 flex items-center justify-center gap-2 shadow-sm transform active:scale-95">
-                            <ShoppingCart size={20} /> Adicionar ao Carrinho ({dynamicPrice.toFixed(2)}€)
+                
+                {/* RODAPÉ FIXO */}
+                <div className="shrink-0 p-4 border-t bg-white">
+                         {error && <p className="text-red-500 text-center text-sm font-bold mb-2 animate-bounce">{error}</p>}
+                         <button onClick={handleAddToCart} disabled={totalSelected < box.size} className="w-full bg-green-500 text-white font-bold py-4 px-4 rounded-full hover:bg-green-600 transition-all duration-200 disabled:bg-stone-300 flex items-center justify-center gap-2 shadow-lg transform active:scale-95 text-lg">
+                            <ShoppingCart size={22} /> Adicionar ({dynamicPrice.toFixed(2)}€)
                         </button>
                 </div>
             </div>
@@ -2017,7 +2064,11 @@ const ManageMenu = ({ menu }) => {
         setEditingItem({ name: '', category: 'Salgados Tradicionais', price: 0, image: '', videoUrl: '', description: '', customizable: false, size: 0, minimumOrder: 1, isAvailable: true, requiresScheduling: false, allowedCategories: [], preparationTime: 0, isNew: false, isPromo: false });
     };
     
-    const allCategories = useMemo(() => [...new Set(menu.filter(item => !item.customizable).map(item => item.category))], [menu]);
+    const allCategories = useMemo(() => {
+    const existingCategories = menu.filter(item => !item.customizable && item.category).map(item => item.category);
+    const predefinedCategories = ['Salgados Tradicionais', 'Salgados Especiais', 'Empadas', 'Assados', 'Doces', 'Bebidas'];
+    return [...new Set([...predefinedCategories, ...existingCategories])];
+}, [menu]);
 
     return (
         <div>
