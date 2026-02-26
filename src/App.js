@@ -180,6 +180,7 @@ const ManageUsers = ({ userRole, currentUserEmail, updateUserRole }) => {
 };
 
 function App() {
+    const [showPhoneModal, setShowPhoneModal] = useState(false);
     const [view, setView] = useState('menu');
     const [cart, setCart] = useState([]);
     const [menu, setMenu] = useState([]);
@@ -222,6 +223,30 @@ function App() {
             setAuthLoading(false);
         }
     }, [showToast]); // Removido o 'auth' daqui para o ESLint não reclamar
+
+    const handleSavePhone = async (phone) => {
+    setAuthLoading(true);
+    try {
+        // Utilizamos o ID do app 'salgados-da-bia' conforme definido na sua estrutura
+        const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, user.uid);
+        
+        // Esta operação é permitida pela regra 'allow update' que acabou de publicar no Firestore
+        await updateDoc(userDocRef, { 
+            phone: phone,
+            updatedAt: new Date() 
+        });
+
+        // Atualiza o estado local para refletir a mudança instantaneamente
+        setUserData(prev => ({ ...prev, phone }));
+        setShowPhoneModal(false);
+        showToast("Telemóvel guardado com sucesso! 🥟");
+    } catch (err) {
+        console.error("Erro ao salvar telefone:", err);
+        showToast("Não foi possível guardar o contacto. Tente novamente.");
+    } finally {
+        setAuthLoading(false);
+    }
+    };
 
     useEffect(() => {
         window.handleGoogleCredentialResponse = handleGoogleCredentialResponse;
@@ -300,6 +325,7 @@ function App() {
                 let userRoleStatus = 'customer';
                 if (docSnap.exists()) {
                     const data = docSnap.data(); userRoleStatus = data.role || 'customer'; setUserData(data);
+                    if (!data.phone && !currentUser.isAnonymous) {setShowPhoneModal(true);}
                     if (userRoleStatus === 'admin') requestAdminNotificationPermission(currentUser, appId);
                     else if (!currentUser.isAnonymous) requestUserNotificationPermission(currentUser, appId);
                 } else {
@@ -552,12 +578,16 @@ function App() {
 
     return (
         <div className="bg-stone-50 min-h-screen font-sans text-stone-800" style={{fontFamily: "'Inter', sans-serif"}}>
+        <PhoneModal 
+                isOpen={showPhoneModal} 
+                onSave={handleSavePhone} 
+                loading={authLoading} 
+            />
             {toastMessage && <Toast message={toastMessage} />}
             {view !== 'kitchenView' && view !== 'deliveryView' && <Header cartCount={cartTotalQuantity} setView={setView} user={user} isAdmin={isAdmin} settings={shopSettings}/>}
             <main className={!['kitchenView', 'deliveryView'].includes(view) ? "p-4 md:p-6 max-w-7xl mx-auto" : ""}>
                 {renderView()}
-            </main>
-            
+            </main>            
             <div className={`fixed right-4 z-30 flex flex-col items-end gap-4 transition-all duration-300 ${isCartButtonVisible ? 'bottom-24 md:bottom-4' : 'bottom-6'}`}>
                 {isCartButtonVisible && (
                     <button onClick={() => setView('cart')} className="bg-amber-500 text-white font-bold py-3 px-6 rounded-full hover:bg-amber-600 shadow-lg flex items-center gap-3 transform hover:scale-105 active:scale-100 animate-fade-in-up">
@@ -1521,6 +1551,43 @@ const FeedbackForm = ({ onSubmit }) => {
         </div>
     );
 }
+
+const PhoneModal = ({ isOpen, onSave, loading }) => {
+    const [phone, setPhone] = useState('');
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl animate-pop-in">
+                <div className="text-center">
+                    <div className="bg-amber-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Phone className="text-amber-600" size={30} />
+                    </div>
+                    <h3 className="text-xl font-bold text-stone-800">Só mais um detalhe!</h3>
+                    <p className="text-stone-500 text-sm mt-2">
+                        Precisamos do seu telemóvel para confirmar a entrega dos seus salgados.
+                    </p>
+                </div>
+
+                <form onSubmit={(e) => { e.preventDefault(); onSave(phone); }} className="mt-6 space-y-4">
+                    <input 
+                        type="tel" required value={phone} 
+                        onChange={e => setPhone(e.target.value)}
+                        placeholder="Ex: 912 345 678"
+                        className="w-full px-4 py-3 rounded-xl border-2 border-stone-100 focus:border-amber-400 focus:outline-none text-center text-lg font-medium"
+                    />
+                    <button 
+                        type="submit" disabled={loading || !phone}
+                        className="w-full bg-amber-500 text-white font-bold py-3 rounded-xl hover:bg-amber-600 transition-all flex justify-center items-center gap-2 disabled:bg-stone-300"
+                    >
+                        {loading ? <Loader2 className="animate-spin" size={20} /> : "Concluir e Ver Menu"}
+                    </button>
+                </form>
+            </div>
+        </div>
+    );
+};
 
 const LoginView = ({ handleLogin, error, setView, isAdminLogin = false, authLoading }) => {
     const [email, setEmail] = useState(''); const [password, setPassword] = useState('');
