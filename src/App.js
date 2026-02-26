@@ -732,17 +732,18 @@ const MenuView = ({ menu, addToCart, showStoreClosedToast }) => {
             {boxesMenu.length > 0 && (
                 <div className="relative mb-12 -mx-4 md:-mx-6 px-4 md:px-6 py-8 bg-amber-50 border-y border-amber-200 overflow-hidden shadow-inner">
                     
-                    {/* Fundo Estilizado com Coxinhas e Corações (Marca d'água vetorizada) */}
-                    <div className="absolute inset-0 pointer-events-none flex flex-wrap justify-around items-center gap-4 opacity-[0.06] z-0" aria-hidden="true">
-                        {Array.from({ length: 30 }).map((_, i) => (
+                    {/* Fundo Estilizado com Coxinhas e Corações - Agora Preenche Telas Grandes */}
+                    <div className="absolute inset-0 pointer-events-none flex flex-wrap justify-center content-center gap-6 md:gap-10 opacity-[0.06] z-0" aria-hidden="true">
+                        {/* Aumentamos de 30 para 150 elementos para garantir o preenchimento no Desktop */}
+                        {Array.from({ length: 150 }).map((_, i) => (
                             i % 2 === 0 ? (
                                 /* Ícone de Coxinha Desenhado em SVG */
-                                <svg key={i} width="32" height="32" viewBox="0 0 24 24" fill="currentColor" className="text-amber-900 rotate-12">
+                                <svg key={i} width="32" height="32" viewBox="0 0 24 24" fill="currentColor" className="text-amber-900 rotate-12 flex-shrink-0">
                                     <path d="M12 2C12 2 5 10 5 16C5 19.866 8.134 23 12 23C15.866 23 19 19.866 19 16C19 10 12 2 12 2Z" />
                                 </svg>
                             ) : (
                                 /* Ícone de Coração em SVG */
-                                <svg key={i} width="26" height="26" viewBox="0 0 24 24" fill="currentColor" className="text-amber-900 -rotate-12">
+                                <svg key={i} width="26" height="26" viewBox="0 0 24 24" fill="currentColor" className="text-amber-900 -rotate-12 flex-shrink-0">
                                     <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
                                 </svg>
                             )
