@@ -920,11 +920,11 @@ const CustomizeBoxModal = ({ box, salgados, onClose, addToCart }) => {
                             <XCircle size={24}/>
                         </button>
                         
-                        {/* Imagem Centralizada (Avatar) */}
-                        <div className="absolute -bottom-10 w-24 h-24 sm:w-28 sm:h-28 rounded-full border-4 border-white shadow-lg bg-white overflow-hidden z-10">
-                            <img src={box.image} alt={box.name} className="w-full h-full object-cover" onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/200x200/FBBF24/FFFFFF?text=Combo'; }} />
+                        {/* Imagem Centralizada (Avatar) - CORRIGIDA */}
+                        <div className="absolute -bottom-10 w-24 h-24 sm:w-28 sm:h-28 rounded-full border-4 border-white shadow-lg bg-white overflow-hidden z-10 flex items-center justify-center">
+                            {/* Mudamos 'object-cover' para 'object-contain' e adicionamos um pequeno padding 'p-2' para a foto não tocar na borda branca */}
+                            <img src={box.image} alt={box.name} className="w-full h-full object-contain p-2" onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/200x200/FBBF24/FFFFFF?text=Combo'; }} />
                         </div>
-                    </div>
                     
                     {/* Informações da Montagem */}
                     <div className="pt-12 pb-4 px-4 text-center bg-white border-b shadow-sm z-20 relative">
