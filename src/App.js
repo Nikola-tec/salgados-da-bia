@@ -715,13 +715,11 @@ const MenuView = ({ menu, addToCart, showStoreClosedToast }) => {
             return indexA - indexB;
         });
 
-    // Filtra para separar os combos (Boxes) do resto do cardápio
     const boxesMenu = menu.filter(item => item.category === 'Boxes' && item.isAvailable !== false);
     const otherCategories = categories.filter(category => category !== 'Boxes');
 
     return (
         <div className="animate-fade-in relative">
-            {/* Adicionando estilo embutido para esconder a barra de rolagem horizontal mantendo a funcionalidade */}
             <style>{`
                 .hide-scrollbar::-webkit-scrollbar { display: none; }
                 .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -730,22 +728,38 @@ const MenuView = ({ menu, addToCart, showStoreClosedToast }) => {
             {showStoreClosedToast && <Toast message="A loja está fechada. Pedidos serão processados no próximo horário. Use 'Encomendar'." isWarning={true} />}
             {customizingBox && <CustomizeBoxModal box={customizingBox.box} salgados={customizingBox.availableSalgados} onClose={() => setCustomizingBox(null)} addToCart={addToCart}/>}
             
-            {/* SESSÃO 1: Carrossel Horizontal de Combos (Boxes) */}
+            {/* SESSÃO 1: Tarja Estilizada dos Combos (Boxes) */}
             {boxesMenu.length > 0 && (
-                <div className="mb-10">
-                    <div className="flex justify-between items-end mb-4 border-b-2 border-amber-200 pb-2">
-                        <h2 className="text-2xl md:text-3xl font-bold text-amber-600">Combos Rápidos</h2>
-                        <span className="text-xs text-stone-500 font-semibold animate-pulse mr-2">Deslize ➔</span>
-                    </div>
+                <div className="relative mb-12 -mx-4 md:-mx-6 px-4 md:px-6 py-8 bg-amber-50 border-y border-amber-200 overflow-hidden shadow-inner">
                     
-                    <div className="flex overflow-x-auto gap-4 pb-4 pt-2 snap-x snap-mandatory scroll-smooth hide-scrollbar px-1">
-                        {boxesMenu.map(box => (
-                            <BoxCarouselCard 
-                                key={box.id} 
-                                item={box} 
-                                onClick={() => box.customizable ? handleCustomizeClick(box) : addToCart(box)} 
-                            />
+                    {/* Fundo Estilizado com Coxinhas e Corações (Marca d'água vetorizada) */}
+                    <div className="absolute inset-0 pointer-events-none flex flex-wrap justify-around items-center gap-4 opacity-[0.06] z-0" aria-hidden="true">
+                        {Array.from({ length: 30 }).map((_, i) => (
+                            i % 2 === 0 ? (
+                                /* Ícone de Coxinha Desenhado em SVG */
+                                <svg key={i} width="32" height="32" viewBox="0 0 24 24" fill="currentColor" className="text-amber-900 rotate-12">
+                                    <path d="M12 2C12 2 5 10 5 16C5 19.866 8.134 23 12 23C15.866 23 19 19.866 19 16C19 10 12 2 12 2Z" />
+                                </svg>
+                            ) : (
+                                /* Ícone de Coração em SVG */
+                                <svg key={i} width="26" height="26" viewBox="0 0 24 24" fill="currentColor" className="text-amber-900 -rotate-12">
+                                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                                </svg>
+                            )
                         ))}
+                    </div>
+
+                    {/* Container do Carrossel */}
+                    <div className="relative z-10">
+                        <div className="flex overflow-x-auto gap-4 snap-x snap-mandatory scroll-smooth hide-scrollbar px-1 py-2">
+                            {boxesMenu.map(box => (
+                                <BoxCarouselCard 
+                                    key={box.id} 
+                                    item={box} 
+                                    onClick={() => box.customizable ? handleCustomizeClick(box) : addToCart(box)} 
+                                />
+                            ))}
+                        </div>
                     </div>
                 </div>
             )}
