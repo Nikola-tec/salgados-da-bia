@@ -210,7 +210,7 @@ function App() {
         const result = await signInWithCredential(auth, credential);
         const loggedUser = result.user;
 
-        // 3. Verifica/Cria o perfil do cliente no Firestore para pedidos em Portugal
+        // 3. Garante que o perfil do cliente existe no Firestore com o papel correto
         const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, loggedUser.uid);
         const docSnap = await getDoc(userDocRef);
 
@@ -220,13 +220,13 @@ function App() {
                 email: loggedUser.email,
                 photoURL: loggedUser.photoURL,
                 addresses: [],
-                role: 'customer',
+                role: 'customer', // Define como cliente para compras em Portugal
                 createdAt: new Date()
             });
         }
 
         showToast(`Bem-vindo(a), ${loggedUser.displayName.split(' ')[0]}! 🥟`);
-        setView('menu'); 
+        setView('menu'); // MUDA A TELA PARA O CARDÁPIO AUTOMATICAMENTE
     } catch (err) {
         console.error("Erro no SSO Google:", err);
         setError('Não foi possível entrar com o Google. Tente novamente.');
@@ -1588,9 +1588,27 @@ const LoginView = ({ handleLogin, error, setView, isAdminLogin = false, authLoad
 const SignUpView = ({ handleSignUp, error, setView, authLoading }) => {
     const [name, setName] = useState(''); const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [confirmPassword, setConfirmPassword] = useState(''); const [localError, setLocalError] = useState('');
     const handleSubmit = (e) => { e.preventDefault(); if (password !== confirmPassword) { setLocalError('As senhas não coincidem.'); return; } setLocalError(''); handleSignUp(email, password, name); };
+    
+    useEffect(() => {
+        if (window.google) {
+            window.google.accounts.id.renderButton(
+                document.getElementById("googleSignUpDiv"),
+                { theme: "outline", size: "large", width: "100%", shape: "pill", text: "signup_with" }
+            );
+        }
+    }, []);
+
     return (
         <div className="max-w-sm mx-auto mt-10 bg-white p-8 rounded-xl shadow-xl animate-fade-in">
             <h2 className="text-2xl font-bold text-center mb-6">Criar Conta</h2>
+            <div className="mb-6">
+                <div id="googleSignUpDiv" className="w-full"></div>
+                <div className="relative flex py-5 items-center">
+                    <div className="flex-grow border-t border-stone-200"></div>
+                    <span className="flex-shrink mx-4 text-stone-400 text-xs uppercase">ou</span>
+                    <div className="flex-grow border-t border-stone-200"></div>
+                </div>
+            </div>
             <form onSubmit={handleSubmit} className="space-y-4">
                  <div><label className="block text-stone-700 font-bold mb-2">Nome Completo</label><input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400" required /></div>
                  <div><label className="block text-stone-700 font-bold mb-2">Email</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400" required /></div>
@@ -1603,7 +1621,7 @@ const SignUpView = ({ handleSignUp, error, setView, authLoading }) => {
             </form>
         </div>
     );
-}
+    }
 
 const AddressForm = ({ address, onSave, onCancel, showToast }) => {
     const [formData, setFormData] = useState(address || { cep: '', street: '', number: '', district: '', city: '', state: '', lat: null, lng: null });
