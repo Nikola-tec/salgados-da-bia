@@ -108,11 +108,65 @@ const requestAdminNotificationPermission = async (currentUser, currentAppId) => 
 };
 
 const getCoordsFromAddress = async (address, cep) => {
-    return { lat: 40.6589, lng: -7.9138, address: { street: "Av. Emídio Navarro", number: "123", district: "Centro", city: "Viseu", state: "Viseu", cep: "3500-038" } };
+    // Usa a chave de API já configurada no seu ambiente
+    const apiKey = firebaseConfig.apiKey; 
+    const queryTerm = encodeURIComponent(`${address ? address + ', ' : ''}${cep ? cep + ', ' : ''}Portugal`);
+    
+    try {
+        const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${queryTerm}&key=${apiKey}`);
+        const data = await response.json();
+        
+        if (data.results && data.results.length > 0) {
+            const loc = data.results[0].geometry.location;
+            const components = data.results[0].address_components;
+            
+            // Tenta extrair os dados da rua, cidade, etc.
+            const getComponent = (type) => {
+                const comp = components.find(c => c.types.includes(type));
+                return comp ? comp.long_name : '';
+            };
+
+            return { 
+                lat: loc.lat, 
+                lng: loc.lng, 
+                address: { 
+                    street: getComponent('route') || address || '', 
+                    number: getComponent('street_number') || '', 
+                    district: getComponent('sublocality') || getComponent('neighborhood') || '', 
+                    city: getComponent('administrative_area_level_2') || getComponent('locality') || '', 
+                    state: getComponent('administrative_area_level_1') || '', 
+                    cep: getComponent('postal_code') || cep || '' 
+                } 
+            };
+        }
+    } catch (error) {
+        console.error("Erro na API do Google Maps:", error);
+    }
+    return null;
 };
 
 const getAddressFromCoords = async (lat, lng) => {
-    return { street: "Rua Fictícia (Geolocalização)", number: "S/N", district: "Bairro Exemplo", city: "Viseu", state: "Viseu", cep: "3500-100" };
+    const apiKey = firebaseConfig.apiKey;
+    try {
+        const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`);
+        const data = await response.json();
+        if (data.results && data.results.length > 0) {
+            const components = data.results[0].address_components;
+            const getComponent = (type) => {
+                const comp = components.find(c => c.types.includes(type));
+                return comp ? comp.long_name : '';
+            };
+            return { 
+                street: getComponent('route'), 
+                number: getComponent('street_number') || 'S/N', 
+                district: getComponent('sublocality') || getComponent('neighborhood'), 
+                city: getComponent('administrative_area_level_2') || getComponent('locality'), 
+                state: getComponent('administrative_area_level_1'), 
+                cep: getComponent('postal_code') 
+            };
+        }
+    } catch (error) { console.error("Erro no Geocoding Reverso", error); }
+    return null;
 };
 
 const getDistanceFromCoords = async (lat1, lng1, lat2, lng2) => {
@@ -372,10 +426,23 @@ function App() {
         }, handleSnapshotError('cardápio')); 
 
         const ordersRef = collection(db, `artifacts/${appId}/public/data/orders`);
-        const unsubscribeOrders = onSnapshot(ordersRef, (snapshot) => {
+        
+        let ordersQuery = ordersRef;
+        // Se for cliente, filtra apenas os pedidos dele
+        if (userRole === 'customer') {
+            if (auth.currentUser) {
+                ordersQuery = query(ordersRef, where('userId', '==', auth.currentUser.uid));
+            } else {
+                return; // Anônimos não buscam histórico de pedidos global
+            }
+        }
+
+        const unsubscribeOrders = onSnapshot(ordersQuery, (snapshot) => {
             const ordersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setOrders(ordersData.sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis()));
-        }, handleSnapshotError('pedidos')); 
+        }, (err) => { 
+            console.warn("Pedidos aguardando autenticação ou permissão."); 
+        });
         
         const feedbackRef = collection(db, `artifacts/${appId}/public/data/feedback`);
         const unsubscribeFeedbacks = onSnapshot(feedbackRef, (snapshot) => {
@@ -1607,7 +1674,7 @@ const LoginView = ({ handleLogin, error, setView, isAdminLogin = false, authLoad
             });
             window.google.accounts.id.renderButton(
                 document.getElementById("googleSignInDiv"),
-                { theme: "outline", size: "large", width: "100%", shape: "pill" }
+                { theme: "outline", size: "large", shape: "pill", width: 300 }
             );
         }
     }, [isAdminLogin]);
@@ -1691,10 +1758,23 @@ const AddressForm = ({ address, onSave, onCancel, showToast }) => {
             try { const addressResult = await getAddressFromCoords(position.coords.latitude, position.coords.longitude); if (addressResult) { setFormData({ ...addressResult, lat: position.coords.latitude, lng: position.coords.longitude, }); showToast("Localização atual preenchida com sucesso!"); } else { setFormError('Não foi possível encontrar um endereço para esta localização.'); } } catch (error) { setFormError('Erro ao buscar endereço pela localização.'); } finally { setCepLoading(false); }
         }, (error) => { setFormError(`Erro de localização: ${error.message}`); setCepLoading(false); });
     }
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => { // Adicione async aqui
         e.preventDefault();
         if (!formData.street || !formData.number || !formData.district || !formData.city) { setFormError('Preencha todos os campos de endereço obrigatórios.'); return; }
-        if (!formData.lat || !formData.lng) { setFormError('Endereço inválido. Tente usar o CEP ou "Localização Atual".'); return; }
+        
+        // Se não tem lat/lng, busca na API do Google agora antes de salvar
+        if (!formData.lat || !formData.lng) { 
+            setFormError('Buscando coordenadas do endereço...');
+            const result = await getCoordsFromAddress(`${formData.street}, ${formData.number}, ${formData.district}, ${formData.city}`, formData.cep);
+            if (result) {
+                formData.lat = result.lat;
+                formData.lng = result.lng;
+            } else {
+                setFormError('Não foi possível validar este endereço no mapa. Verifique se os dados estão corretos.'); 
+                return; 
+            }
+        }
+        
         setFormError(''); onSave(formData);
     };
 
