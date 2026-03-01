@@ -381,7 +381,10 @@ function App() {
         const unsubscribeFeedbacks = onSnapshot(feedbackRef, (snapshot) => {
             const feedbackData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data()}));
             setFeedbacks(feedbackData);
-        }, handleSnapshotError('feedbacks')); 
+        }, (err) => { 
+            // Falha silenciosamente se o usuário não tiver permissão de ler os feedbacks ainda
+            console.warn("Feedbacks aguardando autenticação."); 
+        });
 
         const settingsRef = doc(db, `artifacts/${appId}/public/data/settings`, 'shopConfig');
         populateInitialSettings(settingsRef, INITIAL_SHOP_SETTINGS); 
@@ -394,7 +397,7 @@ function App() {
 
     const addToCart = (item, customization, priceOverride) => {
         const applyMinimumOrder = cart.length === 0;
-        const quantityToAdd = item.customizable ? 1 : (applyMinimumOrder && item.minimumOrder > 1 ? item.minimumOrder : 1);
+        const quantityToAdd = item.customizable ? 1 : (item.minimumOrder || 1);
         const finalPrice = priceOverride !== undefined ? priceOverride : item.price;
         const finalItem = { ...item, price: finalPrice };
     
@@ -1233,6 +1236,10 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
 
     const validateScheduledTime = (date, time) => {
         if (!date || !time) return '';
+        if (shopSettings.holidays && shopSettings.holidays.includes(date)) {
+        return 'A loja estará fechada nesta data. Por favor, escolha outro dia.';
+        }
+
         const interval = getWorkingInterval(shopSettings.workingHours, date);
         if (!interval) return 'A loja está fechada na data selecionada. Por favor, escolha outro dia.';
         
