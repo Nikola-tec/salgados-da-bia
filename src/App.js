@@ -10,7 +10,7 @@ import {
 import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 import { 
     getFirestore, collection, onSnapshot, doc, addDoc, updateDoc, 
-    deleteDoc, getDocs, writeBatch, setDoc, getDoc, arrayUnion, query, orderBy
+    deleteDoc, getDocs, writeBatch, setDoc, getDoc, arrayUnion, query, orderBy, where
 } from 'firebase/firestore';
 import { 
     ChefHat, ShoppingCart, User, LogOut, PlusCircle, MinusCircle, Edit, 
