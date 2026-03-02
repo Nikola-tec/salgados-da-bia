@@ -109,69 +109,79 @@ const requestAdminNotificationPermission = async (currentUser, currentAppId) => 
 };
 
 const getCoordsFromAddress = async (address, cep) => {
-    const apiKey = firebaseConfig.apiKey; 
+    // Formata a busca garantindo que vai procurar em Portugal
     const queryTerm = encodeURIComponent(`${address ? address + ', ' : ''}${cep ? cep + ', ' : ''}Portugal`);
     
     try {
-        const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${queryTerm}&key=${apiKey}`);
-        const data = await response.json();
-        
-        // --- NOSSO RADAR DE ERROS DA API ---
-        if (data.status !== 'OK') {
-            console.error("🚨 API Google Maps falhou. Status:", data.status, "| Mensagem:", data.error_message);
-            return null; // Força o erro no frontend para sabermos que a API recusou
+        // TENTATIVA 1: Google Maps (Se a API estiver configurada e liberada)
+        if (firebaseConfig && firebaseConfig.apiKey) {
+            const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${queryTerm}&key=${firebaseConfig.apiKey}`);
+            const data = await res.json();
+            if (data.status === 'OK' && data.results.length > 0) {
+                const loc = data.results[0].geometry.location;
+                const components = data.results[0].address_components;
+                const getComp = (type) => { const c = components.find(x => x.types.includes(type)); return c ? c.long_name : ''; };
+                return { 
+                    lat: loc.lat, lng: loc.lng, 
+                    address: { 
+                        street: getComp('route') || address || '', number: getComp('street_number') || '', 
+                        district: getComp('sublocality') || getComp('neighborhood') || '', 
+                        city: getComp('administrative_area_level_2') || getComp('locality') || '', 
+                        state: getComp('administrative_area_level_1') || '', cep: getComp('postal_code') || cep || '' 
+                    } 
+                };
+            }
         }
-        // -----------------------------------
         
-        if (data.results && data.results.length > 0) {
-            const loc = data.results[0].geometry.location;
-            const components = data.results[0].address_components;
-            
-            const getComponent = (type) => {
-                const comp = components.find(c => c.types.includes(type));
-                return comp ? comp.long_name : '';
-            };
-
-            return { 
-                lat: loc.lat, 
-                lng: loc.lng, 
-                address: { 
-                    street: getComponent('route') || address || '', 
-                    number: getComponent('street_number') || '', 
-                    district: getComponent('sublocality') || getComponent('neighborhood') || '', 
-                    city: getComponent('administrative_area_level_2') || getComponent('locality') || '', 
-                    state: getComponent('administrative_area_level_1') || '', 
-                    cep: getComponent('postal_code') || cep || '' 
-                } 
+        // TENTATIVA 2 (A BALA DE PRATA): OpenStreetMap - Grátis e não requer chave!
+        const osmRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${queryTerm}&format=json&addressdetails=1&limit=1`);
+        const osmData = await osmRes.json();
+        if (osmData && osmData.length > 0) {
+            const place = osmData[0];
+            return {
+                lat: parseFloat(place.lat), lng: parseFloat(place.lon),
+                address: {
+                    street: place.address?.road || address || '', number: place.address?.house_number || '',
+                    district: place.address?.suburb || place.address?.neighbourhood || '',
+                    city: place.address?.city || place.address?.town || '',
+                    state: place.address?.state || '', cep: place.address?.postcode || cep || ''
+                }
             };
         }
-    } catch (error) {
-        console.error("🚨 Erro de conexão com a API do Google:", error);
-    }
+    } catch (error) { console.error("Erro na busca de endereço:", error); }
     return null;
 };
 
 const getAddressFromCoords = async (lat, lng) => {
-    const apiKey = firebaseConfig.apiKey;
     try {
-        const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`);
-        const data = await response.json();
-        if (data.results && data.results.length > 0) {
-            const components = data.results[0].address_components;
-            const getComponent = (type) => {
-                const comp = components.find(c => c.types.includes(type));
-                return comp ? comp.long_name : '';
-            };
-            return { 
-                street: getComponent('route'), 
-                number: getComponent('street_number') || 'S/N', 
-                district: getComponent('sublocality') || getComponent('neighborhood'), 
-                city: getComponent('administrative_area_level_2') || getComponent('locality'), 
-                state: getComponent('administrative_area_level_1'), 
-                cep: getComponent('postal_code') 
+        // TENTATIVA 1: Google Maps
+        if (firebaseConfig && firebaseConfig.apiKey) {
+            const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${firebaseConfig.apiKey}`);
+            const data = await res.json();
+            if (data.status === 'OK' && data.results.length > 0) {
+                const components = data.results[0].address_components;
+                const getComp = (type) => { const c = components.find(x => x.types.includes(type)); return c ? c.long_name : ''; };
+                return { 
+                    street: getComp('route'), number: getComp('street_number') || 'S/N', 
+                    district: getComp('sublocality') || getComp('neighborhood'), 
+                    city: getComp('administrative_area_level_2') || getComp('locality'), 
+                    state: getComp('administrative_area_level_1'), cep: getComp('postal_code') 
+                };
+            }
+        }
+
+        // TENTATIVA 2: OpenStreetMap
+        const osmRes = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
+        const osmData = await osmRes.json();
+        if (osmData && osmData.address) {
+            return {
+                street: osmData.address.road || '', number: osmData.address.house_number || 'S/N',
+                district: osmData.address.suburb || osmData.address.neighbourhood || '',
+                city: osmData.address.city || osmData.address.town || '',
+                state: osmData.address.state || '', cep: osmData.address.postcode || ''
             };
         }
-    } catch (error) { console.error("Erro no Geocoding Reverso", error); }
+    } catch (error) { console.error("Erro no Geocoding Reverso:", error); }
     return null;
 };
 
@@ -1223,6 +1233,10 @@ const CartView = ({ cart, updateQuantity, cartTotal, setView, emptyCart, user })
 };
 
 const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView, initialError, user, userData, authLoading, shopSettings, storeOpen, getWorkingInterval }) => {
+    // Limpa os erros da tela sempre que o cliente trocar a aba de entrega
+    useEffect(() => {
+        setFormError('');
+    }, [deliveryMethod]);
     const isLargeOrder = cartTotalQuantity >= 150;
     const hasScheduledItem = cart.some(item => item.requiresScheduling);
     const forceScheduling = isLargeOrder || hasScheduledItem || !storeOpen;
@@ -1552,7 +1566,7 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
                         <p className="text-xl">Total a Pagar: <span className="font-bold text-2xl">{finalTotal.toFixed(2)}€</span></p>
                     </div>
 
-                    <button type="submit" disabled={authLoading || isCalculatingDistance || !!deliveryError || formError || (deliveryMethod === 'schedule' && validateScheduledTime(scheduledDate, scheduledTime)) || (deliveryMethod === 'pickup' && validatePickupTime(pickupTime))} className="w-full bg-green-500 text-white font-bold py-3 rounded-full hover:bg-green-600 transition-colors text-lg shadow hover:shadow-lg active:scale-95 flex justify-center items-center disabled:bg-stone-400">
+                    <button type="submit" disabled={authLoading || isCalculatingDistance || !!deliveryError || (deliveryMethod === 'schedule' && validateScheduledTime(scheduledDate, scheduledTime)) || (deliveryMethod === 'pickup' && validatePickupTime(pickupTime))} className="w-full bg-green-500 text-white font-bold py-3 rounded-full hover:bg-green-600 transition-colors text-lg shadow hover:shadow-lg active:scale-95 flex justify-center items-center disabled:bg-stone-400">
                         {authLoading || isCalculatingDistance ? <Loader2 className="animate-spin" /> : "Confirmar Pedido"}
                     </button>
                     <button type="button" onClick={() => setView('cart')} className="w-full mt-3 text-center text-stone-600 hover:underline">Voltar ao Carrinho</button>
@@ -1753,7 +1767,7 @@ const AddressForm = ({ address, onSave, onCancel, showToast }) => {
     const [cepLoading, setCepLoading] = useState(false); const [formError, setFormError] = useState('');
     const handleChange = (e) => { const { name, value, type } = e.target; const val = type === 'number' ? parseFloat(value) || 0 : value; setFormData(prev => ({...prev, [name]: val})); };
     const handleCepLookup = async (cep) => {
-        const cleanedCep = cep.replace(/\D/g, ''); if (cleanedCep.length < 7) return;
+        const cleanedCep = cep.replace(/[^\d-]/g, ''); if (cleanedCep.length < 7) return;
         setCepLoading(true); setFormError('');
         try { const result = await getCoordsFromAddress(null, cleanedCep); if (result && result.address) { setFormData(prev => ({ ...prev, ...result.address, lat: result.lat, lng: result.lng, })); } else { setFormError("CEP não encontrado ou inválido."); } } catch (e) { setFormError("Erro ao buscar CEP."); } finally { setCepLoading(false); }
     };
@@ -1829,11 +1843,26 @@ const AccountSettingsView = ({ user, userData, showToast, setView, db, appId }) 
     
     const handleSaveAddress = async (newAddressData) => {
         try {
-            const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, user.uid); let updatedAddresses = [...addresses];
-            if (newAddressData.id) { updatedAddresses = updatedAddresses.map(addr => addr.id === newAddressData.id ? newAddressData : addr); } 
-            else { if (!newAddressData.lat || !newAddressData.lng) { showToast("Erro: Endereço sem coordenadas."); return; } const newId = crypto.randomUUID(); updatedAddresses.push({ ...newAddressData, id: newId }); }
-            await updateDoc(userDocRef, { addresses: updatedAddresses }); showToast("Endereço salvo com sucesso!"); setEditingAddress(null);
-        } catch (error) { showToast("Erro ao salvar endereço."); }
+            const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, user.uid); 
+            let updatedAddresses = [...addresses];
+            
+            // HIGIENIZADOR: Remove campos undefined
+            const cleanAddress = Object.fromEntries(Object.entries(newAddressData).filter(([_, v]) => v !== undefined));
+
+            if (cleanAddress.id) { 
+                updatedAddresses = updatedAddresses.map(addr => addr.id === cleanAddress.id ? cleanAddress : addr); 
+            } else { 
+                if (!cleanAddress.lat || !cleanAddress.lng) { showToast("Erro: Endereço sem coordenadas."); return; } 
+                const newId = crypto.randomUUID(); 
+                updatedAddresses.push({ ...cleanAddress, id: newId }); 
+            }
+            await updateDoc(userDocRef, { addresses: updatedAddresses }); 
+            showToast("Endereço salvo com sucesso!"); 
+            setEditingAddress(null);
+        } catch (error) { 
+            console.error(error);
+            showToast("Erro ao salvar endereço."); 
+        }
     };
     
     const handleDeleteAddressConfirm = async () => {
@@ -2180,7 +2209,7 @@ const AdminSettings = ({showToast, currentSettings}) => {
     useEffect(() => { setSettings(prev => ({ ...prev, ...currentSettings })); }, [currentSettings]);
     
     const handlePickupCepLookup = async () => {
-        const cep = settings.pickupCep; if (!cep || cep.replace(/\D/g, '').length < 7) return;
+        const cep = settings.pickupCep; if (!cep || cep.replace(/[^\d-]/g, '').length < 7) return;
         setCepLoading(true);
         try {
             const result = await getCoordsFromAddress(null, cep);
