@@ -1233,14 +1233,13 @@ const CartView = ({ cart, updateQuantity, cartTotal, setView, emptyCart, user })
 };
 
 const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView, initialError, user, userData, authLoading, shopSettings, storeOpen, getWorkingInterval }) => {
-    // Limpa os erros da tela sempre que o cliente trocar a aba de entrega
-    useEffect(() => {
-        setFormError('');
-    }, [deliveryMethod]);
+    
+    // 1. Variáveis comuns primeiro
     const isLargeOrder = cartTotalQuantity >= 150;
     const hasScheduledItem = cart.some(item => item.requiresScheduling);
     const forceScheduling = isLargeOrder || hasScheduledItem || !storeOpen;
 
+    // 2. Declaração do deliveryMethod (AGORA ELE EXISTE)
     const [deliveryMethod, setDeliveryMethod] = useState(forceScheduling ? 'schedule' : 'deliver');
     const addresses = useMemo(() => user?.addresses || [], [user?.addresses]);
     
@@ -1257,7 +1256,14 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
     const [scheduledDate, setScheduledDate] = useState('');
     const [scheduledTime, setScheduledTime] = useState('');
     
+    // 3. Declaração do formError
     const [formError, setFormError] = useState('');
+    
+    // 4. AQUI ESTÁ A CORREÇÃO: O useEffect agora sabe quem é o deliveryMethod e o setFormError!
+    useEffect(() => {
+        setFormError('');
+    }, [deliveryMethod]);
+
     const [deliveryFee, setDeliveryFee] = useState(0);
     const [deliveryDistance, setDeliveryDistance] = useState(0);
     const [isCalculatingDistance, setIsCalculatingDistance] = useState(false);
@@ -1273,54 +1279,6 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
     
     useEffect(() => { if (forceScheduling) setDeliveryMethod('schedule'); }, [forceScheduling]);
     
-    useEffect(() => {
-        if (deliveryMethod !== 'deliver') {
-            setDeliveryFee(0); setDeliveryDistance(0); setDeliveryError(''); return;
-        }
-
-        let targetAddress = null;
-        if (isAddingNewAddress && newAddressDetails.lat && newAddressDetails.lng) targetAddress = newAddressDetails;
-        else if (selectedAddress) targetAddress = addresses.find(a => a.id === selectedAddress);
-
-        if (!targetAddress) {
-            setDeliveryFee(0); setDeliveryDistance(0); setDeliveryError(''); return;
-        }
-
-        const calculateFee = async () => {
-            setIsCalculatingDistance(true); setDeliveryError('');
-            const originLat = shopSettings.storeLatitude; const originLng = shopSettings.storeLongitude;
-            const destLat = targetAddress.lat; const destLng = targetAddress.lng;
-
-            if (!originLat || !originLng || !destLat || !destLng) {
-                setDeliveryError("Endereço da loja ou do cliente inválido."); setIsCalculatingDistance(false); return;
-            }
-
-            try {
-                const distanceMeters = await getDistanceFromCoords(originLat, originLng, destLat, destLng);
-                if (distanceMeters === null) {
-                    setDeliveryError("Não foi possível calcular a rota para este endereço."); setIsCalculatingDistance(false); return;
-                }
-                
-                const distanceKm = distanceMeters / 1000;
-                setDeliveryDistance(distanceKm);
-
-                const maxRadius = shopSettings.deliveryMaxRadiusKm || 17;
-                if (distanceKm > maxRadius) {
-                    setDeliveryError(`Lamentamos, este endereço está a ${distanceKm.toFixed(1)} KM. O nosso limite atual é ${maxRadius} KM. Por favor, escolha "Retirar" ou "Encomendar".`);
-                    setDeliveryFee(0); setIsCalculatingDistance(false); return;
-                }
-
-                if (distanceKm < 1) setDeliveryFee(0);
-                else {
-                    const pricePerKm = shopSettings.deliveryPricePerKm || 1;
-                    setDeliveryFee(distanceKm * pricePerKm);
-                }
-            } catch (error) { setDeliveryError("Erro ao calcular a taxa de entrega."); } 
-            finally { setIsCalculatingDistance(false); }
-        };
-        calculateFee();
-    }, [deliveryMethod, selectedAddress, isAddingNewAddress, newAddressDetails, addresses, shopSettings]);
-
     const validateScheduledTime = (date, time) => {
         if (!date || !time) return '';
         if (shopSettings.holidays && shopSettings.holidays.includes(date)) {
