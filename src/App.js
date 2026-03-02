@@ -109,7 +109,6 @@ const requestAdminNotificationPermission = async (currentUser, currentAppId) => 
 };
 
 const getCoordsFromAddress = async (address, cep) => {
-    // Usa a chave de API já configurada no seu ambiente
     const apiKey = firebaseConfig.apiKey; 
     const queryTerm = encodeURIComponent(`${address ? address + ', ' : ''}${cep ? cep + ', ' : ''}Portugal`);
     
@@ -117,11 +116,17 @@ const getCoordsFromAddress = async (address, cep) => {
         const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${queryTerm}&key=${apiKey}`);
         const data = await response.json();
         
+        // --- NOSSO RADAR DE ERROS DA API ---
+        if (data.status !== 'OK') {
+            console.error("🚨 API Google Maps falhou. Status:", data.status, "| Mensagem:", data.error_message);
+            return null; // Força o erro no frontend para sabermos que a API recusou
+        }
+        // -----------------------------------
+        
         if (data.results && data.results.length > 0) {
             const loc = data.results[0].geometry.location;
             const components = data.results[0].address_components;
             
-            // Tenta extrair os dados da rua, cidade, etc.
             const getComponent = (type) => {
                 const comp = components.find(c => c.types.includes(type));
                 return comp ? comp.long_name : '';
@@ -141,7 +146,7 @@ const getCoordsFromAddress = async (address, cep) => {
             };
         }
     } catch (error) {
-        console.error("Erro na API do Google Maps:", error);
+        console.error("🚨 Erro de conexão com a API do Google:", error);
     }
     return null;
 };
@@ -1358,7 +1363,7 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
     };
 
     const handleCepLookup = async (cep) => {
-        const cleanedCep = cep.replace(/\D/g, ''); if (cleanedCep.length < 7) return; 
+        const cleanedCep = cep.replace(/[^\d-]/g, ''); if (cleanedCep.length < 7) return;
         setCepLoading(true); setFormError('');
         try {
             const result = await getCoordsFromAddress(null, cleanedCep);
@@ -2542,7 +2547,6 @@ const DeliveryView = ({ orders, setView, updateOrderStatus, trackingOrderId, sto
                      </div>
                 ))}
              </div>
-        <Analytics /> {/* <--- Adicione esta linha aqui */}
         </div>
     ); 
 }
