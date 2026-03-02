@@ -1,6 +1,7 @@
 /* eslint-disable no-undef, no-unused-vars */
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
+import { Analytics } from '@vercel/analytics/react';
 import { 
     getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
     onAuthStateChanged, signOut, signInAnonymously, updateProfile,
@@ -2541,6 +2542,7 @@ const DeliveryView = ({ orders, setView, updateOrderStatus, trackingOrderId, sto
                      </div>
                 ))}
              </div>
+             <Analytics /> {/* <--- Adicione esta linha aqui */}
         </div>
     ); 
 }
