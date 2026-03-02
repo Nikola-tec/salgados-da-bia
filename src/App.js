@@ -2542,7 +2542,7 @@ const DeliveryView = ({ orders, setView, updateOrderStatus, trackingOrderId, sto
                      </div>
                 ))}
              </div>
-             <Analytics /> {/* <--- Adicione esta linha aqui */}
+        <Analytics /> {/* <--- Adicione esta linha aqui */}
         </div>
     ); 
 }
