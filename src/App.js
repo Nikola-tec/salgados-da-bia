@@ -649,6 +649,7 @@ function App() {
 
     return (
         <div className="bg-stone-50 min-h-screen font-sans text-stone-800" style={{fontFamily: "'Inter', sans-serif"}}>
+        <Analytics />
         <PhoneModal 
                 isOpen={showPhoneModal} 
                 onSave={handleSavePhone} 
@@ -2542,7 +2543,6 @@ const DeliveryView = ({ orders, setView, updateOrderStatus, trackingOrderId, sto
                      </div>
                 ))}
              </div>
-             <Analytics /> {/* <--- Adicione esta linha aqui */}
         </div>
     ); 
 }
