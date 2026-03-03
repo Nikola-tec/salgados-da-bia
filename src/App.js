@@ -660,7 +660,7 @@ function App() {
     };
 
     if (!isAuthReady) return <div className="flex justify-center items-center h-screen bg-amber-50"><ChefHat className="animate-spin text-amber-500" size={64} /></div>;
-    const isCartButtonVisible = (view === 'menu' || view === 'cart') && cart.length > 0;
+    const isCartButtonVisible = view === 'menu' && cart.length > 0;
 
     return (
         <div className="bg-stone-50 min-h-screen font-sans text-stone-800" style={{fontFamily: "'Inter', sans-serif"}}>
