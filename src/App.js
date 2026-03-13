@@ -193,7 +193,7 @@ const getDistanceFromCoords = async (lat1, lng1, lat2, lng2) => {
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
       return R * c; 
     }
-    return haversine(lat1, lng1, lat2, lng2) + (Math.random() * 1000);
+    return haversine(lat1, lng1, lat2, lng2);
 };
 
 const useCartTotals = (cartTotal, userData, deliveryFee) => {
@@ -1278,6 +1278,64 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
     const maxPrepTime = useMemo(() => cart.reduce((max, item) => Math.max(max, item.preparationTime || 0), 0), [cart]);
     
     useEffect(() => { if (forceScheduling) setDeliveryMethod('schedule'); }, [forceScheduling]);
+
+    // MOTOR DE CÁLCULO DE TAXA DE ENTREGA
+    useEffect(() => {
+        // Se for retirada no local, zera a taxa
+        if (deliveryMethod === 'pickup') {
+            setDeliveryFee(0); setDeliveryDistance(0); setDeliveryError(''); return;
+        }
+
+        let targetAddress = null;
+        if (isAddingNewAddress && newAddressDetails.lat && newAddressDetails.lng) {
+            targetAddress = newAddressDetails;
+        } else if (selectedAddress) {
+            targetAddress = addresses.find(a => a.id === selectedAddress);
+        }
+
+        if (!targetAddress || !targetAddress.lat || !targetAddress.lng) {
+            setDeliveryFee(0); setDeliveryDistance(0); setDeliveryError(''); return;
+        }
+
+        const calculateFee = async () => {
+            setIsCalculatingDistance(true); setDeliveryError('');
+            const originLat = shopSettings.storeLatitude; 
+            const originLng = shopSettings.storeLongitude;
+            const destLat = targetAddress.lat; 
+            const destLng = targetAddress.lng;
+
+            if (!originLat || !originLng || !destLat || !destLng) {
+                setDeliveryError("Endereço da loja ou do cliente inválido."); setIsCalculatingDistance(false); return;
+            }
+
+            try {
+                const distanceMeters = await getDistanceFromCoords(originLat, originLng, destLat, destLng);
+                if (distanceMeters === null) {
+                    setDeliveryError("Não foi possível calcular a rota para este endereço."); setIsCalculatingDistance(false); return;
+                }
+                
+                const distanceKm = distanceMeters / 1000;
+                setDeliveryDistance(distanceKm);
+
+                const maxRadius = shopSettings.deliveryMaxRadiusKm || 17;
+                if (distanceKm > maxRadius) {
+                    setDeliveryError(`Lamentamos, este endereço está a ${distanceKm.toFixed(1)} KM. O nosso limite atual é ${maxRadius} KM. Por favor, escolha "Retirar" no local.`);
+                    setDeliveryFee(0); setIsCalculatingDistance(false); return;
+                }
+
+                // Cálculo Final do Preço (KM * Preço por KM)
+                const pricePerKm = shopSettings.deliveryPricePerKm || 1;
+                setDeliveryFee(distanceKm * pricePerKm);
+                
+            } catch (error) { 
+                setDeliveryError("Erro ao calcular a taxa de entrega."); 
+            } finally { 
+                setIsCalculatingDistance(false); 
+            }
+        };
+        
+        calculateFee();
+    }, [deliveryMethod, selectedAddress, isAddingNewAddress, newAddressDetails, addresses, shopSettings]);
     
     const validateScheduledTime = (date, time) => {
         if (!date || !time) return '';
