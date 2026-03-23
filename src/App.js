@@ -645,10 +645,19 @@ function App() {
         return `http://googleusercontent.com/maps.google.com/${origin}&destination=${clientLat},${clientLng}&travelmode=driving`;
     };
 
+    const initialOrdersLoaded = useRef(false);
     const previousOrdersRef = useRef(null);
+
     useEffect(() => {
         if (!user || !userRole) return;
-        if (previousOrdersRef.current === null) { previousOrdersRef.current = orders; return; }
+        
+        // TRAVA MÁGICA: Impede que os pedidos antigos apitem no primeiro carregamento
+        if (!initialOrdersLoaded.current) { 
+            if (orders.length > 0) initialOrdersLoaded.current = true;
+            previousOrdersRef.current = orders; 
+            return; 
+        }
+        
         const previousOrders = previousOrdersRef.current;
         if (userRole === 'customer') {
             orders.forEach(currentOrder => {
@@ -736,10 +745,10 @@ function App() {
 }
 
 const Toast = ({ message, isWarning = false }) => (
-     <div className={`fixed bottom-10 left-1/2 transform -translate-x-1/2 ${isWarning ? 'bg-red-600' : 'bg-stone-800'} text-white py-3 px-6 rounded-full shadow-2xl z-[9999] transition-all duration-300 font-bold border ${isWarning ? 'border-red-400' : 'border-stone-600'}`}>
-        <p className="flex items-center justify-center gap-2 whitespace-nowrap">
-            {isWarning ? <AlertTriangle size={18}/> : <CheckCircle size={18} className="text-green-400"/>} 
-            {message}
+     <div className={`fixed bottom-10 left-1/2 transform -translate-x-1/2 ${isWarning ? 'bg-red-600' : 'bg-stone-800'} text-white py-3 px-6 rounded-2xl shadow-2xl z-[9999] transition-all duration-300 font-bold border ${isWarning ? 'border-red-400' : 'border-stone-600'} w-max max-w-[90vw] text-center`}>
+        <p className="flex items-center justify-center gap-2">
+            {isWarning ? <AlertTriangle className="flex-shrink-0" size={18}/> : <CheckCircle className="flex-shrink-0" size={18} className="text-green-400"/>} 
+            <span>{message}</span>
         </p>
     </div>
 );
@@ -1776,14 +1785,14 @@ const LoginView = ({ handleLogin, error, setView, isAdminLogin = false, authLoad
             });
             window.google.accounts.id.renderButton(
                 document.getElementById("googleSignInDiv"),
-                { theme: "outline", size: "large", shape: "pill", width: 300 }
+                { theme: "outline", size: "large", shape: "pill", width: 250 }
             );
         }
     }, [isAdminLogin]);
 
     const handleSubmit = (e) => { e.preventDefault(); handleLogin(email, password); };
     return (
-        <div className="max-w-sm mx-auto mt-10 bg-white p-8 rounded-xl shadow-xl animate-fade-in">
+        <div className="max-w-sm mx-auto mt-10 bg-white p-6 sm:p-8 rounded-xl shadow-xl animate-fade-in">
             <h2 className="text-2xl font-bold text-center mb-6">{isAdminLogin ? 'Acesso Gestão' : 'Entrar na sua Conta'}</h2>
             {!isAdminLogin && (
                 <div className="mb-6">
@@ -2524,11 +2533,13 @@ const ManageOrders = ({ orders, updateOrderStatus, updateOrderSchedule }) => {
                                  {order.isScheduled && (
                                     <div className="mt-1">
                                         {editingScheduleId === order.id ? (
-                                            <div className="flex items-center gap-2 mt-2 bg-blue-50 p-2 rounded-lg border border-blue-200 w-fit">
-                                                <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} className="p-1.5 text-sm border border-blue-300 rounded focus:ring-2 focus:ring-blue-400 outline-none" required/>
-                                                <input type="time" value={editTime} onChange={e => setEditTime(e.target.value)} className="p-1.5 text-sm border border-blue-300 rounded focus:ring-2 focus:ring-blue-400 outline-none" required/>
-                                                <button onClick={() => handleSaveSchedule(order.id)} className="text-green-600 hover:text-green-800 transition-colors p-1" title="Salvar"><CheckCircle size={20}/></button>
-                                                <button onClick={() => setEditingScheduleId(null)} className="text-red-600 hover:text-red-800 transition-colors p-1" title="Cancelar"><XCircle size={20}/></button>
+                                            <div className="flex flex-wrap items-center gap-2 mt-2 bg-blue-50 p-2 rounded-lg border border-blue-200 w-full sm:w-fit">
+                                                <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} className="p-1.5 text-sm border border-blue-300 rounded focus:ring-2 focus:ring-blue-400 outline-none flex-grow sm:flex-grow-0" required/>
+                                                <input type="time" value={editTime} onChange={e => setEditTime(e.target.value)} className="p-1.5 text-sm border border-blue-300 rounded focus:ring-2 focus:ring-blue-400 outline-none flex-grow sm:flex-grow-0" required/>
+                                                <div className="flex gap-1 justify-end w-full sm:w-auto mt-1 sm:mt-0">
+                                                    <button onClick={() => handleSaveSchedule(order.id)} className="text-green-600 hover:text-green-800 transition-colors p-1" title="Salvar"><CheckCircle size={24}/></button>
+                                                    <button onClick={() => setEditingScheduleId(null)} className="text-red-600 hover:text-red-800 transition-colors p-1" title="Cancelar"><XCircle size={24}/></button>
+                                                </div>
                                             </div>
                                         ) : (
                                             <p className="text-sm font-bold text-blue-600 flex items-center gap-2 mt-1">
@@ -2762,11 +2773,17 @@ const ManageAgenda = ({ currentSettings, showToast }) => {
                     <h4 className="font-bold text-lg mb-4 text-amber-600 flex items-center gap-2"><Clock size={20}/> Horário Semanal</h4>
                     <div className="space-y-3">
                         {daysOfWeek.map(day => (
-                            <div key={day} className={`flex items-center p-3 rounded-xl border ${settings.workingHours[day]?.open ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-                                <p className="font-semibold w-32">{dayNameMap[day]}</p>
-                                <div className="flex items-center gap-4 flex-grow">
-                                     <button onClick={() => handleToggleOpen(day, !settings.workingHours[day]?.open)} className={`px-3 py-1 text-sm font-bold rounded-full transition-colors ${settings.workingHours[day]?.open ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-green-500 text-white hover:bg-green-600'}`}>{settings.workingHours[day]?.open ? 'Fechar' : 'Abrir'}</button>
-                                     {settings.workingHours[day]?.open ? (<div className="flex items-center gap-2"><input type="time" value={settings.workingHours[day]?.start || '00:00'} onChange={(e) => handleHourChange(day, 'start', e.target.value)} className="p-2 border rounded-xl" /><span className="font-bold">-</span><input type="time" value={settings.workingHours[day]?.end || '00:00'} onChange={(e) => handleHourChange(day, 'end', e.target.value)} className="p-2 border rounded-xl" /></div>) : (<span className="text-sm text-stone-500">Fechado o dia todo</span>)}
+                            <div key={day} className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl border gap-3 ${settings.workingHours[day]?.open ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                                <p className="font-semibold sm:w-32">{dayNameMap[day]}</p>
+                                <div className="flex items-center gap-3 sm:gap-4 justify-between w-full sm:w-auto">
+                                     <button onClick={() => handleToggleOpen(day, !settings.workingHours[day]?.open)} className={`px-3 py-1.5 text-xs sm:text-sm font-bold rounded-full transition-colors ${settings.workingHours[day]?.open ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-green-500 text-white hover:bg-green-600'}`}>{settings.workingHours[day]?.open ? 'Fechar' : 'Abrir'}</button>
+                                     {settings.workingHours[day]?.open ? (
+                                         <div className="flex items-center gap-1 sm:gap-2">
+                                             <input type="time" value={settings.workingHours[day]?.start || '00:00'} onChange={(e) => handleHourChange(day, 'start', e.target.value)} className="p-1.5 sm:p-2 border rounded-lg text-sm w-24 sm:w-auto" />
+                                             <span className="font-bold">-</span>
+                                             <input type="time" value={settings.workingHours[day]?.end || '00:00'} onChange={(e) => handleHourChange(day, 'end', e.target.value)} className="p-1.5 sm:p-2 border rounded-lg text-sm w-24 sm:w-auto" />
+                                         </div>
+                                     ) : (<span className="text-sm text-stone-500 text-right flex-grow">Fechado</span>)}
                                 </div>
                             </div>
                         ))}
