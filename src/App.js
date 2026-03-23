@@ -357,15 +357,36 @@ function App() {
     const storeOpen = useMemo(() => {
         if (!shopSettings.workingHours || !shopSettings.storeTimezone) return false;
         try {
-            const now = new Date(new Date().toLocaleString("en-US", { timeZone: shopSettings.storeTimezone }));
-            const todayDate = now.toISOString().split('T')[0];
+            // 1. Pega a data e hora exatas no fuso horário da loja (Portugal)
+            const ptDateString = new Date().toLocaleString("en-US", { timeZone: shopSettings.storeTimezone });
+            const now = new Date(ptDateString);
+            
+            // 2. Extrai a data (YYYY-MM-DD) com segurança para verificar Feriados
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const todayDate = `${year}-${month}-${day}`;
+            
             if (shopSettings.holidays && shopSettings.holidays.includes(todayDate)) return false;
+            
+            // 3. Verifica o dia da semana
             const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][now.getDay()];
             const hours = shopSettings.workingHours[dayOfWeek];
+            
             if (!hours || !hours.open) return false;
-            const currentTime = now.toTimeString().slice(0, 5); 
-            if (hours.start > hours.end) return currentTime >= hours.start || currentTime < hours.end;
-            else return currentTime >= hours.start && currentTime < hours.end;
+            
+            // 4. Extrai a hora atual (HH:MM) com segurança para não bugar no Safari/iPhone
+            const currentHour = String(now.getHours()).padStart(2, '0');
+            const currentMinute = String(now.getMinutes()).padStart(2, '0');
+            const currentTime = `${currentHour}:${currentMinute}`;
+            
+            if (hours.start > hours.end) {
+                // Se for um turno que passa da meia-noite
+                return currentTime >= hours.start || currentTime < hours.end;
+            } else {
+                // Turno normal do dia
+                return currentTime >= hours.start && currentTime < hours.end;
+            }
         } catch (e) { return false; }
     }, [shopSettings]);
     
@@ -1507,6 +1528,45 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
                 <p className="text-xs text-stone-500">Para alterar estes dados, vá para <button type="button" onClick={() => setView('accountSettings')} className="font-bold underline">Minha Conta</button>.</p>
             </div>
 
+            <div className="bg-stone-100 p-4 rounded-xl mb-4 space-y-2">
+                <div><span className="font-bold text-stone-600">Nome: </span><span>{name || "Não definido"}</span></div>
+                <div><span className="font-bold text-stone-600">Telefone: </span><span>{phone || "Não definido"}</span></div>
+                <p className="text-xs text-stone-500">Para alterar estes dados, vá para <button type="button" onClick={() => setView('accountSettings')} className="font-bold underline">Minha Conta</button>.</p>
+            </div>
+
+            {/* AQUI ESTÁ A CORREÇÃO: O Modal do Mapa foi movido para FORA do <form> principal */}
+            {showAddressModal && (
+                <AddressForm 
+                    address={null}
+                    onSave={async (data) => {
+                        const cleanAddress = Object.fromEntries(Object.entries(data).filter(([_, v]) => v !== undefined));
+                        
+                        if (user && !user.isAnonymous) {
+                            try {
+                                const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, user.uid); 
+                                const newId = crypto.randomUUID(); 
+                                const addressToSave = { ...cleanAddress, id: newId };
+                                const updatedAddresses = [...addresses, addressToSave];
+                                
+                                await updateDoc(userDocRef, { addresses: updatedAddresses }); 
+                                setSelectedAddress(newId);
+                                setIsAddingNewAddress(false);
+                                if(showToast) showToast("Endereço salvo na sua conta!");
+                            } catch (error) { 
+                                setFormError("Erro ao salvar endereço.");
+                            }
+                        } else {
+                            setNewAddressDetails(cleanAddress);
+                            setIsAddingNewAddress(true);
+                            setSelectedAddress(null);
+                        }
+                        setShowAddressModal(false);
+                    }}
+                    onCancel={() => setShowAddressModal(false)}
+                    showToast={showToast}
+                />
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4">
                  {(deliveryMethod === 'deliver' || (deliveryMethod === 'schedule' && !isAddingNewAddress)) && (
                      <div className="p-4 bg-stone-50 rounded-xl border">
@@ -1521,47 +1581,11 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
                             </div>
                          )}
                          
-                        {/* NOVO BOTÃO QUE ABRE O MODAL */}
                         <button type="button" onClick={() => setShowAddressModal(true)} className="text-amber-600 font-semibold text-sm hover:underline flex items-center gap-1 mt-2">
                             <Plus size={16}/> Adicionar Novo Endereço
                         </button>
                      </div>
                  )}
-
-                {/* O MODAL PROFISSIONAL COM MAPA */}
-                {showAddressModal && (
-                    <AddressForm 
-                        address={null}
-                        onSave={async (data) => {
-                            const cleanAddress = Object.fromEntries(Object.entries(data).filter(([_, v]) => v !== undefined));
-                            
-                            // Se o cliente tem conta, salva direto no perfil para sempre!
-                            if (user && !user.isAnonymous) {
-                                try {
-                                    const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, user.uid); 
-                                    const newId = crypto.randomUUID(); 
-                                    const addressToSave = { ...cleanAddress, id: newId };
-                                    const updatedAddresses = [...addresses, addressToSave];
-                                    
-                                    await updateDoc(userDocRef, { addresses: updatedAddresses }); 
-                                    setSelectedAddress(newId);
-                                    setIsAddingNewAddress(false);
-                                    if(showToast) showToast("Endereço salvo na sua conta!");
-                                } catch (error) { 
-                                    setFormError("Erro ao salvar endereço.");
-                                }
-                            } else {
-                                // Se for cliente visitante, salva temporariamente apenas para este pedido
-                                setNewAddressDetails(cleanAddress);
-                                setIsAddingNewAddress(true);
-                                setSelectedAddress(null);
-                            }
-                            setShowAddressModal(false);
-                        }}
-                        onCancel={() => setShowAddressModal(false)}
-                        showToast={showToast}
-                    />
-                )}
 
                 {/* EXIBIÇÃO DO ENDEREÇO TEMPORÁRIO (Caso o cliente seja visitante sem conta) */}
                 {isAddingNewAddress && !selectedAddress && !showAddressModal && (
