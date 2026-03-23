@@ -747,7 +747,7 @@ function App() {
 const Toast = ({ message, isWarning = false }) => (
      <div className={`fixed bottom-10 left-1/2 transform -translate-x-1/2 ${isWarning ? 'bg-red-600' : 'bg-stone-800'} text-white py-3 px-6 rounded-2xl shadow-2xl z-[9999] transition-all duration-300 font-bold border ${isWarning ? 'border-red-400' : 'border-stone-600'} w-max max-w-[90vw] text-center`}>
         <p className="flex items-center justify-center gap-2">
-            {isWarning ? <AlertTriangle className="flex-shrink-0" size={18}/> : <CheckCircle className="flex-shrink-0" size={18} className="text-green-400"/>} 
+            {isWarning ? <AlertTriangle className="flex-shrink-0" size={18}/> : <CheckCircle className="flex-shrink-0 text-green-400" size={18}/>} 
             <span>{message}</span>
         </p>
     </div>
