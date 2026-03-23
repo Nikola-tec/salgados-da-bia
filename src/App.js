@@ -219,10 +219,12 @@ const useCartTotals = (cartTotal, userData, deliveryFee) => {
     }, [cartTotal, userData, deliveryFee]);
 };
 
-const ManageUsers = ({ userRole, currentUserEmail, updateUserRole }) => {
+const ManageUsers = ({ userRole, currentUserEmail, updateUserRole, showToast }) => {
     const [allUsers, setAllUsers] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState(''); // NOVO: Barra de pesquisa
+    const [searchTerm, setSearchTerm] = useState('');
+    const [openActionMenu, setOpenActionMenu] = useState(null); // Controla qual menu de ações está aberto
+    const [userToDelete, setUserToDelete] = useState(null); // Controla o modal de eliminação
 
     useEffect(() => {
         if (userRole !== 'admin' || !db || !firebaseInitialized) return;
@@ -236,6 +238,30 @@ const ManageUsers = ({ userRole, currentUserEmail, updateUserRole }) => {
         return () => unsubscribe();
     }, [userRole]);
 
+    // LÓGICA DE EXCLUSÃO
+    const handleDeleteConfirm = async () => {
+        if (!userToDelete) return;
+        try {
+            await deleteDoc(doc(db, `artifacts/${appId}/public/data/users`, userToDelete.id));
+            if(showToast) showToast("Utilizador eliminado com sucesso da base de dados!");
+            setUserToDelete(null);
+            setOpenActionMenu(null);
+        } catch (error) {
+            if(showToast) showToast("Erro ao eliminar utilizador.");
+        }
+    };
+
+    // LÓGICA DE BLOQUEIO
+    const toggleBlockUser = async (uid, isCurrentlyBlocked) => {
+        try {
+            await updateDoc(doc(db, `artifacts/${appId}/public/data/users`, uid), { isBlocked: !isCurrentlyBlocked });
+            if(showToast) showToast(isCurrentlyBlocked ? "✅ Utilizador desbloqueado!" : "🚫 Utilizador bloqueado com sucesso!");
+            setOpenActionMenu(null);
+        } catch (error) {
+            if(showToast) showToast("Erro ao atualizar o status do utilizador.");
+        }
+    };
+
     const roles = {
         'customer': { label: 'Cliente', color: 'bg-stone-100 text-stone-600' },
         'admin': { label: 'Administrador', color: 'bg-red-100 text-red-700 border-red-200' },
@@ -243,7 +269,6 @@ const ManageUsers = ({ userRole, currentUserEmail, updateUserRole }) => {
         'delivery': { label: 'Entregador', color: 'bg-blue-100 text-blue-700' }
     };
 
-    // Filtro inteligente para a barra de pesquisa
     const filteredUsers = allUsers.filter(user => 
         (user.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
         (user.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -254,7 +279,8 @@ const ManageUsers = ({ userRole, currentUserEmail, updateUserRole }) => {
 
     return (
         <div className="p-0 sm:p-2 animate-fade-in">
-            {/* CABEÇALHO COM PESQUISA */}
+            {userToDelete && <ConfirmDeleteModal title="Eliminar Cliente" message={`Tem a certeza absoluta que deseja eliminar o perfil de ${userToDelete.name || 'este cliente'}? Todo o histórico associado pode ser perdido.`} onConfirm={handleDeleteConfirm} onCancel={() => setUserToDelete(null)} confirmText="Sim, Eliminar" />}
+            
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-b pb-4">
                 <h2 className="text-2xl font-bold text-stone-800 flex items-center gap-2">
                     <Users className="text-amber-500" /> Agenda de Contatos ({filteredUsers.length})
@@ -271,36 +297,65 @@ const ManageUsers = ({ userRole, currentUserEmail, updateUserRole }) => {
                 </div>
             </div>
 
-            {/* GRADE DE CARTÕES DE CONTATO */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {filteredUsers.map((user) => {
                     const userRoleInfo = roles[user.role] || roles['customer'];
                     const initials = (user.name || 'C').substring(0, 2).toUpperCase();
-                    // Limpa o número para usar no link do WhatsApp
                     const phoneNumbersOnly = user.phone ? user.phone.replace(/\D/g, '') : '';
-                    // Se tiver pelo menos 8 números, considera um WhatsApp válido
                     const hasWhatsapp = phoneNumbersOnly.length >= 8;
 
                     return (
                         <div key={user.id} className={`flex flex-col bg-white rounded-2xl border ${user.role === 'admin' ? 'border-red-200 shadow-md' : 'border-stone-200 shadow-sm hover:shadow-md hover:border-amber-300'} overflow-hidden transition-all duration-300`}>
                             
-                            {/* Topo do Cartão: Nome, Email e Tag */}
                             <div className={`p-4 flex items-start gap-4 ${user.role === 'admin' ? 'bg-red-50/50' : 'bg-stone-50/50'} border-b border-stone-100`}>
-                                <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center font-black text-lg flex-shrink-0 shadow-inner">
+                                <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center font-black text-lg flex-shrink-0 shadow-inner relative">
                                     {initials}
                                 </div>
                                 <div className="flex-1 overflow-hidden">
-                                    <h3 className="font-bold text-lg text-stone-800 truncate" title={user.name}>{user.name || 'Sem Nome'}</h3>
+                                    <h3 className="font-bold text-lg text-stone-800 truncate" title={user.name}>
+                                        {user.name || 'Sem Nome'}
+                                        {user.isBlocked && <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-red-600 text-white ml-2 align-middle uppercase tracking-widest shadow-sm">Bloqueado</span>}
+                                    </h3>
                                     <p className="text-xs text-stone-500 truncate mt-0.5" title={user.email}>{user.email}</p>
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 mt-1.5 inline-block rounded-full border ${userRoleInfo.color}`}>{userRoleInfo.label}</span>
                                 </div>
-                                <div className="flex-shrink-0">
-                                    <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${userRoleInfo.color}`}>
-                                        {userRoleInfo.label}
-                                    </span>
+                                
+                                {/* NOVO: BOTÃO DE AÇÕES */}
+                                <div className="flex-shrink-0 relative">
+                                    <button onClick={() => setOpenActionMenu(openActionMenu === user.id ? null : user.id)} className="text-xs font-bold text-stone-600 bg-white border border-stone-200 hover:bg-amber-100 hover:border-amber-300 hover:text-amber-700 px-3 py-1.5 rounded-lg transition-all shadow-sm flex items-center gap-1 active:scale-95">
+                                        Ações ▼
+                                    </button>
+                                    
+                                    {openActionMenu === user.id && (
+                                        <>
+                                            {/* Fundo invisível para fechar ao clicar fora */}
+                                            <div className="fixed inset-0 z-40" onClick={() => setOpenActionMenu(null)}></div>
+                                            
+                                            <div className="absolute right-0 top-9 w-48 bg-white border border-stone-200 shadow-2xl rounded-xl py-2 z-50 animate-fade-in flex flex-col overflow-hidden">
+                                                {hasWhatsapp ? (
+                                                    <a href={`https://wa.me/${phoneNumbersOnly}?text=${encodeURIComponent('Olá! Temos novidades deliciosas. Venha fazer o seu pedido de forma rápida no nosso novo App: https://salgadosdabia.com')}`} target="_blank" rel="noopener noreferrer" className="px-4 py-2.5 text-sm text-stone-700 hover:bg-blue-50 hover:text-blue-600 flex items-center gap-2 font-semibold transition-colors">
+                                                        <Send size={16} className="text-blue-500"/> Convidar para o App
+                                                    </a>
+                                                ) : (
+                                                    <span className="px-4 py-2.5 text-sm text-stone-300 flex items-center gap-2 font-semibold cursor-not-allowed" title="Sem telemóvel">
+                                                        <Send size={16}/> Convidar para o App
+                                                    </span>
+                                                )}
+                                                
+                                                <button onClick={() => toggleBlockUser(user.id, user.isBlocked)} disabled={user.email === currentUserEmail} className="px-4 py-2.5 text-sm text-stone-700 hover:bg-orange-50 hover:text-orange-600 flex items-center gap-2 text-left w-full font-semibold border-y border-stone-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+                                                    {user.isBlocked ? <CheckCircle size={16} className="text-green-500"/> : <XCircle size={16} className="text-orange-500"/>} 
+                                                    {user.isBlocked ? 'Desbloquear Acesso' : 'Bloquear Acesso'}
+                                                </button>
+                                                
+                                                <button onClick={() => setUserToDelete(user)} disabled={user.email === currentUserEmail || user.role === 'admin'} className="px-4 py-2.5 text-sm text-stone-700 hover:bg-red-50 hover:text-red-600 flex items-center gap-2 text-left w-full font-semibold transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+                                                    <Trash2 size={16} className="text-red-500"/> Eliminar Cliente
+                                                </button>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             </div>
 
-                            {/* Corpo do Cartão: Telefone e Morada */}
                             <div className="p-4 flex-1 space-y-3">
                                 <div className="flex items-center gap-3 text-sm text-stone-600">
                                     <Phone size={16} className="text-stone-400 flex-shrink-0" />
@@ -319,16 +374,15 @@ const ManageUsers = ({ userRole, currentUserEmail, updateUserRole }) => {
                                 </div>
                             </div>
 
-                            {/* Rodapé: Acesso Discreto e Botão WhatsApp */}
                             <div className="p-3 bg-stone-50 border-t border-stone-100 flex items-center justify-between gap-2 h-14">
                                 <div className="flex flex-col justify-center">
-                                    <label htmlFor={`role-${user.id}`} className="text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-0.5">Nível de Acesso</label>
+                                    <label htmlFor={`role-${user.id}`} className="text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-0.5">Mudar Perfil</label>
                                     <select 
                                         id={`role-${user.id}`} 
                                         value={user.role || 'customer'} 
                                         disabled={user.email === currentUserEmail} 
                                         onChange={(e) => updateUserRole(user.id, e.target.value)} 
-                                        className="bg-transparent border-none text-xs font-bold text-stone-700 cursor-pointer focus:ring-0 p-0 hover:text-amber-600 transition-colors outline-none"
+                                        className="bg-transparent border-none text-xs font-bold text-stone-700 cursor-pointer focus:ring-0 p-0 hover:text-amber-600 transition-colors outline-none disabled:opacity-50"
                                     >
                                         {Object.entries(roles).map(([key, {label}]) => (<option key={key} value={key}>{label}</option>))}
                                     </select>
@@ -336,20 +390,10 @@ const ManageUsers = ({ userRole, currentUserEmail, updateUserRole }) => {
 
                                 <div className="flex gap-2">
                                     {user.email === currentUserEmail && (
-                                        <span className="bg-stone-200 text-stone-500 text-[10px] font-bold px-2 py-1 rounded flex items-center h-8">
-                                            SEU PERFIL
-                                        </span>
+                                        <span className="bg-stone-200 text-stone-500 text-[10px] font-bold px-2 py-1 rounded flex items-center h-8">SEU PERFIL</span>
                                     )}
                                     {hasWhatsapp && (
-                                        <a 
-                                            href={`https://wa.me/${phoneNumbersOnly}`} 
-                                            target="_blank" 
-                                            rel="noopener noreferrer"
-                                            className="bg-green-100 text-green-700 hover:bg-green-500 hover:text-white px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 text-xs font-bold shadow-sm active:scale-95"
-                                            title="Falar no WhatsApp"
-                                        >
-                                            <MessageSquare size={16} /> <span>WhatsApp</span>
-                                        </a>
+                                        <a href={`https://wa.me/${phoneNumbersOnly}`} target="_blank" rel="noopener noreferrer" className="bg-green-100 text-green-700 hover:bg-green-500 hover:text-white px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 text-xs font-bold shadow-sm active:scale-95" title="Falar no WhatsApp"><MessageSquare size={16} /> <span>WhatsApp</span></a>
                                     )}
                                 </div>
                             </div>
@@ -358,10 +402,7 @@ const ManageUsers = ({ userRole, currentUserEmail, updateUserRole }) => {
                 })}
             </div>
             {filteredUsers.length === 0 && (
-                <div className="text-center py-12">
-                    <Users size={48} className="mx-auto text-stone-300 mb-4" />
-                    <p className="text-stone-500 font-semibold">Nenhum contato encontrado com essa pesquisa.</p>
-                </div>
+                <div className="text-center py-12"><Users size={48} className="mx-auto text-stone-300 mb-4" /><p className="text-stone-500 font-semibold">Nenhum contato encontrado com essa pesquisa.</p></div>
             )}
         </div>
     );
@@ -691,7 +732,13 @@ function App() {
     
     const placeOrder = async (customerDetails) => {
         if (!user || user.isAnonymous) { setError("Por favor, faça login para finalizar o pedido."); setView('customerLogin'); return; }
+        if (userData?.isBlocked) { 
+            setError("A sua conta está temporariamente suspensa. Por favor, contacte o suporte via WhatsApp."); 
+            return; 
+        }
+
         setAuthLoading(true);
+
         try {
             const { subtotal, hasDiscount, discountAmount, finalTotal } = customerDetails;
             const deliveryDetails = (customerDetails.lat && customerDetails.lng) ? { deliveryTracker: { lat: currentLat, lng: currentLng, lastUpdate: null, active: false } } : {};
@@ -2443,7 +2490,7 @@ const AdminDashboard = ({ menu, orders, feedbacks, handleLogout, showToast, sett
             case 'faturamento': return <FaturamentoView orders={orders} />;
             case 'feedbacks': return <FeedbacksView feedbacks={feedbacks} showToast={showToast} />;
             case 'manageAgenda': return <ManageAgenda currentSettings={settings} showToast={showToast} db={db} appId={appId}/>;
-            case 'manageUsers': return <ManageUsers userRole={'admin'} currentUserEmail={currentUserEmail} updateUserRole={updateUserRole} />;
+            case 'manageUsers': return <ManageUsers userRole={'admin'} currentUserEmail={currentUserEmail} updateUserRole={updateUserRole} showToast={showToast} />;
             default: return <AdminStats orders={orders} />;
         }
     }
