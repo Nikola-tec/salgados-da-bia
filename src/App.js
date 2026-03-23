@@ -1817,6 +1817,36 @@ const SignUpView = ({ handleSignUp, error, setView, authLoading }) => {
     );
 }
 
+const LocationMarker = ({ position, setPosition, onDragEnd }) => {
+    const map = useMapEvents({
+        click(e) {
+            setPosition(e.latlng);
+            map.flyTo(e.latlng, map.getZoom());
+            onDragEnd(e.latlng.lat, e.latlng.lng);
+        },
+    });
+
+    const markerRef = useRef(null);
+    const eventHandlers = useMemo(() => ({
+        dragend() {
+            const marker = markerRef.current;
+            if (marker != null) {
+                const latlng = marker.getLatLng();
+                setPosition(latlng);
+                onDragEnd(latlng.lat, latlng.lng);
+            }
+        },
+    }), [setPosition, onDragEnd]);
+
+    useEffect(() => {
+        if (position) map.flyTo(position, 17);
+    }, [position, map]);
+
+    return position === null ? null : (
+        <Marker draggable={true} eventHandlers={eventHandlers} position={position} ref={markerRef} />
+    );
+};
+
 const AddressForm = ({ address, onSave, onCancel, showToast }) => {
     const [formData, setFormData] = useState(address || { cep: '', street: '', number: '', district: '', city: '', state: '', lat: null, lng: null });
     const [cepLoading, setCepLoading] = useState(false); 
