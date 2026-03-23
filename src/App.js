@@ -25,6 +25,17 @@ import {
     ResponsiveContainer, PieChart, Pie, Cell 
 } from 'recharts';
 
+import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+    iconRetinaUrl: require('leaflet/dist/images/marker-icon-2x.png'),
+    iconUrl: require('leaflet/dist/images/marker-icon.png'),
+    shadowUrl: require('leaflet/dist/images/marker-shadow.png'),
+});
+
 let firebaseConfig;
 try {
   if (typeof __firebase_config !== 'undefined' && __firebase_config) { firebaseConfig = JSON.parse(__firebase_config); } 
@@ -536,13 +547,14 @@ function App() {
         } catch (err) { setError('Email ou senha inválidos.'); } finally { setAuthLoading(false); }
     };
     
-    const handleSignUp = async (email, password, name) => {
+    const handleSignUp = async (email, password, name, phone) => {
         setAuthLoading(true); setError('');
         try {
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
             await updateProfile(userCredential.user, { displayName: name });
             const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, userCredential.user.uid);
-            await setDoc(userDocRef, { name, email, addresses: [], hasGivenFeedback: false, hasFeedbackDiscount: false, notificationTokens: [], role: 'customer' });
+            // TRAVA DE SEGURANÇA: Agora o 'phone' é guardado no momento da criação da conta
+            await setDoc(userDocRef, { name, email, phone, addresses: [], hasGivenFeedback: false, hasFeedbackDiscount: false, notificationTokens: [], role: 'customer' });
             setUserRole('customer'); setView('cart');
         } catch(err) { setError('Não foi possível criar a conta.'); } finally { setAuthLoading(false); }
     }
@@ -596,6 +608,17 @@ function App() {
         await updateDoc(orderRef, updateData);
     };
 
+    const updateOrderSchedule = async (orderId, newDate, newTime) => {
+        try {
+            const orderRef = doc(db, `artifacts/${appId}/public/data/orders/${orderId}`);
+            await updateDoc(orderRef, { scheduledDate: newDate, scheduledTime: newTime });
+            showToast(`Agendamento do pedido atualizado com sucesso!`);
+        } catch (error) {
+            console.error(error);
+            showToast("Erro ao atualizar o agendamento.");
+        }
+    };
+
     const getGoogleMapsLink = (order) => {
         const clientLat = order.lat || 40.66; const clientLng = order.lng || -7.92; const origin = `${currentLat},${currentLng}`;
         return `http://googleusercontent.com/maps.google.com/${origin}&destination=${clientLat},${clientLng}&travelmode=driving`;
@@ -636,11 +659,11 @@ function App() {
         if (userRole === 'admin') {
              switch (view) {
                 case 'admin': case 'dashboard': case 'orders': case 'menu': case 'faturamento': case 'feedbacks': case 'manageAgenda': case 'settings': case 'manageUsers':
-                    return <AdminDashboard menu={menu} orders={orders} feedbacks={feedbacks} handleLogout={handleLogout} showToast={showToast} settings={shopSettings} setView={setView} updateOrderStatus={updateOrderStatus} updateUserRole={updateUserRole} currentUserEmail={user.email} userRole={userRole}/>;
+                    return <AdminDashboard menu={menu} orders={orders} feedbacks={feedbacks} handleLogout={handleLogout} showToast={showToast} settings={shopSettings} setView={setView} updateOrderStatus={updateOrderStatus} updateOrderSchedule={updateOrderSchedule} updateUserRole={updateUserRole} currentUserEmail={user.email} userRole={userRole}/>;
                 case 'kitchenView': return <KitchenView orders={orders.filter(o => ['Pendente', 'Em Preparo'].includes(o.status))} setView={setView} updateOrderStatus={updateOrderStatus} />;
                 case 'deliveryView': return <DeliveryView orders={orders.filter(o => o.status === 'Pronto para Entrega' || o.status === 'Saiu para Entrega')} setView={setView} updateOrderStatus={updateOrderStatus} trackingOrderId={trackingOrderId} stopTracking={stopTracking} startTracking={startTracking} getGoogleMapsLink={getGoogleMapsLink} currentLat={currentLat} currentLng={currentLng} />;
                 case 'crm': return <CRMView orders={orders} setView={setView} db={db} showToast={showToast} />;
-                default: return <AdminDashboard menu={menu} orders={orders} feedbacks={feedbacks} handleLogout={handleLogout} showToast={showToast} settings={shopSettings} setView={setView} updateOrderStatus={updateOrderStatus} updateUserRole={updateUserRole} currentUserEmail={user.email} userRole={userRole} />;
+                default: return <AdminDashboard menu={menu} orders={orders} feedbacks={feedbacks} handleLogout={handleLogout} showToast={showToast} settings={shopSettings} setView={setView} updateOrderStatus={updateOrderStatus} updateOrderSchedule={updateOrderSchedule} updateUserRole={updateUserRole} currentUserEmail={user.email} userRole={userRole} />;
             }
         }
         if (userRole === 'kitchen') return <KitchenView orders={orders.filter(o => ['Pendente', 'Em Preparo'].includes(o.status))} setView={setView} updateOrderStatus={updateOrderStatus} />;
@@ -1741,8 +1764,20 @@ const LoginView = ({ handleLogin, error, setView, isAdminLogin = false, authLoad
 }
 
 const SignUpView = ({ handleSignUp, error, setView, authLoading }) => {
-    const [name, setName] = useState(''); const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [confirmPassword, setConfirmPassword] = useState(''); const [localError, setLocalError] = useState('');
-    const handleSubmit = (e) => { e.preventDefault(); if (password !== confirmPassword) { setLocalError('As senhas não coincidem.'); return; } setLocalError(''); handleSignUp(email, password, name); };
+    const [name, setName] = useState(''); 
+    const [email, setEmail] = useState(''); 
+    const [phone, setPhone] = useState(''); // NOVO ESTADO: Controla o número de telefone
+    const [password, setPassword] = useState(''); 
+    const [confirmPassword, setConfirmPassword] = useState(''); 
+    const [localError, setLocalError] = useState('');
+    
+    const handleSubmit = (e) => { 
+        e.preventDefault(); 
+        if (password !== confirmPassword) { setLocalError('As senhas não coincidem.'); return; } 
+        setLocalError(''); 
+        // Passamos o 'phone' como o 4º parâmetro
+        handleSignUp(email, password, name, phone); 
+    };
     
     useEffect(() => {
         if (window.google) {
@@ -1766,6 +1801,10 @@ const SignUpView = ({ handleSignUp, error, setView, authLoading }) => {
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">
                  <div><label className="block text-stone-700 font-bold mb-2">Nome Completo</label><input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400" required /></div>
+                 
+                 {/* NOVO CAMPO OBRIGATÓRIO: TELEMÓVEL */}
+                 <div><label className="block text-stone-700 font-bold mb-2">Telemóvel / WhatsApp</label><input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Ex: 912 345 678" className="w-full px-3 py-2 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400" required /></div>
+                 
                  <div><label className="block text-stone-700 font-bold mb-2">Email</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400" required /></div>
                 <div><label className="block text-stone-700 font-bold mb-2">Senha</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400" required /></div>
                  <div><label className="block text-sm font-bold mb-2">Confirmar Senha</label><input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400" required /></div>
@@ -1776,53 +1815,98 @@ const SignUpView = ({ handleSignUp, error, setView, authLoading }) => {
             </form>
         </div>
     );
-    }
+}
 
 const AddressForm = ({ address, onSave, onCancel, showToast }) => {
     const [formData, setFormData] = useState(address || { cep: '', street: '', number: '', district: '', city: '', state: '', lat: null, lng: null });
-    const [cepLoading, setCepLoading] = useState(false); const [formError, setFormError] = useState('');
-    const handleChange = (e) => { const { name, value, type } = e.target; const val = type === 'number' ? parseFloat(value) || 0 : value; setFormData(prev => ({...prev, [name]: val})); };
+    const [cepLoading, setCepLoading] = useState(false); 
+    const [formError, setFormError] = useState('');
+    
+    // Estado para controlar a posição do pino no mapa
+    const [mapPosition, setMapPosition] = useState(address && address.lat ? { lat: address.lat, lng: address.lng } : null);
+
+    const handleChange = (e) => { 
+        const { name, value, type } = e.target; 
+        const val = type === 'number' ? parseFloat(value) || 0 : value; 
+        setFormData(prev => ({...prev, [name]: val})); 
+    };
+
     const handleCepLookup = async (cep) => {
         const cleanedCep = cep.replace(/[^\d-]/g, ''); if (cleanedCep.length < 7) return;
         setCepLoading(true); setFormError('');
-        try { const result = await getCoordsFromAddress(null, cleanedCep); if (result && result.address) { setFormData(prev => ({ ...prev, ...result.address, lat: result.lat, lng: result.lng, })); } else { setFormError("CEP não encontrado ou inválido."); } } catch (e) { setFormError("Erro ao buscar CEP."); } finally { setCepLoading(false); }
+        try { 
+            const result = await getCoordsFromAddress(null, cleanedCep); 
+            if (result && result.address) { 
+                setFormData(prev => ({ ...prev, ...result.address, lat: result.lat, lng: result.lng })); 
+                setMapPosition({ lat: result.lat, lng: result.lng }); // Centraliza o mapa
+            } else { setFormError("CEP não encontrado."); } 
+        } catch (e) { setFormError("Erro ao buscar CEP."); } finally { setCepLoading(false); }
     };
+
     const handleCurrentLocation = () => {
-         if (!navigator.geolocation) { setFormError('Seu navegador não suporta geolocalização.'); return; }
+        if (!navigator.geolocation) { setFormError('Seu navegador não suporta geolocalização.'); return; }
         setFormError(''); setCepLoading(true);
         navigator.geolocation.getCurrentPosition(async (position) => {
-            try { const addressResult = await getAddressFromCoords(position.coords.latitude, position.coords.longitude); if (addressResult) { setFormData({ ...addressResult, lat: position.coords.latitude, lng: position.coords.longitude, }); showToast("Localização atual preenchida com sucesso!"); } else { setFormError('Não foi possível encontrar um endereço para esta localização.'); } } catch (error) { setFormError('Erro ao buscar endereço pela localização.'); } finally { setCepLoading(false); }
+            try { 
+                const addressResult = await getAddressFromCoords(position.coords.latitude, position.coords.longitude); 
+                if (addressResult) { 
+                    setFormData({ ...addressResult, lat: position.coords.latitude, lng: position.coords.longitude }); 
+                    setMapPosition({ lat: position.coords.latitude, lng: position.coords.longitude }); // Centraliza o mapa
+                    showToast("Localização encontrada! Ajuste o pino se necessário."); 
+                } else { setFormError('Não foi possível encontrar um endereço.'); } 
+            } catch (error) { setFormError('Erro ao buscar endereço.'); } finally { setCepLoading(false); }
         }, (error) => { setFormError(`Erro de localização: ${error.message}`); setCepLoading(false); });
     }
-    const handleSubmit = async (e) => { // Adicione async aqui
-        e.preventDefault();
-        if (!formData.street || !formData.number || !formData.district || !formData.city) { setFormError('Preencha todos os campos de endereço obrigatórios.'); return; }
-        
-        // Se não tem lat/lng, busca na API do Google agora antes de salvar
-        if (!formData.lat || !formData.lng) { 
-            setFormError('Buscando coordenadas do endereço...');
-            const result = await getCoordsFromAddress(`${formData.street}, ${formData.number}, ${formData.district}, ${formData.city}`, formData.cep);
-            if (result) {
-                formData.lat = result.lat;
-                formData.lng = result.lng;
+
+    // NOVA FUNÇÃO: Disparada quando o cliente solta o pino no mapa
+    const handleMapDragEnd = async (lat, lng) => {
+        setFormError('');
+        try {
+            const addressResult = await getAddressFromCoords(lat, lng);
+            if (addressResult) {
+                // Atualiza o formulário com a rua exata onde o pino caiu
+                setFormData(prev => ({ ...prev, ...addressResult, lat, lng, number: prev.number }));
             } else {
-                setFormError('Não foi possível validar este endereço no mapa. Verifique se os dados estão corretos.'); 
-                return; 
+                setFormData(prev => ({ ...prev, lat, lng })); 
             }
+        } catch (error) { console.error(error); }
+    };
+
+    const handleSubmit = async (e) => { 
+        e.preventDefault();
+        if (!formData.street || !formData.number || !formData.district || !formData.city) { setFormError('Preencha todos os campos obrigatórios.'); return; }
+        if (!formData.lat || !formData.lng) { 
+            setFormError('Use o CEP ou a Localização para encontrar as coordenadas no mapa antes de salvar.'); return; 
         }
-        
         setFormError(''); onSave(formData);
     };
 
     return (
          <div className="fixed inset-0 bg-black/50 z-50 flex justify-center items-center p-4 animate-fade-in">
-            <form onSubmit={handleSubmit} className="bg-white p-6 rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-slide-up">
+            <form onSubmit={handleSubmit} className="bg-white p-6 rounded-xl shadow-xl w-full max-w-lg max-h-[95vh] overflow-y-auto animate-slide-up">
                 <h4 className="text-xl font-bold mb-4">{address ? 'Editar Endereço' : 'Adicionar Novo Endereço'}</h4>
                 <div className="space-y-3">
                      <div className="flex items-center gap-2">
                          <input type="text" name="cep" placeholder="CEP (Ex: 3500-038)" value={formData.cep} onChange={handleChange} onBlur={(e) => handleCepLookup(e.target.value)} className="w-1/2 p-2 border border-stone-300 rounded-xl focus:ring-amber-400" />
                          <button type="button" onClick={handleCurrentLocation} disabled={cepLoading} className="w-1/2 bg-blue-500 text-white font-bold py-2 px-3 rounded-xl hover:bg-blue-600 flex items-center justify-center gap-2 text-sm disabled:opacity-50">{cepLoading ? <Loader2 className="animate-spin" size={18}/> : <><MapPin size={18}/> Localização Atual</>}</button>
                     </div>
+
+                    {/* MAPA INTERATIVO: Só aparece se tivermos uma coordenada inicial */}
+                    {mapPosition && (
+                        <div className="w-full h-48 rounded-xl overflow-hidden border border-stone-300 shadow-inner relative z-0 mt-2 mb-2">
+                            <MapContainer center={mapPosition} zoom={17} scrollWheelZoom={true} style={{ height: '100%', width: '100%' }}>
+                                <TileLayer
+                                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
+                                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                />
+                                <LocationMarker position={mapPosition} setPosition={setMapPosition} onDragEnd={handleMapDragEnd} />
+                            </MapContainer>
+                            <div className="absolute bottom-2 left-2 right-2 bg-white/90 backdrop-blur text-xs text-center font-bold text-stone-700 py-1 px-2 rounded-lg z-[400] shadow pointer-events-none">
+                                Arraste o pino para a localização exata
+                            </div>
+                        </div>
+                    )}
+
                     <input type="text" name="street" placeholder="Rua / Logradouro" value={formData.street} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl focus:ring-amber-400" required />
                     <div className="grid grid-cols-2 gap-2">
                         <input type="text" name="number" placeholder="Número" value={formData.number} onChange={handleChange} className="w-full p-2 border border-stone-300 rounded-xl focus:ring-amber-400" required />
@@ -2055,11 +2139,11 @@ const CRMView = ({ orders, setView, db, showToast }) => {
     );
 };
 
-const AdminDashboard = ({ menu, orders, feedbacks, handleLogout, showToast, settings, setView, updateOrderStatus, updateUserRole, currentUserEmail }) => {
+const AdminDashboard = ({ menu, orders, feedbacks, handleLogout, showToast, settings, setView, updateOrderStatus, updateOrderSchedule, updateUserRole, currentUserEmail, userRole }) => {
     const [adminView, setAdminView] = useState('dashboard'); 
     const renderAdminView = () => {
         switch(adminView) {
-            case 'orders': return <ManageOrders orders={orders} updateOrderStatus={updateOrderStatus} />;
+            case 'orders': return <ManageOrders orders={orders} updateOrderStatus={updateOrderStatus} updateOrderSchedule={updateOrderSchedule} />;
             case 'menu': return <ManageMenu menu={menu} />;
             case 'settings': return <AdminSettings showToast={showToast} currentSettings={settings} />;
             case 'faturamento': return <FaturamentoView orders={orders} />;
@@ -2309,10 +2393,28 @@ const AdminSettings = ({showToast, currentSettings}) => {
     );
 };
 
-const ManageOrders = ({ orders, updateOrderStatus }) => {
+const ManageOrders = ({ orders, updateOrderStatus, updateOrderSchedule }) => {
     const [deletingOrderId, setDeletingOrderId] = useState(null);
+    const [editingScheduleId, setEditingScheduleId] = useState(null);
+    const [editDate, setEditDate] = useState('');
+    const [editTime, setEditTime] = useState('');
+
     const handleRejectOrder = (orderId) => { setDeletingOrderId(orderId); }
     const handleDeleteConfirm = async () => { if (deletingOrderId) { await updateOrderStatus(deletingOrderId, 'Rejeitado'); setDeletingOrderId(null); } }
+    
+    const handleEditSchedule = (order) => {
+        setEditingScheduleId(order.id);
+        setEditDate(order.scheduledDate || '');
+        setEditTime(order.scheduledTime || '');
+    };
+
+    const handleSaveSchedule = async (orderId) => {
+        if (updateOrderSchedule && editDate && editTime) {
+            await updateOrderSchedule(orderId, editDate, editTime);
+        }
+        setEditingScheduleId(null);
+    };
+
     const statusStyles = { 'Pendente': 'bg-yellow-100 text-yellow-800', 'Em Preparo': 'bg-blue-100 text-blue-800', 'Pronto para Entrega': 'bg-indigo-100 text-indigo-800', 'Saiu para Entrega': 'bg-purple-100 text-purple-800', 'Concluído': 'bg-green-100 text-green-800', };
     return (
         <div>
@@ -2321,12 +2423,34 @@ const ManageOrders = ({ orders, updateOrderStatus }) => {
             <div className="space-y-4">
                 {orders.map(order => (
                     <div key={order.id} className="bg-stone-50 p-4 rounded-xl border border-stone-200 hover:shadow-lg transition-shadow">
-                         <div className="flex flex-wrap justify-between items-center">
+                         <div className="flex flex-wrap justify-between items-start">
                              <div>
                                  <p className="font-bold text-lg text-stone-800">{order.name}</p>
                                  <p className="text-sm text-stone-600">{order.phone} | {order.address}</p>
                                  <p className="text-sm text-stone-500">Pedido feito em: {new Date(order.createdAt?.seconds * 1000).toLocaleString('pt-PT')}</p>
-                                 {order.isScheduled && <p className="text-sm font-bold text-blue-600">Agendado para: {order.scheduledDate} às {order.scheduledTime}</p>}
+                                 
+                                 {/* BLCO DE EDIÇÃO DE AGENDAMENTO */}
+                                 {order.isScheduled && (
+                                    <div className="mt-1">
+                                        {editingScheduleId === order.id ? (
+                                            <div className="flex items-center gap-2 mt-2 bg-blue-50 p-2 rounded-lg border border-blue-200 w-fit">
+                                                <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} className="p-1.5 text-sm border border-blue-300 rounded focus:ring-2 focus:ring-blue-400 outline-none" required/>
+                                                <input type="time" value={editTime} onChange={e => setEditTime(e.target.value)} className="p-1.5 text-sm border border-blue-300 rounded focus:ring-2 focus:ring-blue-400 outline-none" required/>
+                                                <button onClick={() => handleSaveSchedule(order.id)} className="text-green-600 hover:text-green-800 transition-colors p-1" title="Salvar"><CheckCircle size={20}/></button>
+                                                <button onClick={() => setEditingScheduleId(null)} className="text-red-600 hover:text-red-800 transition-colors p-1" title="Cancelar"><XCircle size={20}/></button>
+                                            </div>
+                                        ) : (
+                                            <p className="text-sm font-bold text-blue-600 flex items-center gap-2 mt-1">
+                                                Agendado para: {order.scheduledDate} às {order.scheduledTime}
+                                                <button onClick={() => handleEditSchedule(order)} className="text-blue-500 hover:text-blue-700 bg-blue-100 hover:bg-blue-200 p-1.5 rounded-full transition-colors" title="Editar Agendamento">
+                                                    <Edit size={14} />
+                                                </button>
+                                            </p>
+                                        )}
+                                    </div>
+                                 )}
+                                 {/* FIM DO BLOCO */}
+
                              </div>
                              <div className="flex items-center gap-4 mt-2 sm:mt-0">
                                  <span className={`px-3 py-1 text-sm font-semibold rounded-full ${statusStyles[order.status] || 'bg-stone-100'}`}>{order.status}</span>
