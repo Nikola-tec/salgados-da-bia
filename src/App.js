@@ -2307,14 +2307,148 @@ const MyOrdersView = ({ orders, setView }) => {
     );
 };
 
-const AdminStats = ({ orders }) => {
-    const totalRevenue = useMemo(() => orders.filter(o => o.status === 'Concluído').reduce((acc, order) => acc + order.total, 0), [orders]);
-    const pendingOrders = useMemo(() => orders.filter(o => ['Pendente', 'Em Preparo', 'Pronto para Entrega', 'Saiu para Entrega'].includes(o.status)).length, [orders]);
+const AdminStats = ({ orders, showToast }) => {
+    const [currentDate] = useState(new Date());
+    const [productionData, setProductionData] = useState({});
+    const [editingDay, setEditingDay] = useState(null);
+    const [editValue, setEditValue] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
+
+    // Variáveis de Data
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const docId = `${year}-${String(month + 1).padStart(2, '0')}`;
+    const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+    // Utilitário para formatar datas no padrão (YYYY-MM-DD) localmente
+    const getLocalDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const todayStr = getLocalDateStr(currentDate);
+
+    // 1. CARREGAR DADOS DE PRODUÇÃO (Fabricados)
+    useEffect(() => {
+        if (!db || !appId) return;
+        const docRef = doc(db, `artifacts/${appId}/public/data/production`, docId);
+        const unsubscribe = onSnapshot(docRef, (snap) => {
+            if (snap.exists()) setProductionData(snap.data());
+            else setProductionData({});
+        });
+        return () => unsubscribe();
+    }, [docId]);
+
+    // 2. FUNÇÃO: CONTAR SALGADOS EXATOS (Abre as boxes)
+    const getOrderItemsCount = (order) => order.items.reduce((sum, item) => sum + (item.customizable && item.customization ? item.customization.reduce((cSum, c) => cSum + c.quantity, 0) : item.quantity), 0);
+
+    // 3. MÉTRICAS GLOBAIS DO MÊS E HOJE
+    const thisMonthOrders = useMemo(() => orders.filter(o => o.createdAt && new Date(o.createdAt.seconds * 1000).getFullYear() === year && new Date(o.createdAt.seconds * 1000).getMonth() === month), [orders, year, month]);
+    
+    const totalRevenue = thisMonthOrders.filter(o => o.status === 'Concluído').reduce((acc, o) => acc + o.total, 0);
+    const cycleAvg = thisMonthOrders.length > 0 ? (thisMonthOrders.reduce((acc, o) => acc + getOrderItemsCount(o), 0) / thisMonthOrders.length).toFixed(0) : 0;
+    const soldToday = orders.filter(o => o.createdAt && o.status !== 'Rejeitado' && getLocalDateStr(new Date(o.createdAt.seconds * 1000)) === todayStr).reduce((acc, o) => acc + getOrderItemsCount(o), 0);
+
+    // 4. SALVAR PRODUÇÃO NO FIREBASE
+    const handleSaveProduction = async (dayStr) => {
+        setIsSaving(true);
+        try {
+            const docRef = doc(db, `artifacts/${appId}/public/data/production`, docId);
+            const val = parseInt(editValue) || 0;
+            await setDoc(docRef, { [dayStr]: val }, { merge: true });
+            if (showToast) showToast("Estoque atualizado com sucesso!");
+            setEditingDay(null);
+        } catch (e) {
+            if (showToast) showToast("Erro ao atualizar o estoque.");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    // 5. GERADOR DO CALENDÁRIO
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDayOfWeek = new Date(year, month, 1).getDay(); // 0 = Domingo
+    const blanks = Array.from({ length: firstDayOfWeek });
+    const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
     return (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="bg-stone-100 p-4 rounded-xl shadow-lg flex items-center gap-4"><div className="bg-blue-200 p-3 rounded-full"><Package className="text-blue-600" size={24}/></div><div><p className="text-sm text-stone-500">Total de Pedidos</p><p className="text-2xl font-bold text-stone-800">{orders.length}</p></div></div>
-            <div className="bg-stone-100 p-4 rounded-xl shadow-lg flex items-center gap-4"><div className="bg-green-200 p-3 rounded-full"><DollarSign className="text-green-600" size={24}/></div><div><p className="text-sm text-stone-500">Faturamento (Concluídos)</p><p className="text-2xl font-bold text-stone-800">{totalRevenue.toFixed(2)}€</p></div></div>
-            <div className="bg-stone-100 p-4 rounded-xl shadow-lg flex items-center gap-4"><div className="bg-yellow-200 p-3 rounded-full"><Clock className="text-yellow-600" size={24}/></div><div><p className="text-sm text-stone-500">Pedidos Ativos</p><p className="text-2xl font-bold text-stone-800">{pendingOrders}</p></div></div>
+        <div className="animate-fade-in space-y-6 pb-10">
+            {/* SESSÃO 1: GRIDS DE RESUMO ESTRATÉGICO */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-stone-100 p-5 rounded-2xl shadow-sm border border-stone-200 flex items-center gap-4 hover:shadow-md transition-shadow">
+                    <div className="bg-green-200 p-4 rounded-full"><DollarSign className="text-green-700" size={28}/></div>
+                    <div><p className="text-sm font-bold text-stone-500 uppercase tracking-wide">Receita (Mês)</p><p className="text-2xl font-black text-stone-800">{totalRevenue.toFixed(2)}€</p></div>
+                </div>
+                <div className="bg-stone-100 p-5 rounded-2xl shadow-sm border border-stone-200 flex items-center gap-4 hover:shadow-md transition-shadow">
+                    <div className="bg-blue-200 p-4 rounded-full"><TrendingUp className="text-blue-700" size={28}/></div>
+                    <div><p className="text-sm font-bold text-stone-500 uppercase tracking-wide">Ciclo Médio</p><p className="text-2xl font-black text-stone-800">{cycleAvg} <span className="text-sm font-semibold text-stone-500">itens/pedido</span></p></div>
+                </div>
+                <div className="bg-stone-100 p-5 rounded-2xl shadow-sm border border-stone-200 flex items-center gap-4 hover:shadow-md transition-shadow">
+                    <div className="bg-orange-200 p-4 rounded-full"><Package className="text-orange-700" size={28}/></div>
+                    <div><p className="text-sm font-bold text-stone-500 uppercase tracking-wide">Operação Hoje</p><p className="text-2xl font-black text-stone-800">{soldToday} <span className="text-sm font-semibold text-stone-500">vendidos</span></p></div>
+                </div>
+            </div>
+
+            {/* SESSÃO 2: CALENDÁRIO DE PRODUÇÃO E ESTOQUE */}
+            <div className="bg-white p-6 rounded-2xl shadow-lg border border-stone-100">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-2">
+                    <div>
+                        <h3 className="text-2xl font-bold text-stone-800 flex items-center gap-2"><Calendar className="text-amber-500"/> Controle de Estoque</h3>
+                        <p className="text-stone-500 text-sm font-semibold mt-1">{monthNames[month]} de {year}</p>
+                    </div>
+                    <div className="flex gap-4 text-xs font-bold bg-stone-50 p-2 rounded-xl border border-stone-200">
+                        <div className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-blue-500"></span> Fabricados</div>
+                        <div className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-orange-500"></span> Vendidos</div>
+                        <div className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-500"></span> Saldo</div>
+                    </div>
+                </div>
+
+                {/* Cabeçalho dos Dias */}
+                <div className="grid grid-cols-7 gap-2 mb-2 text-center text-xs font-black text-stone-400 uppercase">
+                    <div>Dom</div><div>Seg</div><div>Ter</div><div>Qua</div><div>Qui</div><div>Sex</div><div>Sáb</div>
+                </div>
+
+                {/* Grade do Calendário */}
+                <div className="grid grid-cols-7 gap-2 sm:gap-3">
+                    {blanks.map((_, i) => <div key={`blank-${i}`} className="bg-stone-50/50 rounded-xl border border-transparent"></div>)}
+                    
+                    {daysArray.map(day => {
+                        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                        const isToday = dateStr === todayStr;
+                        
+                        // Cálculos do dia
+                        const sold = thisMonthOrders.filter(o => o.status !== 'Rejeitado' && getLocalDateStr(new Date(o.createdAt.seconds * 1000)) === dateStr).reduce((acc, o) => acc + getOrderItemsCount(o), 0);
+                        const produced = productionData[dateStr] || 0;
+                        const balance = produced - sold;
+
+                        return (
+                            <div key={day} className={`rounded-xl p-2 sm:p-3 flex flex-col border-2 transition-all ${isToday ? 'border-amber-400 bg-amber-50 shadow-md ring-4 ring-amber-100' : 'border-stone-100 bg-white hover:border-stone-300'}`}>
+                                <div className="flex justify-between items-center mb-2 sm:mb-3">
+                                    <span className={`font-black text-sm sm:text-base ${isToday ? 'text-amber-700' : 'text-stone-500'}`}>{day}</span>
+                                    
+                                    {editingDay === dateStr ? (
+                                        <div className="flex flex-col sm:flex-row gap-1 animate-pop-in">
+                                            <input autoFocus type="number" className="w-12 sm:w-16 p-1 text-xs border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-400 text-center font-bold" value={editValue} onChange={e => setEditValue(e.target.value)} disabled={isSaving}/>
+                                            <div className="flex gap-1 justify-center mt-1 sm:mt-0">
+                                                <button onClick={() => handleSaveProduction(dateStr)} disabled={isSaving} className="text-green-600 hover:bg-green-100 rounded p-1"><CheckCircle size={14}/></button>
+                                                <button onClick={() => setEditingDay(null)} disabled={isSaving} className="text-red-600 hover:bg-red-100 rounded p-1"><XCircle size={14}/></button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <button onClick={() => { setEditingDay(dateStr); setEditValue(produced); }} className="text-stone-300 hover:text-blue-600 transition-colors p-1 rounded hover:bg-blue-50" title="Informar Produção do Dia">
+                                            <Edit size={14}/>
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="space-y-1.5 text-[10px] sm:text-xs font-bold mt-auto">
+                                    <div className="flex justify-between items-center text-blue-600 bg-blue-50/50 px-1 rounded"><span className="hidden sm:inline">Fabricado:</span><span className="sm:hidden">Fab:</span><span>{produced}</span></div>
+                                    <div className="flex justify-between items-center text-orange-600 bg-orange-50/50 px-1 rounded"><span className="hidden sm:inline">Vendido:</span><span className="sm:hidden">Ven:</span><span>{sold}</span></div>
+                                    <div className={`flex justify-between items-center px-1 rounded border-t pt-1 mt-1 ${balance < 0 ? 'text-red-600 bg-red-50' : 'text-green-700 bg-green-50'}`}>
+                                        <span className="hidden sm:inline">Saldo:</span><span className="sm:hidden">Sal:</span><span>{balance}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+            </div>
         </div>
     );
 }
@@ -2491,7 +2625,7 @@ const AdminDashboard = ({ menu, orders, feedbacks, handleLogout, showToast, sett
             case 'feedbacks': return <FeedbacksView feedbacks={feedbacks} showToast={showToast} />;
             case 'manageAgenda': return <ManageAgenda currentSettings={settings} showToast={showToast} db={db} appId={appId}/>;
             case 'manageUsers': return <ManageUsers userRole={'admin'} currentUserEmail={currentUserEmail} updateUserRole={updateUserRole} showToast={showToast} />;
-            default: return <AdminStats orders={orders} />;
+            default: return <AdminStats orders={orders} showToast={showToast} />;
         }
     }
     return (
