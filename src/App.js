@@ -2331,6 +2331,8 @@ const AdminStats = ({ orders, showToast }) => {
         const unsubscribe = onSnapshot(docRef, (snap) => {
             if (snap.exists()) setProductionData(snap.data());
             else setProductionData({});
+        }, (error) => {
+            console.warn("Aviso: Sem permissão para ler produção ainda.", error);
         });
         return () => unsubscribe();
     }, [docId]);
@@ -2345,6 +2347,11 @@ const AdminStats = ({ orders, showToast }) => {
     const cycleAvg = thisMonthOrders.length > 0 ? (thisMonthOrders.reduce((acc, o) => acc + getOrderItemsCount(o), 0) / thisMonthOrders.length).toFixed(0) : 0;
     const soldToday = orders.filter(o => o.createdAt && o.status !== 'Rejeitado' && getLocalDateStr(new Date(o.createdAt.seconds * 1000)) === todayStr).reduce((acc, o) => acc + getOrderItemsCount(o), 0);
 
+    // LÓGICA NOVA: Calcula o Total Fabricado no Mês somando os dias do calendário
+    const totalProducedThisMonth = useMemo(() => {
+        return Object.values(productionData).reduce((sum, val) => sum + (Number(val) || 0), 0);
+    }, [productionData]);
+
     // 4. SALVAR PRODUÇÃO NO FIREBASE
     const handleSaveProduction = async (dayStr) => {
         setIsSaving(true);
@@ -2355,7 +2362,8 @@ const AdminStats = ({ orders, showToast }) => {
             if (showToast) showToast("Estoque atualizado com sucesso!");
             setEditingDay(null);
         } catch (e) {
-            if (showToast) showToast("Erro ao atualizar o estoque.");
+            console.error("Erro Firebase (Estoque):", e);
+            if (showToast) showToast("Erro ao salvar! Verifique as regras do Firebase.");
         } finally {
             setIsSaving(false);
         }
@@ -2369,19 +2377,27 @@ const AdminStats = ({ orders, showToast }) => {
 
     return (
         <div className="animate-fade-in space-y-6 pb-10">
-            {/* SESSÃO 1: GRIDS DE RESUMO ESTRATÉGICO */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* SESSÃO 1: GRIDS DE RESUMO ESTRATÉGICO (Agora com 4 colunas) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-stone-100 p-5 rounded-2xl shadow-sm border border-stone-200 flex items-center gap-4 hover:shadow-md transition-shadow">
                     <div className="bg-green-200 p-4 rounded-full"><DollarSign className="text-green-700" size={28}/></div>
                     <div><p className="text-sm font-bold text-stone-500 uppercase tracking-wide">Receita (Mês)</p><p className="text-2xl font-black text-stone-800">{totalRevenue.toFixed(2)}€</p></div>
                 </div>
+                
+                {/* NOVO CARD: Produção Mensal */}
+                <div className="bg-stone-100 p-5 rounded-2xl shadow-sm border border-stone-200 flex items-center gap-4 hover:shadow-md transition-shadow">
+                    <div className="bg-purple-200 p-4 rounded-full"><ChefHat className="text-purple-700" size={28}/></div>
+                    <div><p className="text-sm font-bold text-stone-500 uppercase tracking-wide">Fab. no Mês</p><p className="text-2xl font-black text-stone-800">{totalProducedThisMonth} <span className="text-sm font-semibold text-stone-500">unid.</span></p></div>
+                </div>
+
                 <div className="bg-stone-100 p-5 rounded-2xl shadow-sm border border-stone-200 flex items-center gap-4 hover:shadow-md transition-shadow">
                     <div className="bg-blue-200 p-4 rounded-full"><TrendingUp className="text-blue-700" size={28}/></div>
-                    <div><p className="text-sm font-bold text-stone-500 uppercase tracking-wide">Ciclo Médio</p><p className="text-2xl font-black text-stone-800">{cycleAvg} <span className="text-sm font-semibold text-stone-500">itens/pedido</span></p></div>
+                    <div><p className="text-sm font-bold text-stone-500 uppercase tracking-wide">Ciclo Médio</p><p className="text-2xl font-black text-stone-800">{cycleAvg} <span className="text-sm font-semibold text-stone-500">itens</span></p></div>
                 </div>
+                
                 <div className="bg-stone-100 p-5 rounded-2xl shadow-sm border border-stone-200 flex items-center gap-4 hover:shadow-md transition-shadow">
                     <div className="bg-orange-200 p-4 rounded-full"><Package className="text-orange-700" size={28}/></div>
-                    <div><p className="text-sm font-bold text-stone-500 uppercase tracking-wide">Operação Hoje</p><p className="text-2xl font-black text-stone-800">{soldToday} <span className="text-sm font-semibold text-stone-500">vendidos</span></p></div>
+                    <div><p className="text-sm font-bold text-stone-500 uppercase tracking-wide">Operação Hoje</p><p className="text-2xl font-black text-stone-800">{soldToday} <span className="text-sm font-semibold text-stone-500">vend.</span></p></div>
                 </div>
             </div>
 
