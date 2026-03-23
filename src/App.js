@@ -1255,18 +1255,14 @@ const CartView = ({ cart, updateQuantity, cartTotal, setView, emptyCart, user })
     );
 };
 
-const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView, initialError, user, userData, authLoading, shopSettings, storeOpen, getWorkingInterval }) => {
+const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView, initialError, user, userData, authLoading, shopSettings, storeOpen, getWorkingInterval, showToast, db, appId }) => {
     
-    // 1. Variáveis comuns primeiro
     const isLargeOrder = cartTotalQuantity >= 150;
     const hasScheduledItem = cart.some(item => item.requiresScheduling);
     const forceScheduling = isLargeOrder || hasScheduledItem || !storeOpen;
-
-    // 2. Declaração do deliveryMethod (AGORA ELE EXISTE)
     const [deliveryMethod, setDeliveryMethod] = useState(forceScheduling ? 'schedule' : 'deliver');
     const addresses = useMemo(() => user?.addresses || [], [user?.addresses]);
-    
-    // Regra Inteligente de Endereço: Pré-seleciona o primeiro endereço se existir
+    const [showAddressModal, setShowAddressModal] = useState(false);
     const [selectedAddress, setSelectedAddress] = useState(null); 
     useEffect(() => {
         if (addresses.length > 0 && !selectedAddress) { setSelectedAddress(addresses[0].id); }
