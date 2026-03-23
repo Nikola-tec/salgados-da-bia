@@ -2166,55 +2166,160 @@ const AdminStats = ({ orders }) => {
 }
 
 const CRMView = ({ orders, setView, db, showToast }) => {
-    const [users, setUsers] = useState([]); const [loading, setLoading] = useState(true); const [selectedUsers, setSelectedUsers] = useState([]); const [campaignTitle, setCampaignTitle] = useState(''); const [campaignBody, setCampaignBody] = useState(''); const [sending, setSending] = useState(false); const [sortBy, setSortBy] = useState('recency'); const [templates, setTemplates] = useState([]); const [showTemplates, setShowTemplates] = useState(false); const [newTemplateName, setNewTemplateName] = useState(''); const [isSavingTemplate, setIsSavingTemplate] = useState(false); const appId = "salgados-da-bia";
+    const [users, setUsers] = useState([]); 
+    const [loading, setLoading] = useState(true); 
+    const [selectedUsers, setSelectedUsers] = useState([]); 
+    const [campaignTitle, setCampaignTitle] = useState(''); 
+    const [campaignBody, setCampaignBody] = useState(''); 
+    const [sending, setSending] = useState(false); 
+    const [sortBy, setSortBy] = useState('recency'); 
+    const [templates, setTemplates] = useState([]); 
+    const [showTemplates, setShowTemplates] = useState(false); 
+    const [newTemplateName, setNewTemplateName] = useState(''); 
+    const [isSavingTemplate, setIsSavingTemplate] = useState(false); 
+    
+    // O appId global já é herdado automaticamente do topo do arquivo
+
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const usersSnap = await getDocs(collection(db, `artifacts/${appId}/public/data/users`)); const templatesSnap = await getDocs(collection(db, `artifacts/${appId}/public/data/marketing_templates`));
-                setTemplates(templatesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }))); const usersData = usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                // 1. Carrega os utilizadores (Protegido por Try/Catch principal)
+                const usersSnap = await getDocs(collection(db, `artifacts/${appId}/public/data/users`)); 
+                const usersData = usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                
+                // 2. Tenta carregar os templates num Try/Catch SEPARADO para não quebrar o CRM
+                let templatesData = [];
+                try {
+                    const templatesSnap = await getDocs(collection(db, `artifacts/${appId}/public/data/marketing_templates`));
+                    templatesData = templatesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                } catch (templateError) {
+                    console.warn("Aviso: Falha ao carregar templates de marketing. Verifique as regras de segurança do Firebase.", templateError);
+                }
+                setTemplates(templatesData);
+
+                // 3. Enriquece os dados dos utilizadores com o histórico de pedidos
                 const enrichedUsers = usersData.map(user => {
-                    const userOrders = orders.filter(o => o.userId === user.id); const lastOrderTimestamp = userOrders.length > 0 ? Math.max(...userOrders.map(o => o.createdAt?.seconds * 1000 || 0)) : 0; const daysSinceLastOrder = lastOrderTimestamp ? Math.floor((new Date() - new Date(lastOrderTimestamp)) / (1000 * 60 * 60 * 24)) : 9999; const totalSpent = userOrders.reduce((acc, curr) => acc + (curr.total || 0), 0); const averageTicket = userOrders.length > 0 ? totalSpent / userOrders.length : 0; return { ...user, orderCount: userOrders.length, lastOrderDate: new Date(lastOrderTimestamp), daysSinceLastOrder, totalSpent, averageTicket };
+                    const userOrders = orders.filter(o => o.userId === user.id); 
+                    const lastOrderTimestamp = userOrders.length > 0 ? Math.max(...userOrders.map(o => o.createdAt?.seconds * 1000 || 0)) : 0; 
+                    const daysSinceLastOrder = lastOrderTimestamp ? Math.floor((new Date() - new Date(lastOrderTimestamp)) / (1000 * 60 * 60 * 24)) : 9999; 
+                    const totalSpent = userOrders.reduce((acc, curr) => acc + (curr.total || 0), 0); 
+                    const averageTicket = userOrders.length > 0 ? totalSpent / userOrders.length : 0; 
+                    return { ...user, orderCount: userOrders.length, lastOrderDate: new Date(lastOrderTimestamp), daysSinceLastOrder, totalSpent, averageTicket };
                 });
-                setUsers(enrichedUsers); setLoading(false);
-            } catch (error) { showToast("Erro ao carregar dados."); setLoading(false); }
+                
+                setUsers(enrichedUsers); 
+                setLoading(false);
+            } catch (error) { 
+                console.error("Erro fatal no CRM:", error);
+                showToast("Erro ao carregar clientes. Verifique a conexão ou regras da base de dados."); 
+                setLoading(false); 
+            }
         };
         fetchData();
     }, [db, orders, showToast]);
+
     const sortedUsers = useMemo(() => {
-        let sorted = [...users]; if (sortBy === 'recency') sorted.sort((a, b) => a.daysSinceLastOrder - b.daysSinceLastOrder); else if (sortBy === 'totalSpent') sorted.sort((a, b) => b.totalSpent - a.totalSpent); else if (sortBy === 'ticket') sorted.sort((a, b) => b.averageTicket - a.averageTicket); return sorted;
+        let sorted = [...users]; 
+        if (sortBy === 'recency') sorted.sort((a, b) => a.daysSinceLastOrder - b.daysSinceLastOrder); 
+        else if (sortBy === 'totalSpent') sorted.sort((a, b) => b.totalSpent - a.totalSpent); 
+        else if (sortBy === 'ticket') sorted.sort((a, b) => b.averageTicket - a.averageTicket); 
+        return sorted;
     }, [users, sortBy]);
-    const toggleSelectUser = (uid) => setSelectedUsers(prev => prev.includes(uid) ? prev.filter(id => id !== uid) : [...prev, uid]); const selectAll = () => setSelectedUsers(selectedUsers.length === sortedUsers.length ? [] : sortedUsers.map(u => u.id));
-    const handleSaveTemplate = async () => { if (!newTemplateName.trim()) return showToast("Dê um nome ao modelo."); await addDoc(collection(db, `artifacts/${appId}/public/data/marketing_templates`), { name: newTemplateName, title: campaignTitle, body: campaignBody, createdAt: new Date() }); showToast("Modelo salvo!"); setIsSavingTemplate(false); };
-    const handleSendCampaign = async () => { if (!campaignTitle.trim() || !campaignBody.trim()) return showToast("Preencha a mensagem."); if (selectedUsers.length === 0) return showToast("Selecione clientes."); setSending(true); try { await addDoc(collection(db, `artifacts/${appId}/public/data/marketing_campaigns`), { title: campaignTitle, body: campaignBody, targetUids: selectedUsers, createdAt: new Date(), status: 'Pendente', targetCount: selectedUsers.length }); showToast(`Enviando para ${selectedUsers.length} clientes!`); setCampaignTitle(''); setCampaignBody(''); setSelectedUsers([]); } catch (e) { showToast("Erro ao enviar."); } finally { setSending(false); } };
+
+    const toggleSelectUser = (uid) => setSelectedUsers(prev => prev.includes(uid) ? prev.filter(id => id !== uid) : [...prev, uid]); 
+    const selectAll = () => setSelectedUsers(selectedUsers.length === sortedUsers.length ? [] : sortedUsers.map(u => u.id));
+    
+    const handleSaveTemplate = async () => { 
+        if (!newTemplateName.trim()) return showToast("Dê um nome ao modelo."); 
+        setIsSavingTemplate(true);
+        try {
+            await addDoc(collection(db, `artifacts/${appId}/public/data/marketing_templates`), { name: newTemplateName, title: campaignTitle, body: campaignBody, createdAt: new Date() }); 
+            showToast("Modelo salvo com sucesso!"); 
+            setShowTemplates(false);
+            setNewTemplateName('');
+        } catch (error) {
+            showToast("Erro ao salvar. Verifique as regras do Firebase para 'marketing_templates'.");
+        } finally {
+            setIsSavingTemplate(false); 
+        }
+    };
+    
+    const handleSendCampaign = async () => { 
+        if (!campaignTitle.trim() || !campaignBody.trim()) return showToast("Preencha a mensagem."); 
+        if (selectedUsers.length === 0) return showToast("Selecione clientes."); 
+        setSending(true); 
+        try { 
+            await addDoc(collection(db, `artifacts/${appId}/public/data/marketing_campaigns`), { title: campaignTitle, body: campaignBody, targetUids: selectedUsers, createdAt: new Date(), status: 'Pendente', targetCount: selectedUsers.length }); 
+            showToast(`Campanha enviada para ${selectedUsers.length} clientes!`); 
+            setCampaignTitle(''); 
+            setCampaignBody(''); 
+            setSelectedUsers([]); 
+        } catch (error) { 
+            showToast("Erro ao enviar. Verifique as regras do Firebase para 'marketing_campaigns'."); 
+        } finally { 
+            setSending(false); 
+        } 
+    };
+
     if (loading) return <div className="p-10 text-center"><Loader2 className="animate-spin inline mr-2"/> Carregando...</div>;
+
     return (
-        <div className="space-y-6 pb-20">
-            <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm"><h2 className="text-2xl font-bold flex items-center gap-2"><Megaphone className='text-amber-600'/> Marketing</h2><button onClick={() => setView('admin')} className="bg-stone-100 px-4 py-2 rounded-lg font-bold text-stone-600 flex gap-2"><ChevronsLeft size={18}/> Voltar</button></div>
+        <div className="space-y-6 pb-20 animate-fade-in">
+            <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm"><h2 className="text-2xl font-bold flex items-center gap-2"><Megaphone className='text-amber-600'/> Marketing & CRM</h2><button onClick={() => setView('admin')} className="bg-stone-100 px-4 py-2 rounded-lg font-bold text-stone-600 flex gap-2 hover:bg-stone-200 transition-colors"><ChevronsLeft size={18}/> Voltar</button></div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm h-[600px] flex flex-col">
-                    <div className="flex justify-between mb-4">
-                        <div className="flex gap-2 overflow-x-auto"><button onClick={() => setSortBy('recency')} className={`px-3 py-1 rounded-full text-xs font-bold ${sortBy === 'recency' ? 'bg-amber-100 text-amber-800' : 'bg-stone-100'}`}>🕒 Recentes</button><button onClick={() => setSortBy('totalSpent')} className={`px-3 py-1 rounded-full text-xs font-bold ${sortBy === 'totalSpent' ? 'bg-green-100 text-green-800' : 'bg-stone-100'}`}>💲 VIPs</button></div><button onClick={selectAll} className="text-xs text-amber-600 font-bold hover:underline">Selecionar Todos</button>
+                <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm h-[600px] flex flex-col border border-stone-100">
+                    <div className="flex flex-wrap justify-between mb-4 gap-2">
+                        <div className="flex gap-2 overflow-x-auto pb-2">
+                            <button onClick={() => setSortBy('recency')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${sortBy === 'recency' ? 'bg-amber-500 text-white shadow-md' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}>🕒 Recentes</button>
+                            <button onClick={() => setSortBy('totalSpent')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${sortBy === 'totalSpent' ? 'bg-green-500 text-white shadow-md' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}>💲 VIPs (Maior Gasto)</button>
+                            <button onClick={() => setSortBy('ticket')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${sortBy === 'ticket' ? 'bg-blue-500 text-white shadow-md' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}>📈 Maior Ticket Médio</button>
+                        </div>
+                        <button onClick={selectAll} className="text-sm text-amber-600 font-bold hover:underline py-1.5">Selecionar Todos</button>
                     </div>
                     <div className="overflow-y-auto flex-1 space-y-2 pr-2">
                         {sortedUsers.map(user => (
-                            <div key={user.id} onClick={() => toggleSelectUser(user.id)} className={`flex justify-between p-3 rounded-lg border cursor-pointer ${selectedUsers.includes(user.id) ? 'border-amber-500 bg-amber-50' : 'border-stone-100'}`}>
-                                <div><p className="font-bold text-stone-800">{user.name || 'Cliente'}</p><p className="text-xs text-stone-500">{user.email}</p></div>
-                                <div className="text-right text-xs"><span className={`px-2 py-0.5 rounded font-bold ${user.daysSinceLastOrder > 30 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>{user.daysSinceLastOrder === 9999 ? 'Novo' : `${user.daysSinceLastOrder}d atrás`}</span><p className="mt-1 text-stone-400">Total: R$ {user.totalSpent.toFixed(0)}</p></div>
+                            <div key={user.id} onClick={() => toggleSelectUser(user.id)} className={`flex justify-between items-center p-3 rounded-xl border-2 cursor-pointer transition-all ${selectedUsers.includes(user.id) ? 'border-amber-500 bg-amber-50 shadow-sm' : 'border-stone-100 bg-white hover:border-amber-200'}`}>
+                                <div><p className="font-bold text-stone-800">{user.name || 'Cliente Sem Nome'}</p><p className="text-xs text-stone-500 mt-0.5">{user.email}</p></div>
+                                <div className="text-right text-xs">
+                                    <span className={`px-2.5 py-1 rounded-md font-bold inline-block mb-1 ${user.daysSinceLastOrder > 30 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{user.daysSinceLastOrder === 9999 ? 'Novo Cliente' : `${user.daysSinceLastOrder} dias atrás`}</span>
+                                    <p className="text-stone-500 font-semibold">Total: <span className="text-green-600 font-bold">{user.totalSpent.toFixed(2)}€</span></p>
+                                </div>
                             </div>
                         ))}
                     </div>
                 </div>
-                <div className="bg-white p-6 rounded-2xl shadow-sm h-fit">
-                    <h3 className="font-bold mb-4 flex gap-2"><Send size={20}/> Criar Mensagem</h3>
+                <div className="bg-white p-6 rounded-2xl shadow-sm h-fit border border-stone-100">
+                    <h3 className="font-bold mb-5 flex items-center gap-2 text-stone-800 text-lg"><Send size={20} className="text-amber-500"/> Criar Mensagem</h3>
                     <div className="mb-4">
-                        <button onClick={() => setShowTemplates(!showTemplates)} className="text-xs text-amber-600 font-bold mb-2 block">📂 Carregar Modelo Salvo</button>
-                        {showTemplates && templates.map(t => (<div key={t.id} onClick={() => { setCampaignTitle(t.title); setCampaignBody(t.body); setShowTemplates(false); }} className="p-2 bg-stone-50 mb-1 rounded text-xs cursor-pointer hover:bg-stone-100 truncate">{t.name}</div>))}
+                        <button onClick={() => setShowTemplates(!showTemplates)} className="text-sm text-amber-600 font-bold mb-2 flex items-center gap-1 hover:underline">📂 Carregar Modelo Salvo</button>
+                        {showTemplates && templates.length > 0 && (
+                            <div className="bg-stone-50 p-2 rounded-lg border border-stone-200 max-h-32 overflow-y-auto mb-3">
+                                {templates.map(t => (<div key={t.id} onClick={() => { setCampaignTitle(t.title); setCampaignBody(t.body); setShowTemplates(false); }} className="p-2 bg-white border border-stone-100 mb-1 rounded-md text-sm font-semibold cursor-pointer hover:border-amber-400 hover:text-amber-700 truncate transition-colors">{t.name}</div>))}
+                            </div>
+                        )}
+                        {showTemplates && templates.length === 0 && <p className="text-xs text-stone-500 mb-3 italic">Nenhum modelo salvo ainda.</p>}
                     </div>
-                    <div className="space-y-3"><input className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-amber-500" placeholder="Título (ex: Promoção!)" value={campaignTitle} onChange={e => setCampaignTitle(e.target.value)} /><textarea className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-amber-500 h-32 resize-none" placeholder="Sua mensagem..." value={campaignBody} onChange={e => setCampaignBody(e.target.value)} /></div>
-                    <div className="mt-2 flex justify-between items-center">
-                        {!isSavingTemplate ? (<button onClick={() => setIsSavingTemplate(true)} className="text-xs text-stone-400 hover:text-stone-600 flex items-center gap-1"><Save size={12}/> Salvar Modelo</button>) : (<div className="flex gap-2 flex-1 mr-2"><input className="flex-1 text-xs border p-1 rounded" placeholder="Nome do modelo" value={newTemplateName} onChange={e => setNewTemplateName(e.target.value)} /><button onClick={handleSaveTemplate} className="text-green-600"><CheckCircle size={14}/></button></div>)}
+                    <div className="space-y-3">
+                        <input className="w-full p-3 border border-stone-300 rounded-xl outline-none focus:ring-2 focus:ring-amber-500 transition-shadow" placeholder="Título (ex: Super Promoção!)" value={campaignTitle} onChange={e => setCampaignTitle(e.target.value)} />
+                        <textarea className="w-full p-3 border border-stone-300 rounded-xl outline-none focus:ring-2 focus:ring-amber-500 h-32 resize-none transition-shadow" placeholder="Escreva a sua mensagem aqui..." value={campaignBody} onChange={e => setCampaignBody(e.target.value)} />
                     </div>
-                    <button onClick={handleSendCampaign} disabled={sending || selectedUsers.length === 0} className="w-full mt-4 bg-green-600 text-white font-bold py-3 rounded-xl hover:bg-green-700 transition-colors flex justify-center items-center gap-2 disabled:opacity-50">{sending ? <Loader2 className="animate-spin"/> : <Send size={20}/>} {sending ? 'Enviando...' : `Enviar (${selectedUsers.length})`}</button>
+                    <div className="mt-3 flex justify-between items-center h-10">
+                        {!isSavingTemplate ? (
+                            <button onClick={() => setIsSavingTemplate(true)} className="text-sm text-stone-500 font-semibold hover:text-amber-600 flex items-center gap-1 transition-colors"><Save size={16}/> Salvar como Modelo</button>
+                        ) : (
+                            <div className="flex gap-2 w-full animate-fade-in">
+                                <input className="flex-1 text-sm border border-stone-300 px-3 py-1.5 rounded-lg focus:outline-none focus:border-amber-400" placeholder="Nome do modelo" value={newTemplateName} onChange={e => setNewTemplateName(e.target.value)} />
+                                <button onClick={handleSaveTemplate} className="bg-green-100 text-green-700 px-3 rounded-lg hover:bg-green-200 transition-colors"><CheckCircle size={18}/></button>
+                                <button onClick={() => setIsSavingTemplate(false)} className="bg-stone-100 text-stone-600 px-3 rounded-lg hover:bg-stone-200 transition-colors"><XCircle size={18}/></button>
+                            </div>
+                        )}
+                    </div>
+                    <div className="border-t mt-4 pt-4">
+                        <button onClick={handleSendCampaign} disabled={sending || selectedUsers.length === 0} className="w-full bg-green-500 text-white font-bold py-3.5 rounded-xl hover:bg-green-600 transition-colors flex justify-center items-center gap-2 disabled:opacity-50 disabled:bg-stone-400 shadow-md active:scale-95 text-lg">
+                            {sending ? <Loader2 className="animate-spin"/> : <Send size={22}/>} 
+                            {sending ? 'Enviando Mensagens...' : `Enviar para ${selectedUsers.length} Clientes`}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
