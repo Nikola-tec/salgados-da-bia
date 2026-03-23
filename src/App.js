@@ -25,7 +25,7 @@ import {
     ResponsiveContainer, PieChart, Pie, Cell 
 } from 'recharts';
 
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, useMapEvents, Circle } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
@@ -1528,13 +1528,6 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
                 <p className="text-xs text-stone-500">Para alterar estes dados, vá para <button type="button" onClick={() => setView('accountSettings')} className="font-bold underline">Minha Conta</button>.</p>
             </div>
 
-            <div className="bg-stone-100 p-4 rounded-xl mb-4 space-y-2">
-                <div><span className="font-bold text-stone-600">Nome: </span><span>{name || "Não definido"}</span></div>
-                <div><span className="font-bold text-stone-600">Telefone: </span><span>{phone || "Não definido"}</span></div>
-                <p className="text-xs text-stone-500">Para alterar estes dados, vá para <button type="button" onClick={() => setView('accountSettings')} className="font-bold underline">Minha Conta</button>.</p>
-            </div>
-
-            {/* AQUI ESTÁ A CORREÇÃO: O Modal do Mapa foi movido para FORA do <form> principal */}
             {showAddressModal && (
                 <AddressForm 
                     address={null}
@@ -1544,7 +1537,7 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
                         if (user && !user.isAnonymous) {
                             try {
                                 const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, user.uid); 
-                                const newId = crypto.randomUUID(); 
+                                const newId = Date.now().toString(); 
                                 const addressToSave = { ...cleanAddress, id: newId };
                                 const updatedAddresses = [...addresses, addressToSave];
                                 
@@ -2033,7 +2026,7 @@ const AccountSettingsView = ({ user, userData, showToast, setView, db, appId }) 
                 updatedAddresses = updatedAddresses.map(addr => addr.id === cleanAddress.id ? cleanAddress : addr); 
             } else { 
                 if (!cleanAddress.lat || !cleanAddress.lng) { showToast("Erro: Endereço sem coordenadas."); return; } 
-                const newId = crypto.randomUUID(); 
+                const newId = Date.now().toString(); 
                 updatedAddresses.push({ ...cleanAddress, id: newId }); 
             }
             await updateDoc(userDocRef, { addresses: updatedAddresses }); 
@@ -2462,6 +2455,24 @@ const AdminSettings = ({showToast, currentSettings}) => {
                          <div><label className="block text-sm font-bold mb-1 text-stone-600">Preço por KM (€)</label><input type="number" name="deliveryPricePerKm" value={settings.deliveryPricePerKm || 0} onChange={handleInputChange} step="0.10" className="w-full p-2 border border-stone-300 rounded-xl" /></div>
                         <div><label className="block text-sm font-bold mb-1 text-stone-600">Raio Máximo de Entrega (KM)</label><input type="number" name="deliveryMaxRadiusKm" value={settings.deliveryMaxRadiusKm || 0} onChange={handleInputChange} step="1" className="w-full p-2 border border-stone-300 rounded-xl" /></div>
                     </div>
+                    
+                    {/* NOVO MAPA DE COBERTURA VISUAL */}
+                    {settings.storeLatitude && settings.storeLongitude && (
+                         <div className="w-full h-72 rounded-xl overflow-hidden border border-stone-300 shadow-inner mt-4 relative z-0">
+                             <MapContainer center={[settings.storeLatitude, settings.storeLongitude]} zoom={10} scrollWheelZoom={true} style={{ height: '100%', width: '100%' }}>
+                                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                                 <Marker position={[settings.storeLatitude, settings.storeLongitude]} />
+                                 <Circle 
+                                    center={[settings.storeLatitude, settings.storeLongitude]} 
+                                    pathOptions={{ fillColor: '#FBBF24', color: '#D97706', fillOpacity: 0.3 }} 
+                                    radius={(settings.deliveryMaxRadiusKm || 17) * 1000} 
+                                 />
+                             </MapContainer>
+                             <div className="absolute top-2 right-2 bg-white/90 backdrop-blur text-xs font-bold text-amber-700 py-1 px-3 rounded-lg z-[400] shadow-md border border-amber-200">
+                                 Área de Cobertura: {settings.deliveryMaxRadiusKm} KM
+                             </div>
+                         </div>
+                    )}
                  </div>
                  <div className="border-t pt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                      <div><label className="block text-sm font-bold mb-1 text-stone-600">Fuso Horário da Loja</label><select name="storeTimezone" value={settings.storeTimezone || 'Europe/Lisbon'} onChange={handleInputChange} className="w-full p-2 border border-stone-300 rounded-xl bg-white">{timezones.map(tz => <option key={tz} value={tz}>{tz}</option>)}</select></div>
