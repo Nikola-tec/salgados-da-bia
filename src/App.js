@@ -671,7 +671,7 @@ function App() {
         
         switch (view) {
             case 'cart': return <CartView cart={cart} updateQuantity={updateQuantity} cartTotal={cartTotal.toFixed(2)} setView={setView} emptyCart={() => setCart([])} user={user} />;
-            case 'checkout': return <CheckoutView placeOrder={placeOrder} cartTotal={cartTotal} cartTotalQuantity={cartTotalQuantity} cart={cart} setView={setView} initialError={error} user={user} userData={userData} authLoading={authLoading} shopSettings={shopSettings} storeOpen={storeOpen} getWorkingInterval={getWorkingInterval}/>;
+            case 'checkout': return <CheckoutView placeOrder={placeOrder} cartTotal={cartTotal} cartTotalQuantity={cartTotalQuantity} cart={cart} setView={setView} initialError={error} user={user} userData={userData} authLoading={authLoading} shopSettings={shopSettings} storeOpen={storeOpen} getWorkingInterval={getWorkingInterval} showToast={showToast} db={db} appId={appId} />;
             case 'confirmation': return <ConfirmationView setView={setView} showToast={showToast} user={user} userData={userData} />;
             case 'adminLogin': return <LoginView handleLogin={handleLogin} error={error} isAdminLogin={true} authLoading={authLoading} />;
             case 'customerLogin': return <LoginView handleLogin={handleLogin} error={error} setView={setView} authLoading={authLoading} />;
@@ -1524,27 +1524,57 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
                                 </select>
                             </div>
                          )}
-                         <button type="button" onClick={() => { setIsAddingNewAddress(true); setSelectedAddress(null); setNewAddressDetails({ cep: '', street: '', number: '', district: '', city: '', state: '', lat: null, lng: null }); }} className="text-amber-600 font-semibold text-sm hover:underline flex items-center gap-1 mt-2">
+                         
+                        {/* NOVO BOTÃO QUE ABRE O MODAL */}
+                        <button type="button" onClick={() => setShowAddressModal(true)} className="text-amber-600 font-semibold text-sm hover:underline flex items-center gap-1 mt-2">
                             <Plus size={16}/> Adicionar Novo Endereço
-                         </button>
+                        </button>
                      </div>
                  )}
 
-                {isAddingNewAddress && (
-                    <div className="p-4 bg-red-50 rounded-xl border border-red-200 space-y-3">
-                        <h3 className="font-bold text-lg text-red-700 flex justify-between items-center">Novo Endereço de Entrega <button type="button" onClick={() => setIsAddingNewAddress(false)} className="text-red-500 hover:text-red-700"><XCircle size={20}/></button></h3>
-                        <div className="flex items-center gap-2">
-                             <input type="text" placeholder="CEP (Ex: 3500-038)" value={newAddressDetails.cep} onChange={e => setNewAddressDetails(p => ({...p, cep: e.target.value}))} onBlur={(e) => handleCepLookup(e.target.value)} className="w-1/2 p-2 border border-stone-300 rounded-xl focus:ring-amber-400" />
-                             <button type="button" onClick={handleCurrentLocation} disabled={cepLoading} className="w-1/2 bg-blue-500 text-white font-bold py-2 px-3 rounded-xl hover:bg-blue-600 flex items-center justify-center gap-2 text-sm disabled:opacity-50">
-                                {cepLoading ? <Loader2 className="animate-spin" size={18}/> : <><MapPin size={18}/> Localização Atual</>}
-                             </button>
+                {/* O MODAL PROFISSIONAL COM MAPA */}
+                {showAddressModal && (
+                    <AddressForm 
+                        address={null}
+                        onSave={async (data) => {
+                            const cleanAddress = Object.fromEntries(Object.entries(data).filter(([_, v]) => v !== undefined));
+                            
+                            // Se o cliente tem conta, salva direto no perfil para sempre!
+                            if (user && !user.isAnonymous) {
+                                try {
+                                    const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, user.uid); 
+                                    const newId = crypto.randomUUID(); 
+                                    const addressToSave = { ...cleanAddress, id: newId };
+                                    const updatedAddresses = [...addresses, addressToSave];
+                                    
+                                    await updateDoc(userDocRef, { addresses: updatedAddresses }); 
+                                    setSelectedAddress(newId);
+                                    setIsAddingNewAddress(false);
+                                    if(showToast) showToast("Endereço salvo na sua conta!");
+                                } catch (error) { 
+                                    setFormError("Erro ao salvar endereço.");
+                                }
+                            } else {
+                                // Se for cliente visitante, salva temporariamente apenas para este pedido
+                                setNewAddressDetails(cleanAddress);
+                                setIsAddingNewAddress(true);
+                                setSelectedAddress(null);
+                            }
+                            setShowAddressModal(false);
+                        }}
+                        onCancel={() => setShowAddressModal(false)}
+                        showToast={showToast}
+                    />
+                )}
+
+                {/* EXIBIÇÃO DO ENDEREÇO TEMPORÁRIO (Caso o cliente seja visitante sem conta) */}
+                {isAddingNewAddress && !selectedAddress && !showAddressModal && (
+                    <div className="p-3 mb-3 bg-blue-50 border border-blue-200 rounded-xl flex justify-between items-center mt-3">
+                        <div>
+                            <p className="font-bold text-blue-800 text-sm">Endereço para esta entrega:</p>
+                            <p className="text-sm text-blue-600">{newAddressDetails.street}, {newAddressDetails.number} - {newAddressDetails.city}</p>
                         </div>
-                        <input type="text" name="street" placeholder="Rua / Logradouro" value={newAddressDetails.street} onChange={e => setNewAddressDetails(p => ({...p, street: e.target.value}))} className="w-full p-2 border border-stone-300 rounded-xl focus:ring-amber-400" required />
-                        <div className="grid grid-cols-2 gap-2">
-                            <input type="text" name="number" placeholder="Número" value={newAddressDetails.number} onChange={e => setNewAddressDetails(p => ({...p, number: e.target.value}))} className="w-full p-2 border border-stone-300 rounded-xl focus:ring-amber-400" required />
-                            <input type="text" name="district" placeholder="Bairro" value={newAddressDetails.district} onChange={e => setNewAddressDetails(p => ({...p, district: e.target.value}))} className="w-full p-2 border border-stone-300 rounded-xl focus:ring-amber-400" required />
-                        </div>
-                        <input type="text" name="city" placeholder="Município/Cidade" value={newAddressDetails.city} onChange={e => setNewAddressDetails(p => ({...p, city: e.target.value}))} className="w-full p-2 border border-stone-300 rounded-xl focus:ring-amber-400" required />
+                        <button type="button" onClick={() => setShowAddressModal(true)} className="text-blue-500 hover:bg-blue-200 p-2 rounded-full transition-colors"><Edit size={16}/></button>
                     </div>
                 )}
                 
