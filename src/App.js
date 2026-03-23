@@ -2291,11 +2291,43 @@ const FaturamentoView = ({ orders }) => {
 
         const chartData = sortedMonths.map(month => ({ name: month.charAt(0).toUpperCase() + month.slice(1), Faturamento: parseFloat(monthlyRevenue[month].toFixed(2)) }));
         const totalRevenue = filteredOrders.reduce((sum, o) => sum + o.total, 0); const averageTicket = filteredOrders.length > 0 ? totalRevenue / filteredOrders.length : 0;
-        return { chartData, totalRevenue, averageTicket, totalOrders: filteredOrders.length };
+        
+        // --- NOVA LÓGICA DE INTELIGÊNCIA: CONTADOR DE PRODUTOS ---
+        const productCounts = {};
+        filteredOrders.forEach(order => {
+            order.items.forEach(item => {
+                // Se for um combo customizável, conta os salgados lá dentro!
+                if (item.customizable && item.customization) {
+                    item.customization.forEach(c => {
+                        productCounts[c.name] = (productCounts[c.name] || 0) + c.quantity;
+                    });
+                } else {
+                    // Se for um item avulso, conta a unidade normal
+                    productCounts[item.name] = (productCounts[item.name] || 0) + item.quantity;
+                }
+            });
+        });
+
+        // Ordenar do mais vendido para o menos vendido
+        const sortedProducts = Object.keys(productCounts)
+            .map(key => ({ name: key, value: productCounts[key] }))
+            .sort((a, b) => b.value - a.value);
+
+        // Separar o Top 5 e agrupar o restante como "Outros"
+        let topProducts = sortedProducts.slice(0, 5);
+        const othersCount = sortedProducts.slice(5).reduce((sum, p) => sum + p.value, 0);
+        if (othersCount > 0) {
+            topProducts.push({ name: 'Outros', value: othersCount });
+        }
+
+        return { chartData, totalRevenue, averageTicket, totalOrders: filteredOrders.length, topProducts };
     }, [orders, filter, yearFilter]);
 
+    // Paleta de cores vibrantes para a Pizza
+    const COLORS = ['#FBBF24', '#F97316', '#EC4899', '#8B5CF6', '#3B82F6', '#9CA3AF'];
+
     return (
-        <div>
+        <div className="animate-fade-in">
             <h3 className="text-xl font-bold mb-4 text-stone-700">Análise de Faturamento</h3>
             <div className="flex flex-wrap gap-2 items-center mb-4 p-2 bg-stone-100 rounded-xl">
                 <button onClick={() => setFilter('30d')} className={`px-3 py-1 text-sm font-semibold rounded-full ${filter === '30d' ? 'bg-amber-500 text-white' : 'bg-white'}`}>Últimos 30 dias</button>
@@ -2303,25 +2335,49 @@ const FaturamentoView = ({ orders }) => {
                 <button onClick={() => setFilter('90d')} className={`px-3 py-1 text-sm font-semibold rounded-full ${filter === '90d' ? 'bg-amber-500 text-white' : 'bg-white'}`}>Últimos 90 dias</button>
                 <div className="flex items-center gap-2">
                     <button onClick={() => setFilter('year')} className={`px-3 py-1 text-sm font-semibold rounded-full ${filter === 'year' ? 'bg-amber-500 text-white' : 'bg-white'}`}>Por Ano:</button>
-                    <select value={yearFilter} onChange={e => {setYearFilter(Number(e.target.value)); setFilter('year');}} className="p-1 border-stone-300 rounded-full text-sm">
+                    <select value={yearFilter} onChange={e => {setYearFilter(Number(e.target.value)); setFilter('year');}} className="p-1 border-stone-300 rounded-full text-sm outline-none">
                         {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
                     </select>
                 </div>
             </div>
+            
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div className="bg-green-100 p-4 rounded-xl"><p className="text-sm text-green-800">Faturamento Total (Período)</p><p className="text-2xl font-bold text-green-900">{filteredData.totalRevenue.toFixed(2)}€</p></div>
-                <div className="bg-blue-100 p-4 rounded-xl"><p className="text-sm text-blue-800">Pedidos Concluídos (Período)</p><p className="text-2xl font-bold text-blue-900">{filteredData.totalOrders}</p></div>
-                <div className="bg-yellow-100 p-4 rounded-xl"><p className="text-sm text-yellow-800">Ticket Médio</p><p className="text-2xl font-bold text-yellow-900">{filteredData.averageTicket.toFixed(2)}€</p></div>
+                <div className="bg-green-100 p-4 rounded-xl shadow-sm border border-green-200"><p className="text-sm text-green-800">Faturamento Total</p><p className="text-2xl font-bold text-green-900">{filteredData.totalRevenue.toFixed(2)}€</p></div>
+                <div className="bg-blue-100 p-4 rounded-xl shadow-sm border border-blue-200"><p className="text-sm text-blue-800">Pedidos Concluídos</p><p className="text-2xl font-bold text-blue-900">{filteredData.totalOrders}</p></div>
+                <div className="bg-yellow-100 p-4 rounded-xl shadow-sm border border-yellow-200"><p className="text-sm text-yellow-800">Ticket Médio</p><p className="text-2xl font-bold text-yellow-900">{filteredData.averageTicket.toFixed(2)}€</p></div>
             </div>
-            <div className="bg-white p-4 rounded-xl shadow-lg border h-96">
-                <h4 className="font-bold mb-4">Faturamento Mensal</h4>
-                <ResponsiveContainer width="100%" height="90%">
-                    {filteredData.chartData.length > 0 ? (
-                        <BarChart data={filteredData.chartData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis tickFormatter={(value) => `${value}€`}/><Tooltip formatter={(value) => `${value.toFixed(2)}€`} /><Legend /><Bar dataKey="Faturamento" fill="#f59e0b" />
-                        </BarChart>
-                    ) : (<div className="flex items-center justify-center h-full text-stone-500">Nenhum dado de faturamento para o período selecionado.</div>)}
-                </ResponsiveContainer>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-white p-4 rounded-xl shadow-lg border h-96">
+                    <h4 className="font-bold mb-4 text-center text-stone-700">Faturamento Mensal (€)</h4>
+                    <ResponsiveContainer width="100%" height="90%">
+                        {filteredData.chartData.length > 0 ? (
+                            <BarChart data={filteredData.chartData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB"/>
+                                <XAxis dataKey="name" tick={{fill: '#6B7280'}} axisLine={false} tickLine={false}/>
+                                <YAxis tickFormatter={(value) => `${value}€`} tick={{fill: '#6B7280'}} axisLine={false} tickLine={false}/>
+                                <Tooltip formatter={(value) => `${value.toFixed(2)}€`} cursor={{fill: '#F3F4F6'}} contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'}}/>
+                                <Bar dataKey="Faturamento" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                        ) : (<div className="flex items-center justify-center h-full text-stone-500">Nenhum dado para o período.</div>)}
+                    </ResponsiveContainer>
+                </div>
+
+                {/* --- A MAGIA DA PIZZA ENTRA AQUI --- */}
+                <div className="bg-white p-4 rounded-xl shadow-lg border h-96">
+                    <h4 className="font-bold mb-4 text-center text-stone-700">Top Produtos Mais Vendidos</h4>
+                    <ResponsiveContainer width="100%" height="90%">
+                        {filteredData.topProducts.length > 0 ? (
+                            <PieChart>
+                                <Pie data={filteredData.topProducts} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}>
+                                    {filteredData.topProducts.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                                </Pie>
+                                <Tooltip formatter={(value) => `${value} unidades`} contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'}}/>
+                                <Legend />
+                            </PieChart>
+                        ) : (<div className="flex items-center justify-center h-full text-stone-500">Nenhum dado para o período.</div>)}
+                    </ResponsiveContainer>
+                </div>
             </div>
         </div>
     );
