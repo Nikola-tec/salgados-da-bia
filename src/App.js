@@ -222,40 +222,147 @@ const useCartTotals = (cartTotal, userData, deliveryFee) => {
 const ManageUsers = ({ userRole, currentUserEmail, updateUserRole }) => {
     const [allUsers, setAllUsers] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState(''); // NOVO: Barra de pesquisa
 
     useEffect(() => {
         if (userRole !== 'admin' || !db || !firebaseInitialized) return;
         setLoading(true);
         const usersRef = collection(db, `artifacts/${appId}/public/data/users`);
-        const usersQuery = query(usersRef, orderBy('name', 'asc')); 
+        const usersQuery = query(usersRef, orderBy('name', 'asc'));
         const unsubscribe = onSnapshot(usersQuery, (snapshot) => {
             const usersList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setAllUsers(usersList); setLoading(false);
         }, () => { setLoading(false); });
         return () => unsubscribe();
-    }, [userRole]); 
+    }, [userRole]);
 
-    const roles = ['customer', 'admin', 'kitchen', 'delivery'];
-    if (loading) return <div className="flex justify-center items-center h-40"><Loader2 className="animate-spin text-4xl text-stone-500" /></div>;
+    const roles = {
+        'customer': { label: 'Cliente', color: 'bg-stone-100 text-stone-600' },
+        'admin': { label: 'Administrador', color: 'bg-red-100 text-red-700 border-red-200' },
+        'kitchen': { label: 'Cozinha', color: 'bg-amber-100 text-amber-700' },
+        'delivery': { label: 'Entregador', color: 'bg-blue-100 text-blue-700' }
+    };
+
+    // Filtro inteligente para a barra de pesquisa
+    const filteredUsers = allUsers.filter(user => 
+        (user.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+        (user.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (user.phone || '').includes(searchTerm)
+    );
+
+    if (loading) return <div className="flex justify-center items-center h-40"><Loader2 className="animate-spin text-4xl text-amber-500" /></div>;
 
     return (
-        <div className="p-4">
-            <h2 className="text-2xl font-bold mb-6 text-red-600 border-b pb-2 flex items-center"><UserCheck className="inline mr-2" /> Gerenciamento de Perfis de Acesso</h2>
-            <div className="space-y-4">
-                {allUsers.map((user) => (
-                    <div key={user.id} className={`p-4 border rounded-xl shadow-sm transition-all ${user.role === 'admin' ? 'border-red-500 bg-red-50' : 'border-stone-200 bg-white hover:shadow-md'}`}>
-                        <p className="font-semibold text-stone-800">{user.name || 'Sem Nome'}</p>
-                        <p className="text-sm text-stone-600 mb-2">{user.email}</p>
-                        <div className="flex items-center mt-2">
-                            <label htmlFor={`role-${user.id}`} className="mr-3 font-medium text-sm">Perfil:</label>
-                            <select id={`role-${user.id}`} value={user.role || 'customer'} disabled={user.email === currentUserEmail} onChange={(e) => updateUserRole(user.id, e.target.value)} className="border border-stone-300 rounded-xl p-1.5 text-sm focus:border-red-500 focus:ring focus:ring-red-200">
-                                {roles.map(role => (<option key={role} value={role}>{role.charAt(0).toUpperCase() + role.slice(1)}</option>))}
-                            </select>
-                            {user.email === currentUserEmail && <span className="ml-3 text-red-500 text-xs font-bold">(Seu Perfil)</span>}
-                        </div>
-                    </div>
-                ))}
+        <div className="p-0 sm:p-2 animate-fade-in">
+            {/* CABEÇALHO COM PESQUISA */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-b pb-4">
+                <h2 className="text-2xl font-bold text-stone-800 flex items-center gap-2">
+                    <Users className="text-amber-500" /> Agenda de Contatos ({filteredUsers.length})
+                </h2>
+                <div className="w-full md:w-80 relative">
+                    <input 
+                        type="text" 
+                        placeholder="Pesquisar cliente ou telefone..." 
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-4 pr-10 py-2 border border-stone-300 rounded-xl focus:ring-2 focus:ring-amber-400 outline-none text-sm transition-shadow shadow-sm"
+                    />
+                    {searchTerm && <button onClick={() => setSearchTerm('')} className="absolute right-3 top-2.5 text-stone-400 hover:text-stone-600"><XCircle size={16}/></button>}
+                </div>
             </div>
+
+            {/* GRADE DE CARTÕES DE CONTATO */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {filteredUsers.map((user) => {
+                    const userRoleInfo = roles[user.role] || roles['customer'];
+                    const initials = (user.name || 'C').substring(0, 2).toUpperCase();
+                    // Limpa o número para usar no link do WhatsApp
+                    const phoneNumbersOnly = user.phone ? user.phone.replace(/\D/g, '') : '';
+                    // Se tiver pelo menos 8 números, considera um WhatsApp válido
+                    const hasWhatsapp = phoneNumbersOnly.length >= 8;
+
+                    return (
+                        <div key={user.id} className={`flex flex-col bg-white rounded-2xl border ${user.role === 'admin' ? 'border-red-200 shadow-md' : 'border-stone-200 shadow-sm hover:shadow-md hover:border-amber-300'} overflow-hidden transition-all duration-300`}>
+                            
+                            {/* Topo do Cartão: Nome, Email e Tag */}
+                            <div className={`p-4 flex items-start gap-4 ${user.role === 'admin' ? 'bg-red-50/50' : 'bg-stone-50/50'} border-b border-stone-100`}>
+                                <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center font-black text-lg flex-shrink-0 shadow-inner">
+                                    {initials}
+                                </div>
+                                <div className="flex-1 overflow-hidden">
+                                    <h3 className="font-bold text-lg text-stone-800 truncate" title={user.name}>{user.name || 'Sem Nome'}</h3>
+                                    <p className="text-xs text-stone-500 truncate mt-0.5" title={user.email}>{user.email}</p>
+                                </div>
+                                <div className="flex-shrink-0">
+                                    <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${userRoleInfo.color}`}>
+                                        {userRoleInfo.label}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Corpo do Cartão: Telefone e Morada */}
+                            <div className="p-4 flex-1 space-y-3">
+                                <div className="flex items-center gap-3 text-sm text-stone-600">
+                                    <Phone size={16} className="text-stone-400 flex-shrink-0" />
+                                    <span className="truncate font-medium">{user.phone || <span className="text-stone-300 italic">Sem telemóvel</span>}</span>
+                                </div>
+                                
+                                <div className="flex items-start gap-3 text-sm text-stone-600">
+                                    <MapPin size={16} className="text-stone-400 flex-shrink-0 mt-0.5" />
+                                    <div className="flex-1">
+                                        {user.addresses && user.addresses.length > 0 ? (
+                                            <p className="line-clamp-2 text-xs leading-snug">{user.addresses[0].street}, {user.addresses[0].number} - {user.addresses[0].city}</p>
+                                        ) : (
+                                            <p className="text-xs italic text-stone-300">Nenhuma morada cadastrada</p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Rodapé: Acesso Discreto e Botão WhatsApp */}
+                            <div className="p-3 bg-stone-50 border-t border-stone-100 flex items-center justify-between gap-2 h-14">
+                                <div className="flex flex-col justify-center">
+                                    <label htmlFor={`role-${user.id}`} className="text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-0.5">Nível de Acesso</label>
+                                    <select 
+                                        id={`role-${user.id}`} 
+                                        value={user.role || 'customer'} 
+                                        disabled={user.email === currentUserEmail} 
+                                        onChange={(e) => updateUserRole(user.id, e.target.value)} 
+                                        className="bg-transparent border-none text-xs font-bold text-stone-700 cursor-pointer focus:ring-0 p-0 hover:text-amber-600 transition-colors outline-none"
+                                    >
+                                        {Object.entries(roles).map(([key, {label}]) => (<option key={key} value={key}>{label}</option>))}
+                                    </select>
+                                </div>
+
+                                <div className="flex gap-2">
+                                    {user.email === currentUserEmail && (
+                                        <span className="bg-stone-200 text-stone-500 text-[10px] font-bold px-2 py-1 rounded flex items-center h-8">
+                                            SEU PERFIL
+                                        </span>
+                                    )}
+                                    {hasWhatsapp && (
+                                        <a 
+                                            href={`https://wa.me/${phoneNumbersOnly}`} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="bg-green-100 text-green-700 hover:bg-green-500 hover:text-white px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 text-xs font-bold shadow-sm active:scale-95"
+                                            title="Falar no WhatsApp"
+                                        >
+                                            <MessageSquare size={16} /> <span>WhatsApp</span>
+                                        </a>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+            {filteredUsers.length === 0 && (
+                <div className="text-center py-12">
+                    <Users size={48} className="mx-auto text-stone-300 mb-4" />
+                    <p className="text-stone-500 font-semibold">Nenhum contato encontrado com essa pesquisa.</p>
+                </div>
+            )}
         </div>
     );
 };
