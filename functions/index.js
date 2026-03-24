@@ -1,120 +1,58 @@
-const functions = require("firebase-functions/v1");
-const admin = require("firebase-admin");
+const functions = require('firebase-functions/v1');
+const admin = require('firebase-admin');
 
-admin.initializeApp();
+// Inicializa o admin apenas se ainda não tiver sido inicializado
+if (!admin.apps.length) {
+    admin.initializeApp();
+}
 
-// --- FUNÇÃO 1: Notifica Admin sobre Novos Pedidos ---
 exports.notificarNovoPedido = functions.firestore
-    .document("artifacts/{appId}/public/data/orders/{pedidoId}")
+    .document('artifacts/{appId}/public/data/orders/{pedidoId}')
     .onCreate(async (snap, context) => {
-      const pedido = snap.data();
-      if (!pedido) return null;
+        const pedido = snap.data();
+        const appId = context.params.appId; // Será 'salgados-da-bia'
+        
+        // Formata os dados para a notificação
+        const nomeCliente = pedido.name || 'Um cliente';
+        const valor = pedido.total ? pedido.total.toFixed(2) : '0.00';
 
-      const nome = pedido.userName || pedido.nomeCliente || "Cliente";
-      const valor = pedido.total ? pedido.total.toFixed(2) : "0.00";
+        const payload = {
+            notification: {
+                title: '🚨 NOVO PEDIDO RECEBIDO!',
+                body: `${nomeCliente} acabou de pedir (${valor}€). Abra o painel para preparar!`,
+                icon: 'https://salgadosdabia.com/favicon.ico', // Ajuste para o link do seu favicon/logo
+                clickAction: 'https://salgadosdabia.com'
+            }
+        };
 
-      const message = {
-        notification: {
-          title: "Novo Pedido! 🍔",
-          body: `${nome} fez um pedido de R$ ${valor}.`,
-        },
-        webpush: {
-          headers: {Urgency: "high"},
-          notification: {
-            title: "Novo Pedido! 🍔",
-            body: `${nome} fez um pedido de R$ ${valor}.`,
-            icon: "/logo192.png",
-            badge: "/favicon.ico",
-            click_action: "https://salgadosdabia.com/admin",
-            requireInteraction: true,
-          },
-          fcmOptions: {link: "https://salgadosdabia.com/admin"},
-        },
-        tokens: [],
-      };
+        try {
+            // A MAGIA ACONTECE AQUI: Vai procurar na pasta nova e correta!
+            const tokensSnapshot = await admin.firestore()
+                .collection(`artifacts/${appId}/public/data/adminTokens`)
+                .get();
 
-      const tokensSnapshot = await admin.firestore()
-          .collection("admin_tokens").get();
+            if (tokensSnapshot.empty) {
+                console.log('Nenhum token de administrador encontrado. A notificação não foi enviada.');
+                return null;
+            }
 
-      if (tokensSnapshot.empty) return null;
+            const tokens = [];
+            tokensSnapshot.forEach(doc => {
+                const data = doc.data();
+                if (data.token) {
+                    tokens.push(data.token);
+                }
+            });
 
-      const tokens = tokensSnapshot.docs.map((doc) => doc.id);
-      message.tokens = tokens;
-
-      await admin.messaging().sendMulticast(message);
-      return null;
-    });
-
-// --- FUNÇÃO 2: CRM - Envia campanhas ---
-exports.enviarCampanhaMarketing = functions.firestore
-    .document("artifacts/{appId}/public/data/marketing_campaigns/{campaignId}")
-    .onCreate(async (snap, context) => {
-      const campanha = snap.data();
-      const appId = context.params.appId;
-
-      // TRAVA DE SEGURANÇA: Só envia se o status for 'Pendente'
-      if (!campanha || campanha.status !== "Pendente") {
-        return null;
-      }
-
-      if (!campanha.targetUids || campanha.targetUids.length === 0) {
-        await snap.ref.update({status: "Cancelado: Sem alvos"});
-        return null;
-      }
-
-      const tokensParaEnviar = [];
-      const usersRef = admin.firestore()
-          .collection(`artifacts/${appId}/public/data/users`);
-
-      if (campanha.targetUids === "all") {
-        const snapshot = await usersRef.get();
-        snapshot.forEach((doc) => {
-          const d = doc.data();
-          if (d.notificationToken) tokensParaEnviar.push(d.notificationToken);
-        });
-      } else {
-        // Para listas grandes, idealmente usaríamos batch ou chunks
-        for (const uid of campanha.targetUids) {
-          const userDoc = await usersRef.doc(uid).get();
-          if (userDoc.exists) {
-            const d = userDoc.data();
-            if (d.notificationToken) tokensParaEnviar.push(d.notificationToken);
-          }
+            if (tokens.length > 0) {
+                // Dispara o Push para todos os telemóveis logados como Admin
+                const response = await admin.messaging().sendToDevice(tokens, payload);
+                console.log(`Notificações enviadas: ${response.successCount} sucesso(s) e ${response.failureCount} falha(s).`);
+            }
+            
+            return null;
+        } catch (error) {
+            console.error('Erro fatal ao tentar enviar a notificação:', error);
+            return null;
         }
-      }
-
-      if (tokensParaEnviar.length === 0) {
-        await snap.ref.update({status: "Falha: Sem tokens válidos"});
-        return null;
-      }
-
-      const message = {
-        notification: {
-          title: campanha.title,
-          body: campanha.body,
-        },
-        webpush: {
-          headers: {Urgency: "high"},
-          notification: {
-            title: campanha.title,
-            body: campanha.body,
-            icon: "/logo192.png",
-            badge: "/favicon.ico",
-            click_action: "https://salgadosdabia.com",
-          },
-          fcmOptions: {link: "https://salgadosdabia.com"},
-        },
-        tokens: tokensParaEnviar,
-      };
-
-      const response = await admin.messaging().sendMulticast(message);
-
-      await snap.ref.update({
-        status: "Enviado",
-        sentCount: response.successCount,
-        failureCount: response.failureCount,
-        finishedAt: new Date(),
-      });
-
-      return null;
     });

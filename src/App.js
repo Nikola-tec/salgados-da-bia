@@ -102,21 +102,37 @@ const requestUserNotificationPermission = async (currentUser, currentAppId) => {
     } catch (err) {}
 };
 
-const requestAdminNotificationPermission = async (currentUser, currentAppId) => {
+const requestAdminNotificationPermission = async (currentUser, currentAppId, showToast) => {
     if (!firebaseInitialized || !db || !currentUser) return;
-    if (!('Notification' in window)) return;
+    if (!('Notification' in window)) return; // Sai silenciosamente se o navegador for antigo
+    
     try {
         const messaging = getMessaging(app);
         const VAPID_KEY = 'BGZAxnG_iSTgeX0y7s6rEmtFzE41Ns43DXN3gCgN6RJX51xKyDfRdOczX1T7cyQ5U3v6ZNCsJCyp3lESPuQQNKY'; 
-        if (Notification.permission !== 'granted') await Notification.requestPermission();
-        if (Notification.permission === 'granted') {
+        
+        // Pede a permissão nativa do navegador
+        const permission = await Notification.requestPermission();
+        
+        if (permission === 'granted') {
             const currentToken = await getToken(messaging, { vapidKey: VAPID_KEY });
             if (currentToken) {
+                // Guarda na pasta correta sem incomodar o utilizador
                 const tokenRef = doc(db, `artifacts/${currentAppId}/public/data/adminTokens`, currentUser.uid);
-                await setDoc(tokenRef, { token: currentToken, uid: currentUser.uid });
+                await setDoc(tokenRef, { token: currentToken, uid: currentUser.uid, updatedAt: new Date() }, { merge: true });
+                
+                // Ouve mensagens em tempo real
+                onMessage(messaging, (payload) => {
+                    if(showToast) showToast(`🚨 PUSH: ${payload.notification.body}`);
+                    try { 
+                        const audio = new Audio('https://actions.google.com/sounds/v1/alarms/positive_ping.ogg'); 
+                        audio.play().catch(e => console.log('Áudio bloqueado:', e)); 
+                    } catch(e) {}
+                });
             }
         }
-    } catch (err) {}
+    } catch (err) {
+        console.error("Erro no Push:", err);
+    }
 };
 
 const getCoordsFromAddress = async (address, cep) => {
