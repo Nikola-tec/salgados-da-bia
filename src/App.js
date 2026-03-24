@@ -81,58 +81,42 @@ const INITIAL_SHOP_SETTINGS = {
 };
 const INITIAL_WORKING_HOURS = INITIAL_SHOP_SETTINGS.workingHours;
 
-const requestUserNotificationPermission = async (currentUser, currentAppId) => {
+const enablePushForUser = async (currentUser, currentAppId, role, showToast) => {
     if (!firebaseInitialized || !db || !currentUser || currentUser.isAnonymous) return;
     if (!('Notification' in window)) return;
-    try {
-        const messaging = getMessaging(app);
-        const VAPID_KEY = 'BGZAxnG_iSTgeX0y7s6rEmtFzE41Ns43DXN3gCgN6RJX51xKyDfRdOczX1T7cyQ5U3v6ZNCsJCyp3lESPuQQNKY'; 
-        const permission = await Notification.requestPermission();
-        if (permission === 'granted') {
-            const currentToken = await getToken(messaging, { vapidKey: VAPID_KEY });
-            if (currentToken) {
-                const userDocRef = doc(db, `artifacts/${currentAppId}/public/data/users`, currentUser.uid);
-                await updateDoc(userDocRef, { notificationTokens: arrayUnion(currentToken) }, { merge: true }); 
-                onMessage(messaging, (payload) => {
-                    const event = new CustomEvent('app-notification', { detail: `🔔 Pedido: ${payload.notification.body}` });
-                    window.dispatchEvent(event);
-                });
-            }
-        }
-    } catch (err) {}
-};
-
-const requestAdminNotificationPermission = async (currentUser, currentAppId, showToast) => {
-    if (!firebaseInitialized || !db || !currentUser) return;
-    if (!('Notification' in window)) return; // Sai silenciosamente se o navegador for antigo
     
     try {
         const messaging = getMessaging(app);
-        const VAPID_KEY = 'BGZAxnG_iSTgeX0y7s6rEmtFzE41Ns43DXN3gCgN6RJX51xKyDfRdOczX1T7cyQ5U3v6ZNCsJCyp3lESPuQQNKY'; 
+        const VAPID_KEY = 'BGZAxnG_iSTgeX0y7s6rEmtFzE41Ns43DXN3gCgN6RJX51xKyDfRdOczX1T7cyQ5U3v6ZNCsJCyp3lESPuQQNKY';
         
-        // Pede a permissão nativa do navegador
-        const permission = await Notification.requestPermission();
-        
+        let permission = Notification.permission;
+        // Pede permissão apenas se ainda não foi concedida nem bloqueada
+        if (permission === 'default') {
+            permission = await Notification.requestPermission();
+        }
+
         if (permission === 'granted') {
             const currentToken = await getToken(messaging, { vapidKey: VAPID_KEY });
             if (currentToken) {
-                // Guarda na pasta correta sem incomodar o utilizador
-                const tokenRef = doc(db, `artifacts/${currentAppId}/public/data/adminTokens`, currentUser.uid);
-                await setDoc(tokenRef, { token: currentToken, uid: currentUser.uid, updatedAt: new Date() }, { merge: true });
+                if (role === 'admin') {
+                    const tokenRef = doc(db, `artifacts/${currentAppId}/public/data/adminTokens`, currentUser.uid);
+                    await setDoc(tokenRef, { token: currentToken, uid: currentUser.uid, updatedAt: new Date() }, { merge: true });
+                } else {
+                    const userDocRef = doc(db, `artifacts/${currentAppId}/public/data/users`, currentUser.uid);
+                    await updateDoc(userDocRef, { notificationTokens: arrayUnion(currentToken) }); 
+                }
                 
-                // Ouve mensagens em tempo real
+                // Força o alerta e o som quando o App está aberto no ecrã!
                 onMessage(messaging, (payload) => {
-                    if(showToast) showToast(`🚨 PUSH: ${payload.notification.body}`);
-                    try { 
-                        const audio = new Audio('https://actions.google.com/sounds/v1/alarms/positive_ping.ogg'); 
-                        audio.play().catch(e => console.log('Áudio bloqueado:', e)); 
-                    } catch(e) {}
+                    if (showToast) showToast(`🚨 ${payload.notification.title}`);
+                    if (Notification.permission === 'granted') {
+                        new Notification(payload.notification.title, { body: payload.notification.body, icon: '/favicon.ico' });
+                    }
+                    try { const audio = new Audio('https://actions.google.com/sounds/v1/alarms/positive_ping.ogg'); audio.play().catch(()=>{}); } catch(e) {}
                 });
             }
         }
-    } catch (err) {
-        console.error("Erro no Push:", err);
-    }
+    } catch (err) { console.error("Erro no Push:", err); }
 };
 
 const getCoordsFromAddress = async (address, cep) => {
@@ -592,8 +576,11 @@ function App() {
                 if (docSnap.exists()) {
                     const data = docSnap.data(); userRoleStatus = data.role || 'customer'; setUserData(data);
                     if (!data.phone && !currentUser.isAnonymous) {setShowPhoneModal(true);}
-                    if (userRoleStatus === 'admin') requestAdminNotificationPermission(currentUser, appId);
-                    else if (!currentUser.isAnonymous) requestUserNotificationPermission(currentUser, appId);
+                    if (userRoleStatus === 'admin') {
+                        if (Notification.permission === 'granted') enablePushForUser(currentUser, appId, 'admin');
+                    } else if (!currentUser.isAnonymous) {
+                        if (Notification.permission === 'granted') enablePushForUser(currentUser, appId, 'customer');
+                    }
                 } else {
                     const initialData = { name: currentUser.displayName, email: currentUser.email, addresses: [], hasGivenFeedback: false, hasFeedbackDiscount: false, notificationTokens: [], role: 'customer' };
                     setUserData(initialData);
@@ -1580,6 +1567,12 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
 
     const handleSubmit = (e) => {
         e.preventDefault(); setFormError('');
+        
+        // Pede a permissão ao cliente orgulhosamente no checkout!
+        if ('Notification' in window && Notification.permission === 'default') {
+            enablePushForUser(user, appId, 'customer', showToast);
+        }
+        
         if (deliveryError) { setFormError(deliveryError); return; }
         let finalAddress = null;
 
@@ -1660,7 +1653,6 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
                                 const addressToSave = { ...cleanAddress, id: newId };
                                 const updatedAddresses = [...addresses, addressToSave];
                                 
-                                // CORREÇÃO: setDoc com merge é 100% seguro contra falhas de documento inexistente
                                 await setDoc(userDocRef, { addresses: updatedAddresses }, { merge: true }); 
                                 
                                 setAddresses(updatedAddresses);
@@ -2612,6 +2604,16 @@ const CRMView = ({ orders, setView, db, showToast }) => {
 
 const AdminDashboard = ({ menu, orders, feedbacks, handleLogout, showToast, settings, setView, updateOrderStatus, updateOrderSchedule, updateUserRole, currentUserEmail, userRole }) => {
     const [adminView, setAdminView] = useState('dashboard'); 
+    
+    // MAGIA DO UX: Pega carona nos cliques naturais da Bianca para pedir permissão
+    const handleTabClick = (tabName) => {
+        setAdminView(tabName);
+        if ('Notification' in window && Notification.permission === 'default') {
+            const auth = getAuth();
+            if (auth.currentUser) enablePushForUser(auth.currentUser, appId, 'admin', showToast);
+        }
+    };
+
     const renderAdminView = () => {
         switch(adminView) {
             case 'orders': return <ManageOrders orders={orders} updateOrderStatus={updateOrderStatus} updateOrderSchedule={updateOrderSchedule} />;
@@ -2635,15 +2637,15 @@ const AdminDashboard = ({ menu, orders, feedbacks, handleLogout, showToast, sett
                 </div>
             </div>
             <div className="flex flex-wrap gap-2 mb-6 border-b">
-                <button onClick={() => setAdminView('dashboard')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'dashboard' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Package size={16}/> Resumo</button>
-                <button onClick={() => setAdminView('orders')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'orders' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><ShoppingCart size={16}/> Pedidos</button>
-                <button onClick={() => setAdminView('menu')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'menu' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><ChefHat size={16}/> Cardápio</button>
-                <button onClick={() => setAdminView('faturamento')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'faturamento' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><TrendingUp size={16}/> Faturamento</button>
-                <button onClick={() => setAdminView('feedbacks')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'feedbacks' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Star size={16}/> Feedbacks</button>
-                <button onClick={() => setAdminView('manageAgenda')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'manageAgenda' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Calendar size={16}/> Agenda</button>
-                <button onClick={() => setAdminView('settings')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'settings' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Settings size={16}/> Configurações</button>
-                <button onClick={() => setAdminView('manageUsers')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'manageUsers' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Users size={16}/> Perfis</button>
-                <button onClick={() => setView('crm')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'crm' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Megaphone size={16}/> CRM</button>
+                <button onClick={() => handleTabClick('dashboard')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'dashboard' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Package size={16}/> Resumo</button>
+                <button onClick={() => handleTabClick('orders')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'orders' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><ShoppingCart size={16}/> Pedidos</button>
+                <button onClick={() => handleTabClick('menu')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'menu' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><ChefHat size={16}/> Cardápio</button>
+                <button onClick={() => handleTabClick('faturamento')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'faturamento' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><TrendingUp size={16}/> Faturamento</button>
+                <button onClick={() => handleTabClick('feedbacks')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'feedbacks' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Star size={16}/> Feedbacks</button>
+                <button onClick={() => handleTabClick('manageAgenda')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'manageAgenda' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Calendar size={16}/> Agenda</button>
+                <button onClick={() => handleTabClick('settings')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'settings' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Settings size={16}/> Configurações</button>
+                <button onClick={() => handleTabClick('manageUsers')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'manageUsers' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Users size={16}/> Perfis</button>
+                <button onClick={() => { setView('crm'); if ('Notification' in window && Notification.permission === 'default') { const auth = getAuth(); if (auth.currentUser) enablePushForUser(auth.currentUser, appId, 'admin', showToast); } }} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors text-stone-500 hover:bg-stone-100`}><Megaphone size={16}/> CRM</button>
             </div>
             {renderAdminView()}
         </div>
