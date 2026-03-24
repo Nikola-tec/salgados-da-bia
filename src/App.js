@@ -627,12 +627,12 @@ function App() {
         const ordersRef = collection(db, `artifacts/${appId}/public/data/orders`);
         
         let ordersQuery = ordersRef;
-        // Se for cliente, filtra apenas os pedidos dele
+        // CORREÇÃO: Agora usamos o estado 'user' que é super estável, em vez do 'auth' instável
         if (userRole === 'customer') {
-            if (auth.currentUser) {
-                ordersQuery = query(ordersRef, where('userId', '==', auth.currentUser.uid));
+            if (user && user.uid) {
+                ordersQuery = query(ordersRef, where('userId', '==', user.uid));
             } else {
-                return; // Anônimos não buscam histórico de pedidos global
+                return; 
             }
         }
 
@@ -648,7 +648,6 @@ function App() {
             const feedbackData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data()}));
             setFeedbacks(feedbackData);
         }, (err) => { 
-            // Falha silenciosamente se o usuário não tiver permissão de ler os feedbacks ainda
             console.warn("Feedbacks aguardando autenticação."); 
         });
 
@@ -659,7 +658,8 @@ function App() {
         }, (err) => { handleSnapshotError('configurações')(err); setShopSettings(INITIAL_SHOP_SETTINGS); });
 
         return () => { unsubscribeMenu(); unsubscribeOrders(); unsubscribeSettings(); unsubscribeFeedbacks(); };
-    }, [isAuthReady, userRole, handleSnapshotError]); 
+    // A MÁGICA FINAL AQUI: 'user' agora faz parte da lista de vigias do React!
+    }, [isAuthReady, userRole, user, handleSnapshotError]);
 
     const addToCart = (item, customization, priceOverride) => {
         const applyMinimumOrder = cart.length === 0;
@@ -803,15 +803,15 @@ function App() {
     };
 
     const initialOrdersLoaded = useRef(false);
-    const previousOrdersRef = useRef(null);
+    const previousOrdersRef = useRef([]);
 
     useEffect(() => {
         if (!user || !userRole) return;
         
-        // TRAVA MÁGICA: Impede que os pedidos antigos apitem no primeiro carregamento
+        // TRAVA MÁGICA CORRIGIDA: Regista o estado inicial sem bloquear a primeira venda do dia!
         if (!initialOrdersLoaded.current) { 
-            if (orders.length > 0) initialOrdersLoaded.current = true;
             previousOrdersRef.current = orders; 
+            initialOrdersLoaded.current = true;
             return; 
         }
         
@@ -821,10 +821,13 @@ function App() {
                 if (currentOrder.userId === user.uid) {
                     const prevOrder = previousOrders.find(o => o.id === currentOrder.id);
                     if (prevOrder && prevOrder.status !== currentOrder.status) {
-                        if (currentOrder.status === 'Em Preparo') showToast(`Boas notícias! Seu pedido #${currentOrder.id.slice(0,6).toUpperCase()} está na cozinha!`);
-                        else if (currentOrder.status === 'Saiu para Entrega') showToast(`Uhul! Seu pedido #${currentOrder.id.slice(0,6).toUpperCase()} saiu para entrega!`);
-                        else if (currentOrder.status === 'Pronto para Entrega') showToast(`Seu pedido #${currentOrder.id.slice(0,6).toUpperCase()} está pronto!`);
-                        else if (currentOrder.status === 'Rejeitado') showToast(`Atenção: Seu pedido #${currentOrder.id.slice(0,6).toUpperCase()} foi cancelado.`);
+                        if (currentOrder.status === 'Em Preparo') showToast(`Boas notícias! O seu pedido está na cozinha!`);
+                        else if (currentOrder.status === 'Saiu para Entrega') showToast(`Uhul! O seu pedido saiu para entrega!`);
+                        else if (currentOrder.status === 'Pronto para Entrega') showToast(`O seu pedido está pronto para retirar!`);
+                        else if (currentOrder.status === 'Rejeitado') showToast(`Atenção: O seu pedido foi cancelado.`);
+                        
+                        // Som para o cliente também!
+                        try { const audio = new Audio('https://actions.google.com/sounds/v1/alarms/positive_ping.ogg'); audio.play().catch(()=>{}); } catch (e) {}
                     }
                 }
             });
@@ -833,8 +836,8 @@ function App() {
             if (orders.length > previousOrders.length) {
                 const newOrders = orders.filter(o => !previousOrders.some(p => p.id === o.id));
                 newOrders.forEach(newOrder => {
-                    showToast(`🔔 NOVO PEDIDO: ${newOrder.name || 'Cliente'} acabou de pedir! (#${newOrder.id.slice(0,6).toUpperCase()})`);
-                    try { const audio = new Audio('https://actions.google.com/sounds/v1/alarms/positive_ping.ogg'); audio.play().catch(e => console.log('Áudio bloqueado:', e)); } catch (e) {}
+                    showToast(`🔔 NOVO PEDIDO: Cliente acabou de pedir! (#${newOrder.id.slice(0,6).toUpperCase()})`);
+                    try { const audio = new Audio('https://actions.google.com/sounds/v1/alarms/positive_ping.ogg'); audio.play().catch(()=>{}); } catch (e) {}
                 });
             }
         }
