@@ -1635,7 +1635,6 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
                 <AddressForm 
                     address={null}
                     onSave={async (data) => {
-                        // HIGIENIZAÇÃO PROFUNDA: Elimina NaN e Undefined que quebram o Firebase
                         const cleanAddress = JSON.parse(JSON.stringify(data));
                         
                         if (user && !user.isAnonymous) {
@@ -1645,16 +1644,16 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
                                 const addressToSave = { ...cleanAddress, id: newId };
                                 const updatedAddresses = [...addresses, addressToSave];
                                 
-                                await updateDoc(userDocRef, { addresses: updatedAddresses }); 
+                                // CORREÇÃO: setDoc com merge é 100% seguro contra falhas de documento inexistente
+                                await setDoc(userDocRef, { addresses: updatedAddresses }, { merge: true }); 
                                 
-                                // ATUALIZA A TELA IMEDIATAMENTE!
                                 setAddresses(updatedAddresses);
                                 setSelectedAddress(newId);
                                 setIsAddingNewAddress(false);
                                 setShowAddressModal(false);
                                 if(showToast) showToast("Endereço salvo na sua conta!");
                             } catch (error) { 
-                                // LANÇA O ERRO PARA DENTRO DO MODAL
+                                console.error("Detalhe do erro Firebase:", error);
                                 throw new Error("Erro na Base de Dados. Tente novamente.");
                             }
                         } else {
@@ -2132,13 +2131,11 @@ const AccountSettingsView = ({ user, userData, showToast, setView, db, appId }) 
         } catch (error) { showToast("Ocorreu um erro ao salvar."); } finally { setIsSaving(false); }
     };
     
-    // A função super segura está aqui dentro agora:
     const handleSaveAddress = async (newAddressData) => {
         try {
             const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, user.uid); 
             let updatedAddresses = [...addresses];
             
-            // HIGIENIZAÇÃO PROFUNDA
             const cleanAddress = JSON.parse(JSON.stringify(newAddressData));
 
             if (cleanAddress.id) { 
@@ -2148,19 +2145,31 @@ const AccountSettingsView = ({ user, userData, showToast, setView, db, appId }) 
                 const newId = Date.now().toString(); 
                 updatedAddresses.push({ ...cleanAddress, id: newId }); 
             }
-            await updateDoc(userDocRef, { addresses: updatedAddresses }); 
+            
+            // CORREÇÃO APLICADA AQUI
+            await setDoc(userDocRef, { addresses: updatedAddresses }, { merge: true }); 
+            
             showToast("Endereço salvo com sucesso!"); 
             setEditingAddress(null);
         } catch (error) { 
+            console.error("Detalhe do erro Firebase:", error);
             throw new Error("Ocorreu um erro ao gravar o endereço. Verifique a sua conexão."); 
         }
     };
     
     const handleDeleteAddressConfirm = async () => {
          try {
-            const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, user.uid); const updatedAddresses = addresses.filter(addr => addr.id !== deletingAddressId);
-            await updateDoc(userDocRef, { addresses: updatedAddresses }); showToast("Endereço removido com sucesso!"); setDeletingAddressId(null);
-        } catch (error) { showToast("Erro ao remover endereço."); }
+            const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, user.uid); 
+            const updatedAddresses = addresses.filter(addr => addr.id !== deletingAddressId);
+            
+            // CORREÇÃO APLICADA AQUI
+            await setDoc(userDocRef, { addresses: updatedAddresses }, { merge: true }); 
+            
+            showToast("Endereço removido com sucesso!"); 
+            setDeletingAddressId(null);
+        } catch (error) { 
+            showToast("Erro ao remover endereço."); 
+        }
     };
     
     return (
