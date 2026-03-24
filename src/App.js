@@ -1635,7 +1635,8 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
                 <AddressForm 
                     address={null}
                     onSave={async (data) => {
-                        const cleanAddress = Object.fromEntries(Object.entries(data).filter(([_, v]) => v !== undefined));
+                        // HIGIENIZAÇÃO PROFUNDA: Elimina NaN e Undefined que quebram o Firebase
+                        const cleanAddress = JSON.parse(JSON.stringify(data));
                         
                         if (user && !user.isAnonymous) {
                             try {
@@ -1646,20 +1647,22 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
                                 
                                 await updateDoc(userDocRef, { addresses: updatedAddresses }); 
                                 
-                                // ATUALIZAÇÃO IMEDIATA NA TELA AQUI:
+                                // ATUALIZA A TELA IMEDIATAMENTE!
                                 setAddresses(updatedAddresses);
                                 setSelectedAddress(newId);
                                 setIsAddingNewAddress(false);
+                                setShowAddressModal(false);
                                 if(showToast) showToast("Endereço salvo na sua conta!");
                             } catch (error) { 
-                                setFormError("Erro ao salvar endereço.");
+                                // LANÇA O ERRO PARA DENTRO DO MODAL
+                                throw new Error("Erro na Base de Dados. Tente novamente.");
                             }
                         } else {
                             setNewAddressDetails(cleanAddress);
                             setIsAddingNewAddress(true);
                             setSelectedAddress(null);
+                            setShowAddressModal(false);
                         }
-                        setShowAddressModal(false);
                     }}
                     onCancel={() => setShowAddressModal(false)}
                     showToast={showToast}
@@ -2001,7 +2004,6 @@ const AddressForm = ({ address, onSave, onCancel, showToast }) => {
     const [isSaving, setIsSaving] = useState(false);
     const [formError, setFormError] = useState('');
     
-    // Estado para controlar a posição do pino no mapa
     const [mapPosition, setMapPosition] = useState(address && address.lat ? { lat: address.lat, lng: address.lng } : null);
 
     const handleChange = (e) => { 
@@ -2041,11 +2043,8 @@ const AddressForm = ({ address, onSave, onCancel, showToast }) => {
         setFormError('');
         try {
             const addressResult = await getAddressFromCoords(lat, lng);
-            if (addressResult) {
-                setFormData(prev => ({ ...prev, ...addressResult, lat, lng, number: prev.number }));
-            } else {
-                setFormData(prev => ({ ...prev, lat, lng })); 
-            }
+            if (addressResult) { setFormData(prev => ({ ...prev, ...addressResult, lat, lng, number: prev.number })); } 
+            else { setFormData(prev => ({ ...prev, lat, lng })); }
         } catch (error) { console.error(error); }
     };
 
@@ -2053,25 +2052,27 @@ const AddressForm = ({ address, onSave, onCancel, showToast }) => {
         e.preventDefault();
         if (!formData.street || !formData.number || !formData.district || !formData.city) { setFormError('Preencha todos os campos obrigatórios.'); return; }
         
+        setIsSaving(true); setFormError('');
         let finalData = { ...formData };
 
-        // MAGIA ACONTECE AQUI: Se digitou à mão (sem GPS), procuramos no mapa silenciosamente!
         if (!finalData.lat || !finalData.lng) { 
-            setIsSaving(true); setFormError('');
             const fullAddress = `${finalData.street}, ${finalData.number}, ${finalData.district}, ${finalData.city}`;
             const result = await getCoordsFromAddress(fullAddress, finalData.cep);
-            setIsSaving(false);
-
             if (result) {
-                finalData.lat = result.lat;
-                finalData.lng = result.lng;
+                finalData.lat = result.lat; finalData.lng = result.lng;
             } else {
-                setFormError('Não conseguimos localizar este endereço no mapa para o cálculo da entrega. Verifique se os dados estão corretos.'); 
-                return; 
+                setFormError('Não conseguimos localizar este endereço no mapa. Tente adicionar o CEP ou preencher o Bairro corretamente.'); 
+                setIsSaving(false); return; 
             }
         }
         
-        setFormError(''); onSave(finalData);
+        try {
+            await onSave(finalData); // Tenta salvar, se falhar, cai no CATCH abaixo!
+        } catch (error) {
+            setFormError(error.message || "Erro ao salvar o endereço na sua conta.");
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (
@@ -2090,9 +2091,7 @@ const AddressForm = ({ address, onSave, onCancel, showToast }) => {
                                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                                 <LocationMarker position={mapPosition} setPosition={setMapPosition} onDragEnd={handleMapDragEnd} />
                             </MapContainer>
-                            <div className="absolute bottom-2 left-2 right-2 bg-white/90 backdrop-blur text-xs text-center font-bold text-stone-700 py-1 px-2 rounded-lg z-[400] shadow pointer-events-none">
-                                Arraste o pino para a localização exata
-                            </div>
+                            <div className="absolute bottom-2 left-2 right-2 bg-white/90 backdrop-blur text-xs text-center font-bold text-stone-700 py-1 px-2 rounded-lg z-[400] shadow pointer-events-none">Arraste o pino para a localização exata</div>
                         </div>
                     )}
 
@@ -2108,7 +2107,7 @@ const AddressForm = ({ address, onSave, onCancel, showToast }) => {
                     <button type="button" onClick={onCancel} className="bg-stone-300 text-stone-800 font-bold py-2 px-4 rounded-full hover:bg-stone-400 active:scale-95 transition-colors">Cancelar</button>
                     <button type="submit" disabled={isSaving} className="bg-amber-500 text-white font-bold py-2 px-4 rounded-full hover:bg-amber-600 active:scale-95 transition-colors flex items-center gap-2 disabled:opacity-50">
                         {isSaving ? <Loader2 size={18} className="animate-spin"/> : null} 
-                        {isSaving ? "Validando..." : "Salvar Endereço"}
+                        {isSaving ? "A Validar..." : "Salvar Endereço"}
                     </button>
                 </div>
             </form>
@@ -2116,35 +2115,18 @@ const AddressForm = ({ address, onSave, onCancel, showToast }) => {
     );
 }
 
-const AccountSettingsView = ({ user, userData, showToast, setView, db, appId }) => {
-    const [name, setName] = useState(userData?.name || user?.displayName || '');
-    const [phone, setPhone] = useState(userData?.phone || '');
-    const [isSaving, setIsSaving] = useState(false);
-    const [editingAddress, setEditingAddress] = useState(null);
-    const [deletingAddressId, setDeletingAddressId] = useState(null);
-
-    const addresses = userData?.addresses || [];
-
-    const handleSaveUserData = async () => {
-        setIsSaving(true);
-        try {
-            const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, user.uid); await updateDoc(userDocRef, { name, phone });
-            if (user.displayName !== name) { await updateProfile(user, { displayName: name }); } showToast("Dados atualizados com sucesso!");
-        } catch (error) { showToast("Ocorreu um erro ao salvar."); } finally { setIsSaving(false); }
-    };
-    
-    const handleSaveAddress = async (newAddressData) => {
+const handleSaveAddress = async (newAddressData) => {
         try {
             const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, user.uid); 
             let updatedAddresses = [...addresses];
             
-            // HIGIENIZADOR: Remove campos undefined
-            const cleanAddress = Object.fromEntries(Object.entries(newAddressData).filter(([_, v]) => v !== undefined));
+            // HIGIENIZAÇÃO PROFUNDA
+            const cleanAddress = JSON.parse(JSON.stringify(newAddressData));
 
             if (cleanAddress.id) { 
                 updatedAddresses = updatedAddresses.map(addr => addr.id === cleanAddress.id ? cleanAddress : addr); 
             } else { 
-                if (!cleanAddress.lat || !cleanAddress.lng) { showToast("Erro: Endereço sem coordenadas."); return; } 
+                if (!cleanAddress.lat || !cleanAddress.lng) { throw new Error("Endereço não geocodificado."); } 
                 const newId = Date.now().toString(); 
                 updatedAddresses.push({ ...cleanAddress, id: newId }); 
             }
@@ -2152,52 +2134,9 @@ const AccountSettingsView = ({ user, userData, showToast, setView, db, appId }) 
             showToast("Endereço salvo com sucesso!"); 
             setEditingAddress(null);
         } catch (error) { 
-            console.error(error);
-            showToast("Erro ao salvar endereço."); 
+            throw new Error("Ocorreu um erro ao gravar o endereço. Verifique a sua conexão."); 
         }
     };
-    
-    const handleDeleteAddressConfirm = async () => {
-         try {
-            const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, user.uid); const updatedAddresses = addresses.filter(addr => addr.id !== deletingAddressId);
-            await updateDoc(userDocRef, { addresses: updatedAddresses }); showToast("Endereço removido com sucesso!"); setDeletingAddressId(null);
-        } catch (error) { showToast("Erro ao remover endereço."); }
-    };
-    
-    return (
-        <div className="max-w-2xl mx-auto">
-             {editingAddress && <AddressForm address={editingAddress.data} onSave={handleSaveAddress} onCancel={() => setEditingAddress(null)} showToast={showToast} />}
-             {deletingAddressId && <ConfirmDeleteModal title="Remover Endereço" message="Tem certeza que deseja remover este endereço?" onConfirm={handleDeleteAddressConfirm} onCancel={() => setDeletingAddressId(null)} confirmText="Remover" />}
-             
-             <h2 className="text-3xl font-bold mb-6 text-stone-800">Minha Conta</h2>
-              <div className="bg-white p-6 rounded-xl shadow-lg space-y-4 mb-8">
-                  <h3 className="font-bold text-xl text-amber-600 border-b pb-2">Dados Pessoais</h3>
-                  <div><label className="block text-sm font-bold mb-1 text-stone-600">Nome Completo</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full p-2 border border-stone-300 rounded-xl" /></div>
-                  <div><label className="block text-sm font-bold mb-1 text-stone-600">Telefone de Contato</label><input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full p-2 border border-stone-300 rounded-xl" /></div>
-                  <div><label className="block text-sm font-bold mb-1 text-stone-600">Email</label><input type="email" value={user?.email || ''} className="w-full p-2 border bg-stone-100 border-stone-300 rounded-xl" disabled /></div>
-                  <div className="pt-4 flex justify-between items-center">
-                      <button onClick={handleSaveUserData} disabled={isSaving} className="bg-amber-500 text-white font-bold py-2 px-6 rounded-full hover:bg-amber-600 transition-colors shadow-sm hover:shadow-md active:scale-95 flex items-center justify-center disabled:bg-amber-300 w-40">
-                          {isSaving ? <Loader2 className="animate-spin" /> : "Salvar Dados"}
-                      </button>
-                      <button onClick={() => setView('myOrders')} className="text-stone-600 font-semibold hover:underline">Ver meus pedidos</button>
-                  </div>
-              </div>
-               <div className="bg-white p-6 rounded-xl shadow-lg space-y-4">
-                  <div className="flex justify-between items-center border-b pb-2"><h3 className="font-bold text-xl text-amber-600">Meus Endereços ({addresses.length})</h3><button onClick={() => setEditingAddress({})} className="text-sm font-semibold text-green-600 hover:underline flex items-center gap-1"><Plus size={16}/> Adicionar</button></div>
-                  {addresses.length === 0 ? (<p className="text-stone-500">Nenhum endereço cadastrado. Adicione um para agilizar seus pedidos!</p>) : (
-                      <div className="space-y-3">
-                          {addresses.map(addr => (
-                              <div key={addr.id} className="p-3 bg-stone-50 rounded-xl border border-stone-200 flex justify-between items-center">
-                                  <p className="text-stone-700 font-semibold">{addr.street}, {addr.number} ({addr.city})</p>
-                                  <div className="flex gap-2"><button onClick={() => setEditingAddress({ data: addr })} className="p-1 text-blue-600 hover:bg-blue-100 rounded-full transition-colors"><Edit size={18} /></button><button onClick={() => setDeletingAddressId(addr.id)} className="p-1 text-red-600 hover:bg-red-100 rounded-full transition-colors"><Trash2 size={18}/></button></div>
-                              </div>
-                          ))}
-                      </div>
-                  )}
-              </div>
-        </div>
-    );
-}
 
 const DeliveryTrackerComponent = ({ order }) => {
     const { deliveryTracker } = order;
