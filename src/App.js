@@ -1445,9 +1445,16 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
     const hasScheduledItem = cart.some(item => item.requiresScheduling);
     const forceScheduling = isLargeOrder || hasScheduledItem || !storeOpen;
     const [deliveryMethod, setDeliveryMethod] = useState(forceScheduling ? 'schedule' : 'deliver');
-    const addresses = useMemo(() => user?.addresses || [], [user?.addresses]);
+    
+    // CORREÇÃO: Endereços agora atualizam-se instantaneamente na tela!
+    const [addresses, setAddresses] = useState([]);
+    useEffect(() => {
+        if (userData && userData.addresses) { setAddresses(userData.addresses); }
+    }, [userData]);
+
     const [showAddressModal, setShowAddressModal] = useState(false);
     const [selectedAddress, setSelectedAddress] = useState(null); 
+    
     useEffect(() => {
         if (addresses.length > 0 && !selectedAddress) { setSelectedAddress(addresses[0].id); }
     }, [addresses, selectedAddress]);
@@ -1458,20 +1465,14 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
     const [pickupTime, setPickupTime] = useState('');
     const [scheduledDate, setScheduledDate] = useState('');
     const [scheduledTime, setScheduledTime] = useState('');
-    
-    // 3. Declaração do formError
     const [formError, setFormError] = useState('');
     
-    // 4. AQUI ESTÁ A CORREÇÃO: O useEffect agora sabe quem é o deliveryMethod e o setFormError!
-    useEffect(() => {
-        setFormError('');
-    }, [deliveryMethod]);
+    useEffect(() => { setFormError(''); }, [deliveryMethod]);
 
     const [deliveryFee, setDeliveryFee] = useState(0);
     const [deliveryDistance, setDeliveryDistance] = useState(0);
     const [isCalculatingDistance, setIsCalculatingDistance] = useState(false);
     const [deliveryError, setDeliveryError] = useState(''); 
-    
     const [cepLoading, setCepLoading] = useState(false); 
 
     const name = userData?.name || user?.displayName || '';
@@ -1484,28 +1485,18 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
 
     // MOTOR DE CÁLCULO DE TAXA DE ENTREGA
     useEffect(() => {
-        // Se for retirada no local, zera a taxa
-        if (deliveryMethod === 'pickup') {
-            setDeliveryFee(0); setDeliveryDistance(0); setDeliveryError(''); return;
-        }
+        if (deliveryMethod === 'pickup') { setDeliveryFee(0); setDeliveryDistance(0); setDeliveryError(''); return; }
 
         let targetAddress = null;
-        if (isAddingNewAddress && newAddressDetails.lat && newAddressDetails.lng) {
-            targetAddress = newAddressDetails;
-        } else if (selectedAddress) {
-            targetAddress = addresses.find(a => a.id === selectedAddress);
-        }
+        if (isAddingNewAddress && newAddressDetails.lat && newAddressDetails.lng) { targetAddress = newAddressDetails; } 
+        else if (selectedAddress) { targetAddress = addresses.find(a => a.id === selectedAddress); }
 
-        if (!targetAddress || !targetAddress.lat || !targetAddress.lng) {
-            setDeliveryFee(0); setDeliveryDistance(0); setDeliveryError(''); return;
-        }
+        if (!targetAddress || !targetAddress.lat || !targetAddress.lng) { setDeliveryFee(0); setDeliveryDistance(0); setDeliveryError(''); return; }
 
         const calculateFee = async () => {
             setIsCalculatingDistance(true); setDeliveryError('');
-            const originLat = shopSettings.storeLatitude; 
-            const originLng = shopSettings.storeLongitude;
-            const destLat = targetAddress.lat; 
-            const destLng = targetAddress.lng;
+            const originLat = shopSettings.storeLatitude; const originLng = shopSettings.storeLongitude;
+            const destLat = targetAddress.lat; const destLng = targetAddress.lng;
 
             if (!originLat || !originLng || !destLat || !destLng) {
                 setDeliveryError("Endereço da loja ou do cliente inválido."); setIsCalculatingDistance(false); return;
@@ -1513,9 +1504,7 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
 
             try {
                 const distanceMeters = await getDistanceFromCoords(originLat, originLng, destLat, destLng);
-                if (distanceMeters === null) {
-                    setDeliveryError("Não foi possível calcular a rota para este endereço."); setIsCalculatingDistance(false); return;
-                }
+                if (distanceMeters === null) { setDeliveryError("Não foi possível calcular a rota para este endereço."); setIsCalculatingDistance(false); return; }
                 
                 const distanceKm = distanceMeters / 1000;
                 setDeliveryDistance(distanceKm);
@@ -1526,44 +1515,30 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
                     setDeliveryFee(0); setIsCalculatingDistance(false); return;
                 }
 
-                // Cálculo Final do Preço (KM * Preço por KM)
                 const pricePerKm = shopSettings.deliveryPricePerKm || 1;
                 setDeliveryFee(distanceKm * pricePerKm);
                 
-            } catch (error) { 
-                setDeliveryError("Erro ao calcular a taxa de entrega."); 
-            } finally { 
-                setIsCalculatingDistance(false); 
-            }
+            } catch (error) { setDeliveryError("Erro ao calcular a taxa de entrega."); } finally { setIsCalculatingDistance(false); }
         };
-        
         calculateFee();
     }, [deliveryMethod, selectedAddress, isAddingNewAddress, newAddressDetails, addresses, shopSettings]);
     
     const validateScheduledTime = (date, time) => {
         if (!date || !time) return '';
-        if (shopSettings.holidays && shopSettings.holidays.includes(date)) {
-        return 'A loja estará fechada nesta data. Por favor, escolha outro dia.';
-        }
+        if (shopSettings.holidays && shopSettings.holidays.includes(date)) return 'A loja estará fechada nesta data. Por favor, escolha outro dia.';
 
         const interval = getWorkingInterval(shopSettings.workingHours, date);
         if (!interval) return 'A loja está fechada na data selecionada. Por favor, escolha outro dia.';
         
         const { start, end } = interval;
-        if (start > end) {
-            if (time < start && time >= end) return `O horário de funcionamento para ${date} é das ${start} até ${end} (do dia seguinte).`;
-        } else {
-            if (time < start || (end !== '00:00' && time >= end)) return `O horário de funcionamento para ${date} é das ${start} às ${end}.`;
-        }
+        if (start > end) { if (time < start && time >= end) return `O horário de funcionamento para ${date} é das ${start} até ${end} (do dia seguinte).`; } 
+        else { if (time < start || (end !== '00:00' && time >= end)) return `O horário de funcionamento para ${date} é das ${start} às ${end}.`; }
         
         try {
             const storeNow = new Date(new Date().toLocaleString("en-US", { timeZone: shopSettings.storeTimezone }));
             const selectedDate = new Date(`${date}T${time}:00`);
             const minTimeWithPrep = new Date(storeNow.getTime() + (maxPrepTime * 60000));
-
-            if (selectedDate < minTimeWithPrep) {
-                 return `Tempo de preparo: ${maxPrepTime} min. Agende para depois das ${minTimeWithPrep.toLocaleTimeString('pt-PT', {hour: '2-digit', minute:'2-digit'})}.`;
-            }
+            if (selectedDate < minTimeWithPrep) return `Tempo de preparo: ${maxPrepTime} min. Agende para depois das ${minTimeWithPrep.toLocaleTimeString('pt-PT', {hour: '2-digit', minute:'2-digit'})}.`;
         } catch(e) { }
         return ''; 
     };
@@ -1573,51 +1548,19 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
         try {
             const storeNow = new Date(new Date().toLocaleString("en-US", { timeZone: shopSettings.storeTimezone }));
             const todayStr = storeNow.toISOString().split('T')[0];
-            
-            // Trava Adicionada: Verifica se a loja está aberta hoje
             const interval = getWorkingInterval(shopSettings.workingHours, todayStr);
             if (!interval) return 'A loja está fechada hoje.';
             
             const { start, end } = interval;
-            if (start > end) {
-                if (time < start && time >= end) return `Horário é das ${start} até ${end} (dia seguinte).`;
-            } else {
-                if (time < start || (end !== '00:00' && time >= end)) return `Horário é das ${start} às ${end}.`;
-            }
+            if (start > end) { if (time < start && time >= end) return `Horário é das ${start} até ${end} (dia seguinte).`; } 
+            else { if (time < start || (end !== '00:00' && time >= end)) return `Horário é das ${start} às ${end}.`; }
 
             const selectedDate = new Date(`${todayStr}T${time}:00`);
             const minTimeWithPrep = new Date(storeNow.getTime() + (maxPrepTime * 60000));
-
-            if (selectedDate < minTimeWithPrep) {
-                 return `Tempo de preparo: ${maxPrepTime} min. Retire após as ${minTimeWithPrep.toLocaleTimeString('pt-PT', {hour: '2-digit', minute:'2-digit'})}.`;
-            }
+            if (selectedDate < minTimeWithPrep) return `Tempo de preparo: ${maxPrepTime} min. Retire após as ${minTimeWithPrep.toLocaleTimeString('pt-PT', {hour: '2-digit', minute:'2-digit'})}.`;
         } catch(e) {}
         return '';
     };
-
-    const handleCepLookup = async (cep) => {
-        const cleanedCep = cep.replace(/[^\d-]/g, ''); if (cleanedCep.length < 7) return;
-        setCepLoading(true); setFormError('');
-        try {
-            const result = await getCoordsFromAddress(null, cleanedCep);
-            if (result && result.address) { setNewAddressDetails({ ...result.address, lat: result.lat, lng: result.lng }); } 
-            else { setFormError("CEP não encontrado ou inválido."); }
-        } catch (e) { setFormError("Erro ao buscar CEP."); } finally { setCepLoading(false); }
-    };
-    
-    const handleCurrentLocation = () => {
-        if (!navigator.geolocation) { setFormError('Seu navegador não suporta geolocalização.'); return; }
-        setFormError(''); setCepLoading(true);
-        navigator.geolocation.getCurrentPosition(async (position) => {
-            try {
-                const addressResult = await getAddressFromCoords(position.coords.latitude, position.coords.longitude);
-                if (addressResult) {
-                     setNewAddressDetails({ ...addressResult, lat: position.coords.latitude, lng: position.coords.longitude });
-                    setIsAddingNewAddress(true);
-                } else { setFormError('Não foi possível encontrar um endereço para esta localização.'); }
-            } catch (error) { setFormError('Erro ao buscar endereço pela localização.'); } finally { setCepLoading(false); }
-        }, (error) => { setFormError(`Erro de localização: ${error.message}`); setCepLoading(false); });
-    }
 
     const handleSubmit = (e) => {
         e.preventDefault(); setFormError('');
@@ -1643,10 +1586,7 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
              if (scheduleError) { setFormError(scheduleError); return; }
         }
 
-        const details = { 
-            name, phone, deliveryMethod, subtotal, hasDiscount, discountAmount, 
-            finalTotal, deliveryFee, distanceKm: deliveryDistance 
-        };
+        const details = { name, phone, deliveryMethod, subtotal, hasDiscount, discountAmount, finalTotal, deliveryFee, distanceKm: deliveryDistance };
 
         if (deliveryMethod === 'deliver') {
             details.address = `${finalAddress.street}, ${finalAddress.number}, ${finalAddress.district}, ${finalAddress.city}`;
@@ -1705,6 +1645,9 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
                                 const updatedAddresses = [...addresses, addressToSave];
                                 
                                 await updateDoc(userDocRef, { addresses: updatedAddresses }); 
+                                
+                                // ATUALIZAÇÃO IMEDIATA NA TELA AQUI:
+                                setAddresses(updatedAddresses);
                                 setSelectedAddress(newId);
                                 setIsAddingNewAddress(false);
                                 if(showToast) showToast("Endereço salvo na sua conta!");
@@ -1743,7 +1686,6 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
                      </div>
                  )}
 
-                {/* EXIBIÇÃO DO ENDEREÇO TEMPORÁRIO (Caso o cliente seja visitante sem conta) */}
                 {isAddingNewAddress && !selectedAddress && !showAddressModal && (
                     <div className="p-3 mb-3 bg-blue-50 border border-blue-200 rounded-xl flex justify-between items-center mt-3">
                         <div>
@@ -2056,6 +1998,7 @@ const LocationMarker = ({ position, setPosition, onDragEnd }) => {
 const AddressForm = ({ address, onSave, onCancel, showToast }) => {
     const [formData, setFormData] = useState(address || { cep: '', street: '', number: '', district: '', city: '', state: '', lat: null, lng: null });
     const [cepLoading, setCepLoading] = useState(false); 
+    const [isSaving, setIsSaving] = useState(false);
     const [formError, setFormError] = useState('');
     
     // Estado para controlar a posição do pino no mapa
@@ -2074,7 +2017,7 @@ const AddressForm = ({ address, onSave, onCancel, showToast }) => {
             const result = await getCoordsFromAddress(null, cleanedCep); 
             if (result && result.address) { 
                 setFormData(prev => ({ ...prev, ...result.address, lat: result.lat, lng: result.lng })); 
-                setMapPosition({ lat: result.lat, lng: result.lng }); // Centraliza o mapa
+                setMapPosition({ lat: result.lat, lng: result.lng }); 
             } else { setFormError("CEP não encontrado."); } 
         } catch (e) { setFormError("Erro ao buscar CEP."); } finally { setCepLoading(false); }
     };
@@ -2087,20 +2030,18 @@ const AddressForm = ({ address, onSave, onCancel, showToast }) => {
                 const addressResult = await getAddressFromCoords(position.coords.latitude, position.coords.longitude); 
                 if (addressResult) { 
                     setFormData({ ...addressResult, lat: position.coords.latitude, lng: position.coords.longitude }); 
-                    setMapPosition({ lat: position.coords.latitude, lng: position.coords.longitude }); // Centraliza o mapa
+                    setMapPosition({ lat: position.coords.latitude, lng: position.coords.longitude }); 
                     showToast("Localização encontrada! Ajuste o pino se necessário."); 
                 } else { setFormError('Não foi possível encontrar um endereço.'); } 
             } catch (error) { setFormError('Erro ao buscar endereço.'); } finally { setCepLoading(false); }
-        }, (error) => { setFormError(`Erro de localização: ${error.message}`); setCepLoading(false); });
+        }, (error) => { setFormError(`Acesso ao GPS negado. Por favor, digite o endereço manualmente.`); setCepLoading(false); });
     }
 
-    // NOVA FUNÇÃO: Disparada quando o cliente solta o pino no mapa
     const handleMapDragEnd = async (lat, lng) => {
         setFormError('');
         try {
             const addressResult = await getAddressFromCoords(lat, lng);
             if (addressResult) {
-                // Atualiza o formulário com a rua exata onde o pino caiu
                 setFormData(prev => ({ ...prev, ...addressResult, lat, lng, number: prev.number }));
             } else {
                 setFormData(prev => ({ ...prev, lat, lng })); 
@@ -2111,10 +2052,26 @@ const AddressForm = ({ address, onSave, onCancel, showToast }) => {
     const handleSubmit = async (e) => { 
         e.preventDefault();
         if (!formData.street || !formData.number || !formData.district || !formData.city) { setFormError('Preencha todos os campos obrigatórios.'); return; }
-        if (!formData.lat || !formData.lng) { 
-            setFormError('Use o CEP ou a Localização para encontrar as coordenadas no mapa antes de salvar.'); return; 
+        
+        let finalData = { ...formData };
+
+        // MAGIA ACONTECE AQUI: Se digitou à mão (sem GPS), procuramos no mapa silenciosamente!
+        if (!finalData.lat || !finalData.lng) { 
+            setIsSaving(true); setFormError('');
+            const fullAddress = `${finalData.street}, ${finalData.number}, ${finalData.district}, ${finalData.city}`;
+            const result = await getCoordsFromAddress(fullAddress, finalData.cep);
+            setIsSaving(false);
+
+            if (result) {
+                finalData.lat = result.lat;
+                finalData.lng = result.lng;
+            } else {
+                setFormError('Não conseguimos localizar este endereço no mapa para o cálculo da entrega. Verifique se os dados estão corretos.'); 
+                return; 
+            }
         }
-        setFormError(''); onSave(formData);
+        
+        setFormError(''); onSave(finalData);
     };
 
     return (
@@ -2127,14 +2084,10 @@ const AddressForm = ({ address, onSave, onCancel, showToast }) => {
                          <button type="button" onClick={handleCurrentLocation} disabled={cepLoading} className="w-1/2 bg-blue-500 text-white font-bold py-2 px-3 rounded-xl hover:bg-blue-600 flex items-center justify-center gap-2 text-sm disabled:opacity-50">{cepLoading ? <Loader2 className="animate-spin" size={18}/> : <><MapPin size={18}/> Localização Atual</>}</button>
                     </div>
 
-                    {/* MAPA INTERATIVO: Só aparece se tivermos uma coordenada inicial */}
                     {mapPosition && (
                         <div className="w-full h-48 rounded-xl overflow-hidden border border-stone-300 shadow-inner relative z-0 mt-2 mb-2">
                             <MapContainer center={mapPosition} zoom={17} scrollWheelZoom={true} style={{ height: '100%', width: '100%' }}>
-                                <TileLayer
-                                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
-                                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                                />
+                                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                                 <LocationMarker position={mapPosition} setPosition={setMapPosition} onDragEnd={handleMapDragEnd} />
                             </MapContainer>
                             <div className="absolute bottom-2 left-2 right-2 bg-white/90 backdrop-blur text-xs text-center font-bold text-stone-700 py-1 px-2 rounded-lg z-[400] shadow pointer-events-none">
@@ -2153,7 +2106,10 @@ const AddressForm = ({ address, onSave, onCancel, showToast }) => {
                  {formError && <p className="text-red-500 text-sm mt-3">{formError}</p>}
                  <div className="flex justify-end gap-4 mt-6">
                     <button type="button" onClick={onCancel} className="bg-stone-300 text-stone-800 font-bold py-2 px-4 rounded-full hover:bg-stone-400 active:scale-95 transition-colors">Cancelar</button>
-                    <button type="submit" className="bg-amber-500 text-white font-bold py-2 px-4 rounded-full hover:bg-amber-600 active:scale-95 transition-colors">Salvar Endereço</button>
+                    <button type="submit" disabled={isSaving} className="bg-amber-500 text-white font-bold py-2 px-4 rounded-full hover:bg-amber-600 active:scale-95 transition-colors flex items-center gap-2 disabled:opacity-50">
+                        {isSaving ? <Loader2 size={18} className="animate-spin"/> : null} 
+                        {isSaving ? "Validando..." : "Salvar Endereço"}
+                    </button>
                 </div>
             </form>
         </div>
