@@ -81,22 +81,26 @@ const INITIAL_SHOP_SETTINGS = {
 };
 const INITIAL_WORKING_HOURS = INITIAL_SHOP_SETTINGS.workingHours;
 
-const enablePushForUser = async (currentUser, currentAppId, role, showToast) => {
+// 1. O MOTOR DE INSCRIÇÃO DEFINITIVO
+const subscribeToPushNotifications = async (currentUser, currentAppId, role, showToast) => {
     if (!firebaseInitialized || !db || !currentUser || currentUser.isAnonymous) return;
-    if (!('Notification' in window)) return;
+    
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+        if(showToast) showToast("O seu navegador não suporta notificações em segundo plano.");
+        return;
+    }
     
     try {
-        const messaging = getMessaging(app);
-        const VAPID_KEY = 'BGZAxnG_iSTgeX0y7s6rEmtFzE41Ns43DXN3gCgN6RJX51xKyDfRdOczX1T7cyQ5U3v6ZNCsJCyp3lESPuQQNKY';
-        
-        let permission = Notification.permission;
-        // Pede permissão apenas se ainda não foi concedida nem bloqueada
-        if (permission === 'default') {
-            permission = await Notification.requestPermission();
-        }
-
+        const permission = await Notification.requestPermission();
         if (permission === 'granted') {
-            const currentToken = await getToken(messaging, { vapidKey: VAPID_KEY });
+            if(showToast) showToast("A processar a sua inscrição...");
+            const messaging = getMessaging(app);
+            const VAPID_KEY = 'BGZAxnG_iSTgeX0y7s6rEmtFzE41Ns43DXN3gCgN6RJX51xKyDfRdOczX1T7cyQ5U3v6ZNCsJCyp3lESPuQQNKY';
+            
+            // O Segredo do Android: Regista o "Carteiro" à força na hora do clique!
+            const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+            const currentToken = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: registration });
+            
             if (currentToken) {
                 if (role === 'admin') {
                     const tokenRef = doc(db, `artifacts/${currentAppId}/public/data/adminTokens`, currentUser.uid);
@@ -106,17 +110,51 @@ const enablePushForUser = async (currentUser, currentAppId, role, showToast) => 
                     await updateDoc(userDocRef, { notificationTokens: arrayUnion(currentToken) }); 
                 }
                 
-                // Força o alerta e o som quando o App está aberto no ecrã!
+                if(showToast) showToast("✅ Inscrição concluída! O telemóvel vai receber alertas.");
+                
                 onMessage(messaging, (payload) => {
-                    if (showToast) showToast(`🚨 ${payload.notification.title}`);
-                    if (Notification.permission === 'granted') {
-                        new Notification(payload.notification.title, { body: payload.notification.body, icon: '/favicon.ico' });
-                    }
+                    if (showToast) showToast(`🚨 ${payload.notification.title}: ${payload.notification.body}`);
                     try { const audio = new Audio('https://actions.google.com/sounds/v1/alarms/positive_ping.ogg'); audio.play().catch(()=>{}); } catch(e) {}
                 });
             }
+        } else {
+            if(showToast) showToast("Permissão negada. Ative no cadeado do navegador para receber avisos.");
         }
-    } catch (err) { console.error("Erro no Push:", err); }
+    } catch (err) { 
+        console.error("Erro na inscrição Push:", err); 
+        if(showToast) showToast("Erro ao criar inscrição no sistema.");
+    }
+};
+
+// 2. O BANNER INTELIGENTE (Só aparece para quem não aceitou/recusou ainda)
+const PushNotificationBanner = ({ user, role, showToast }) => {
+    const [permission, setPermission] = useState('Notification' in window ? Notification.permission : 'denied');
+    
+    if (permission === 'granted' || permission === 'denied' || !('serviceWorker' in navigator) || !user || user.isAnonymous) return null;
+
+    const handleSubscribe = async () => {
+        await subscribeToPushNotifications(user, appId, role, showToast);
+        setPermission(Notification.permission); 
+    };
+
+    return (
+        <div className="mb-6 bg-blue-50 border border-blue-200 p-4 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4 animate-pop-in shadow-sm">
+            <div className="flex items-center gap-3">
+                <div className="bg-blue-500 text-white p-2 rounded-full"><Bell size={20}/></div>
+                <div>
+                    <p className="font-bold text-blue-800">Ativar Alertas em Tempo Real</p>
+                    <p className="text-xs text-blue-600">
+                        {role === 'admin' 
+                            ? 'Receba um aviso sonoro quando chegar um pedido novo, mesmo com o site fechado.' 
+                            : 'Acompanhe o estado do seu pedido em tempo real, mesmo com o telemóvel bloqueado.'}
+                    </p>
+                </div>
+            </div>
+            <button onClick={handleSubscribe} className="bg-blue-600 text-white font-bold py-2 px-6 rounded-full hover:bg-blue-700 transition-all shadow-md active:scale-95 whitespace-nowrap">
+                Inscrever-se Agora
+            </button>
+        </div>
+    );
 };
 
 const getCoordsFromAddress = async (address, cep) => {
@@ -577,10 +615,10 @@ function App() {
                     const data = docSnap.data(); userRoleStatus = data.role || 'customer'; setUserData(data);
                     if (!data.phone && !currentUser.isAnonymous) {setShowPhoneModal(true);}
                     if (userRoleStatus === 'admin') {
-                        if (Notification.permission === 'granted') enablePushForUser(currentUser, appId, 'admin');
-                    } else if (!currentUser.isAnonymous) {
-                        if (Notification.permission === 'granted') enablePushForUser(currentUser, appId, 'customer');
-                    }
+                        if (Notification.permission === 'granted') subscribeToPushNotifications(currentUser, appId, 'admin');
+                 } else if (!currentUser.isAnonymous) {
+                        if (Notification.permission === 'granted') subscribeToPushNotifications(currentUser, appId, 'customer');
+                 }
                 } else {
                     const initialData = { name: currentUser.displayName, email: currentUser.email, addresses: [], hasGivenFeedback: false, hasFeedbackDiscount: false, notificationTokens: [], role: 'customer' };
                     setUserData(initialData);
@@ -866,7 +904,7 @@ function App() {
             case 'adminLogin': return <LoginView handleLogin={handleLogin} error={error} isAdminLogin={true} authLoading={authLoading} />;
             case 'customerLogin': return <LoginView handleLogin={handleLogin} error={error} setView={setView} authLoading={authLoading} />;
             case 'signUp': return <SignUpView handleSignUp={handleSignUp} error={error} setView={setView} authLoading={authLoading} />;
-            case 'myOrders': return <MyOrdersView orders={orders.filter(o => o.userId === user?.uid)} setView={setView} />;
+            case 'myOrders': return <MyOrdersView orders={orders.filter(o => o.userId === user?.uid)} setView={setView} user={user} showToast={showToast} />;
             case 'accountSettings': return <AccountSettingsView user={user} userData={userData} showToast={showToast} setView={setView} db={db} appId={appId} />;
             default: return <MenuView menu={menu} addToCart={addToCart} showStoreClosedToast={showStoreClosedToast} />;
         }
@@ -1570,12 +1608,7 @@ const CheckoutView = ({ placeOrder, cart, cartTotal, cartTotalQuantity, setView,
 
     const handleSubmit = (e) => {
         e.preventDefault(); setFormError('');
-        
-        // Pede a permissão ao cliente orgulhosamente no checkout!
-        if ('Notification' in window && Notification.permission === 'default') {
-            enablePushForUser(user, appId, 'customer', showToast);
-        }
-        
+                
         if (deliveryError) { setFormError(deliveryError); return; }
         let finalAddress = null;
 
@@ -2238,46 +2271,51 @@ const DeliveryTrackerComponent = ({ order }) => {
     );
 }
 
-const MyOrdersView = ({ orders, setView }) => {
+const MyOrdersView = ({ orders, setView, user, showToast }) => {
      const statusStyles = { 'Pendente': 'bg-yellow-100 text-yellow-800', 'Em Preparo': 'bg-blue-100 text-blue-800', 'Pronto para Entrega': 'bg-green-100 text-green-800', 'Concluído': 'bg-stone-200 text-stone-600', 'Rejeitado': 'bg-red-100 text-red-800', 'Saiu para Entrega': 'bg-purple-100 text-purple-800', };
-    if (orders.length === 0) {
-         return (
-            <div className="text-center py-16 animate-fade-in">
-                <Package size={64} className="mx-auto text-stone-300" /><h2 className="text-2xl font-bold mt-4 text-stone-700">Ainda não tem pedidos</h2>
-                <p className="text-stone-500 mt-2">Todos os seus pedidos irão aparecer aqui.</p>
-                <button onClick={() => setView('menu')} className="mt-6 bg-amber-500 text-white font-bold py-3 px-6 rounded-full hover:bg-amber-600 transition-colors shadow hover:shadow-lg active:scale-95">Começar a Comprar</button>
-            </div>
-        );
-    }
+    
     return (
         <div className="max-w-4xl mx-auto animate-fade-in">
-             <div className="flex justify-between items-center mb-6"><h2 className="text-3xl font-bold text-stone-800">Meus Pedidos</h2><button onClick={() => setView('accountSettings')} className="text-sm font-semibold text-amber-600 hover:underline flex items-center gap-1"><Settings size={14}/> Minha Conta</button></div>
-            <div className="space-y-6">
-                {orders.map(order => (
-                    <div key={order.id} className="bg-white p-4 sm:p-6 rounded-xl shadow-lg border border-stone-200">
-                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-3 mb-3">
-                             <div>
-                                <p className="text-sm text-stone-500">Pedido #{order.id.slice(0, 8).toUpperCase()}</p>
-                                <p className="text-sm text-stone-500">Feito em: {new Date(order.createdAt?.seconds * 1000).toLocaleString('pt-PT')}</p>
-                                {order.isScheduled && <p className="text-sm font-bold text-blue-600">Agendado para: {order.scheduledDate} às {order.scheduledTime}</p>}
-                             </div>
-                             <div className="flex items-center gap-4 mt-2 sm:mt-0">
-                                 <span className={`px-3 py-1 text-sm font-semibold rounded-full ${statusStyles[order.status] || 'bg-stone-100'}`}>{order.status}</span>
-                                 <span className="font-bold text-xl text-stone-800">{order.total.toFixed(2)}€</span>
-                             </div>
-                         </div>
-                         <div>
-                            <p className="font-semibold text-sm mb-2 text-stone-600">Itens:</p>
-                            <ul className="list-disc list-inside text-sm text-stone-700 pl-2">
-                                {order.items.map(item => (<li key={item.id + item.name}>{item.customizable ? '' : `${item.quantity}x `}{item.name}{item.customization && (<span className="text-xs text-stone-500 ml-2">({item.customization.map(c => `${c.quantity}x ${c.name}`).join(', ')})</span>)}</li>))}
-                            </ul>
-                            {order.discount && (<p className="text-sm text-green-600 mt-2 font-semibold">Desconto aplicado: -{order.discount.amount.toFixed(2)}€</p>)}
-                            {order.deliveryFee > 0 && (<p className="text-sm text-stone-600 mt-2 font-semibold">Taxa de Entrega ({order.distanceKm > 0 ? order.distanceKm.toFixed(1) : '...'} KM): +{order.deliveryFee.toFixed(2)}€</p>)}
-                            {order.deliveryTracker && (order.status === 'Saiu para Entrega' || order.status === 'Pronto para Entrega') && <DeliveryTrackerComponent order={order} />}
-                         </div>
+            {/* O BANNER DO CLIENTE FICA AQUI */}
+            <PushNotificationBanner user={user} role="customer" showToast={showToast} />
+            
+            {orders.length === 0 ? (
+                 <div className="text-center py-16 animate-fade-in">
+                     <Package size={64} className="mx-auto text-stone-300" /><h2 className="text-2xl font-bold mt-4 text-stone-700">Ainda não tem pedidos</h2>
+                     <p className="text-stone-500 mt-2">Todos os seus pedidos irão aparecer aqui.</p>
+                     <button onClick={() => setView('menu')} className="mt-6 bg-amber-500 text-white font-bold py-3 px-6 rounded-full hover:bg-amber-600 transition-colors shadow hover:shadow-lg active:scale-95">Começar a Comprar</button>
+                 </div>
+            ) : (
+                <>
+                    <div className="flex justify-between items-center mb-6"><h2 className="text-3xl font-bold text-stone-800">Meus Pedidos</h2><button onClick={() => setView('accountSettings')} className="text-sm font-semibold text-amber-600 hover:underline flex items-center gap-1"><Settings size={14}/> Minha Conta</button></div>
+                    <div className="space-y-6">
+                        {orders.map(order => (
+                            <div key={order.id} className="bg-white p-4 sm:p-6 rounded-xl shadow-lg border border-stone-200">
+                                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-3 mb-3">
+                                     <div>
+                                        <p className="text-sm text-stone-500">Pedido #{order.id.slice(0, 8).toUpperCase()}</p>
+                                        <p className="text-sm text-stone-500">Feito em: {new Date(order.createdAt?.seconds * 1000).toLocaleString('pt-PT')}</p>
+                                        {order.isScheduled && <p className="text-sm font-bold text-blue-600">Agendado para: {order.scheduledDate} às {order.scheduledTime}</p>}
+                                     </div>
+                                     <div className="flex items-center gap-4 mt-2 sm:mt-0">
+                                         <span className={`px-3 py-1 text-sm font-semibold rounded-full ${statusStyles[order.status] || 'bg-stone-100'}`}>{order.status}</span>
+                                         <span className="font-bold text-xl text-stone-800">{order.total.toFixed(2)}€</span>
+                                     </div>
+                                 </div>
+                                 <div>
+                                    <p className="font-semibold text-sm mb-2 text-stone-600">Itens:</p>
+                                    <ul className="list-disc list-inside text-sm text-stone-700 pl-2">
+                                        {order.items.map(item => (<li key={item.id + item.name}>{item.customizable ? '' : `${item.quantity}x `}{item.name}{item.customization && (<span className="text-xs text-stone-500 ml-2">({item.customization.map(c => `${c.quantity}x ${c.name}`).join(', ')})</span>)}</li>))}
+                                    </ul>
+                                    {order.discount && (<p className="text-sm text-green-600 mt-2 font-semibold">Desconto aplicado: -{order.discount.amount.toFixed(2)}€</p>)}
+                                    {order.deliveryFee > 0 && (<p className="text-sm text-stone-600 mt-2 font-semibold">Taxa de Entrega ({order.distanceKm > 0 ? order.distanceKm.toFixed(1) : '...'} KM): +{order.deliveryFee.toFixed(2)}€</p>)}
+                                    {order.deliveryTracker && (order.status === 'Saiu para Entrega' || order.status === 'Pronto para Entrega') && <DeliveryTrackerComponent order={order} />}
+                                 </div>
+                            </div>
+                        ))}
                     </div>
-                ))}
-            </div>
+                </>
+            )}
         </div>
     );
 };
@@ -2608,15 +2646,9 @@ const CRMView = ({ orders, setView, db, showToast }) => {
 const AdminDashboard = ({ menu, orders, feedbacks, handleLogout, showToast, settings, setView, updateOrderStatus, updateOrderSchedule, updateUserRole, currentUserEmail, userRole }) => {
     const [adminView, setAdminView] = useState('dashboard'); 
     
-    // MAGIA DO UX: Pega carona nos cliques naturais da Bianca para pedir permissão
     const handleTabClick = (tabName) => {
-        setAdminView(tabName);
-        if ('Notification' in window && Notification.permission === 'default') {
-            const auth = getAuth();
-            if (auth.currentUser) enablePushForUser(auth.currentUser, appId, 'admin', showToast);
-        }
+     setAdminView(tabName);
     };
-
     const renderAdminView = () => {
         switch(adminView) {
             case 'orders': return <ManageOrders orders={orders} updateOrderStatus={updateOrderStatus} updateOrderSchedule={updateOrderSchedule} />;
@@ -2631,6 +2663,7 @@ const AdminDashboard = ({ menu, orders, feedbacks, handleLogout, showToast, sett
     }
     return (
         <div className="bg-white p-4 md:p-6 rounded-xl shadow-lg animate-fade-in">
+            <PushNotificationBanner user={getAuth().currentUser} role="admin" showToast={showToast} />
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b pb-4">
                 <h2 className="text-3xl font-bold text-stone-800">Painel de Admin</h2>
                 <div className="flex items-center gap-4 mt-2 sm:mt-0">
@@ -2648,7 +2681,7 @@ const AdminDashboard = ({ menu, orders, feedbacks, handleLogout, showToast, sett
                 <button onClick={() => handleTabClick('manageAgenda')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'manageAgenda' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Calendar size={16}/> Agenda</button>
                 <button onClick={() => handleTabClick('settings')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'settings' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Settings size={16}/> Configurações</button>
                 <button onClick={() => handleTabClick('manageUsers')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors ${adminView === 'manageUsers' ? 'bg-stone-100 border-b-2 border-amber-500 text-amber-600' : 'text-stone-500 hover:bg-stone-100'}`}><Users size={16}/> Perfis</button>
-                <button onClick={() => { setView('crm'); if ('Notification' in window && Notification.permission === 'default') { const auth = getAuth(); if (auth.currentUser) enablePushForUser(auth.currentUser, appId, 'admin', showToast); } }} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors text-stone-500 hover:bg-stone-100`}><Megaphone size={16}/> CRM</button>
+                <button onClick={() => setView('crm')} className={`px-4 py-2 font-semibold text-sm rounded-t-xl flex items-center gap-2 transition-colors text-stone-500 hover:bg-stone-100`}><Megaphone size={16}/> CRM</button>
             </div>
             {renderAdminView()}
         </div>
