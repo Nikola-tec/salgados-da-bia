@@ -14,7 +14,7 @@ import {
     deleteDoc, getDocs, writeBatch, setDoc, getDoc, arrayUnion, query, orderBy, where
 } from 'firebase/firestore';
 import { 
-    ChefHat, ShoppingCart, User, LogOut, PlusCircle, MinusCircle, Edit, 
+    Bell, ChefHat, ShoppingCart, User, LogOut, PlusCircle, MinusCircle, Edit, 
     XCircle, CheckCircle, Package, DollarSign, Clock, Settings, Plus, Star, 
     AlertTriangle, UserCheck, KeyRound, Loader2, ChevronsLeft, MapPin, Bike, 
     TrendingUp, Percent, Calendar, Eye, EyeOff, Trash, Satellite, Map, 
